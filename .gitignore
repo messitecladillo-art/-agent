@@ -1,0 +1,26 @@
+# 秘密与环境
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# 大数据文件（保留目录结构，原始数据不进仓库）
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# 运行输出与日志
+*.log
+outputs/
+
+# LaTeX 中间产物
+*.aux
+*.synctex.gz
+*.out
+*.toc
+
+# 编辑器
+.vscode/
+.idea/
