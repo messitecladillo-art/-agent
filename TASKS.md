@@ -17,7 +17,7 @@
 | T-03 | 跑通独立评审脚本 | 高 | `python scripts/agents/review.py README.md` 生成评审报告到 `notes/reviews/` |
 | T-04 | 在 Codex 中绑定 GitHub 仓库 | 高 | 能从 Codex 对该仓库派发云端任务 |
 | T-05 | 用 Antigravity 打开本目录 | 中 | 工作区正常，能读取 AGENTS.md |
-| T-07 | 按 `notes/exemplary-paper-breakdown.md` §3 建立算法模板库 | 高 | 评价/优化/预测/分类/机理/仿真每类至少 1 个可运行模板，放入 `models/` |
+| T-07 | 按 `notes/算法模板盘点.md` 蓝图建立算法模板库 | 高 | 评价/优化/预测/分类/机理/仿真/数据分析每类至少 1 个可运行模板，放入 `models/templates/` |
 | T-08 | 确定论文模板与图表规范 | 中 | 国赛 LaTeX / 美赛 COMAP 模板进 `paper/`，图表规范进 `viz/` |
 
 ## 待审
@@ -28,6 +28,7 @@
 
 | ID | 任务 | 完成日期 |
 |---|---|---|
+| T-14 | 资料深挖与 skill 泛化回灌：五路并行挖掘 01/05/06/09+02 模块；新增 `skills/08-美赛专项.md` 与 `notes/算法模板盘点.md`；skills 01–06 与两条 workflow 全面回灌（2005–2020 逐年评阅证据、2010B 评分细则、写作格式硬规范、踩坑清单）；2016/2019/2020 评阅要点 doc/docx 经 QMind 解析入库并蒸馏 | 2026-08-31 |
 | T-11 | 核心资料导入 QMind 知识库（Notebook「数学建模」：12 份官方评阅标准 + 拆解/索引文档 + skills 共 24 源，检索验证通过；2024 评阅要点为文本摘要版） | 2026-08-31 |
 | T-01 | 创建 GitHub 私有仓库并绑定远端（`origin` → `messitecladillo-art/-agent`，main 已推送，凭据经 Git 凭据管理器建立） | 2026-08-31 |
 | T-00 | 初始化项目骨架与团队守则 | 2026-08-31 |
