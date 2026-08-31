@@ -7,7 +7,7 @@
 
 | ID | 任务 | 负责人 | 分支 | 备注 |
 |---|---|---|---|---|
-| T-01 | 创建 GitHub 私有仓库并绑定远端 | 人 | — | 完成后运行 `git remote add origin <url> && git push -u origin main` |
+| （暂无） | | | | |
 
 ## 待认领
 
@@ -29,6 +29,7 @@
 
 | ID | 任务 | 完成日期 |
 |---|---|---|
+| T-01 | 创建 GitHub 私有仓库并绑定远端（`origin` → `messitecladillo-art/-agent`，main 已推送，凭据经 Git 凭据管理器建立） | 2026-08-31 |
 | T-00 | 初始化项目骨架与团队守则 | 2026-08-31 |
 | T-06 | 拆解近十年模范论文并总结（产物：`notes/exemplary-paper-breakdown.md`） | 2026-08-31 |
 | T-09 | 盘点桌面资料包并建索引（产物：`notes/materials-index.md`） | 2026-08-31 |
