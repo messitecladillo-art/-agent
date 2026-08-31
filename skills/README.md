@@ -1,7 +1,7 @@
 # Skill 库与 Workflow 索引
 
 > 本目录是团队的"方法论层"：把官方评阅标准、近十年模范论文规律蒸馏成可执行的技能与流程。
-> 事实基础：`资料包/01/官方评阅标准/`（2004–2024）+ `notes/exemplary-paper-breakdown.md`。
+> 事实基础：`资料包/01/官方评阅标准/`（2004–2024，含 2005–2018 逐年要点与 2010B 评分细则）+ `资料包/06` 写作指南 43 件 + `资料包/09` 美赛方法论 + `notes/exemplary-paper-breakdown.md`。
 > 维护：Qoder 主责；skill 更新走正常任务流程（TASKS.md 登记、提交说明来源）。
 
 ## 阶段 × Skill × 主责 速查表
@@ -15,6 +15,9 @@
 | 4 写作 | `05-论文写作.md` | Qoder（Antigravity 图） | `paper/` |
 | 5 终检 | `06-论文评审与终检.md` | review.py + Qoder | `notes/reviews/` |
 | 辅助 | `07-范文精析.md` | Qoder / Claude API 批量 | `notes/paper-notes/` |
+| 专项 | `08-美赛专项.md` | Qoder | 打美赛时叠加在 01–06 之上 |
+
+配套清单：`notes/算法模板盘点.md`（T-07 施工蓝图，七类模板候选 + 移植要点 + 缺口）。
 
 ## 两条 Workflow
 
