@@ -392,3 +392,34 @@ Content-Type: application/json
 ### 9.6 当前边界
 
 能力目录目前是从 metadata/受限短片段和内置能力卡投影出的离线开发版；它不等于 18,986 份资料已完成全文理解、页级 OCR、向量检索或人工审核。系统可以对未知题型保留通用接口并允许人工装配，但不能保证“所有赛题自动正确建模”。正式论文数字、规则结论和获奖判断仍需当届官方来源、独立数学审查、数据验证和清洁环境复现。
+
+## 10. Workspace / repo catalog（T07）
+
+仓库协作资料与外部数学建模资料盘属于不同来源域。workspace catalog 只读挂载
+已经进入版本控制的 `README.md`、`TASKS.md`、`AGENTS.md`、`app.js`、
+`index.html`、`styles.css`、`docker-compose.yml` 以及 `backend/`、`assets/`、
+`docs/`、`skills/`、`notes/`、`workflows/`、`models/`、`paper/`、`viz/`、
+`scripts/`、`experiments/`，不扫描用户资料根、不读取 secrets、不执行仓库文件。
+
+```http
+GET /api/projects/{project_id}/workspace/catalog
+GET /api/projects/{project_id}/workspace/search?q=&top_k=20&path=docs
+```
+
+两接口均返回 `manifest_sha`（兼容别名 `manifest_sha256`）、`items`、`counts` 和
+`repo:<relative-path>` `source_refs`；search 还返回有界 `snippet`、
+`match_source` 与 `retrieval_boundary`。文本正文检索上限 1 MiB，hash 上限和
+`top_k` 也有限制。绝对路径、盘符路径、`..` 穿越、隐藏项和符号链接被排除或
+返回 `400`；未知 project 返回 `404`。
+
+### 10.1 source_integrity 与 repo 引用
+
+`source_integrity=observed` 只表示路径在允许仓库根内、读取未执行文件、内容 hash/
+大小状态与 manifest 可对照；它不表示文档观点正确、授权完备、题面适配或论文结论
+成立。`repo:` 引用是可写入 `evidence_refs` 的候选上下文句柄，但不能单独当作足够的
+证据、`VERIFIED` 或论文 claim。Agent 必须读取 manifest、检索候选、绑定当前题面/数据 revision，回到
+文件核对后，再经过独立验证、artifact provenance 和 Owner 审批；manifest 变化时旧
+context 标为 `STALE` 并重新检索。
+
+该接口当前是离线开发版的 bounded lexical search，不承诺全文语义理解、向量召回、
+页级 OCR、持久化 FTS 或生产级 RBAC/签名 relay。

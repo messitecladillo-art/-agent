@@ -523,6 +523,7 @@ button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3p
   }
 }
 
+
 /* v13 · tactile premium pass -------------------------------------------------
    Material hierarchy is deliberately sparse: one continuous paper field, one
    glass edge, and a few raised interaction surfaces.  The goal is to make the
@@ -5515,6 +5516,46 @@ html:root body[data-design="oracle-glass"] .right-sidebar .content-pack-row {
     opacity: .42 !important;
   }
 }
+
+/* Laptop landscape has less horizontal room than the reference desktop. Keep
+   the room name in the browser title and let the actual work surface breathe;
+   a large decorative masthead should never collide with search or status. */
+@media (min-width: 851px) and (max-width: 1320px) {
+  html:root body[data-design="oracle-glass"] .template-title-block { display: none !important; }
+  html:root body[data-design="oracle-glass"] .contest-context { justify-content: flex-start !important; align-items: center !important; }
+  html:root body[data-design="oracle-glass"] .global-search { flex: 0 1 220px !important; width: 220px !important; }
+}
+
+/* 1280×720 is a common laptop canvas: use a compact hero variant so the
+   current Q remains a composed card and the conversation keeps useful height. */
+@media (min-width: 1181px) and (max-width: 1320px) {
+  html:root body[data-design="oracle-glass"] .modeling-overview {
+    height: 126px !important;
+    min-height: 126px !important;
+    padding-top: 9px !important;
+    padding-bottom: 8px !important;
+  }
+  html:root body[data-design="oracle-glass"] .modeling-hero {
+    height: 72px !important;
+    min-height: 72px !important;
+    padding: 9px 13px !important;
+    gap: 12px !important;
+  }
+  html:root body[data-design="oracle-glass"] .hero-copy { max-width: 58% !important; }
+  html:root body[data-design="oracle-glass"] .hero-copy h2 {
+    font-size: 21px !important;
+    letter-spacing: .018em !important;
+    white-space: nowrap !important;
+  }
+  html:root body[data-design="oracle-glass"] .hero-subtitle { margin-top: 3px !important; max-width: 29em !important; font-size: 10px !important; line-height: 1.3 !important; }
+  html:root body[data-design="oracle-glass"] .hero-side { min-width: 0 !important; max-width: 38% !important; flex: 0 1 38% !important; overflow: hidden !important; }
+  html:root body[data-design="oracle-glass"] .hero-side .hero-empty-note { max-width: 100% !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+  html:root body[data-design="oracle-glass"] .hero-side .hero-contract-line { display: none !important; }
+  html:root body[data-design="oracle-glass"] .hero-side .overview-actions { gap: 5px !important; max-width: 100% !important; overflow: hidden !important; }
+  html:root body[data-design="oracle-glass"] .hero-side .overview-actions .text-button { font-size: 8px !important; }
+  html:root body[data-design="oracle-glass"] .modeling-hero::after { width: 104px !important; height: 70px !important; background-size: 70px auto !important; opacity: .28 !important; }
+}
+
 @media (min-width: 851px) and (max-width: 1180px) {
   html:root body[data-design="oracle-glass"] .modeling-hero::after {
     width: 124px !important;
@@ -5560,4 +5601,1067 @@ html:root body[data-design="oracle-glass"] .right-sidebar .content-pack-row {
   html:root body[data-design="oracle-glass"].panel-drawer-open .right-sidebar * {
     filter: none !important;
   }
+}
+/* v14-tail · breathing room / editorial hierarchy (authoritative EOF layer)
+   This is the final, intentionally small surface layer for the QingJia room.
+   Older passes optimized for dense fixture screenshots; v14 restores a quiet
+   desktop stage, raises text to a useful reading size, and makes only the
+   contextually primary workbench card float.  Mobile drawer rules remain
+   isolated below so the crisp, opaque sheet keeps its existing behavior. */
+html:root body[data-design="oracle-glass"] {
+  --v14-paper: #f6f3ea;
+  --v14-paper-deep: #e9eee5;
+  --v14-ink: #284638;
+  --v14-ink-soft: #536e5e;
+  --v14-muted: #7f9185;
+  --v14-jade: #4b8d69;
+  --v14-jade-soft: rgba(104, 161, 123, .16);
+  --v14-bronze: #ad8150;
+  --v14-line: rgba(115, 154, 123, .40);
+  color: var(--v14-ink) !important;
+  background:
+    radial-gradient(ellipse at 52% -12%, rgba(255,255,253,.98), transparent 43%),
+    radial-gradient(ellipse at 6% 110%, rgba(190,216,197,.34), transparent 34%),
+    linear-gradient(135deg, #e2e9e0 0%, #ecebe2 48%, #dfe9e0 100%) !important;
+}
+
+/* Engineering context stays legible but subordinate to the room title. */
+html:root body[data-design="oracle-glass"] .context-meta {
+  gap: 8px !important;
+  color: var(--v14-muted) !important;
+  font-size: 11px !important;
+}
+html:root body[data-design="oracle-glass"] .context-pill {
+  padding: 3px 8px !important;
+  color: #88653a !important;
+  background: rgba(239, 222, 187, .58) !important;
+  border: 1px solid rgba(191, 155, 98, .24) !important;
+  font-size: 10px !important;
+}
+html:root body[data-design="oracle-glass"] .context-revision {
+  max-width: 430px !important;
+  padding: 3px 7px !important;
+  border-left: 1px solid rgba(117, 154, 124, .44) !important;
+  color: #74887b !important;
+  font-size: 9px !important;
+}
+
+/* One calm paper field; the generated texture only outlines the room. */
+html:root body[data-design="oracle-glass"] .chat-panel {
+  background:
+    radial-gradient(circle at 89% 3%, rgba(180,214,188,.15), transparent 24%),
+    radial-gradient(circle at 8% 96%, rgba(226,197,148,.09), transparent 22%),
+    linear-gradient(180deg, #faf9f2, #f5f5ed 74%, #f1f2ea) !important;
+}
+html:root body[data-design="oracle-glass"] .chat-panel::before {
+  opacity: .23 !important;
+  -webkit-mask-image: radial-gradient(ellipse at center, transparent 16%, rgba(0,0,0,.56) 72%, #000 100%) !important;
+  mask-image: radial-gradient(ellipse at center, transparent 16%, rgba(0,0,0,.56) 72%, #000 100%) !important;
+}
+
+/* At desktop widths the hero has enough air to read as a stage rather than a
+   compressed banner.  Q cards remain the only compact rail underneath it. */
+@media (min-width: 1181px) {
+  html:root body[data-design="oracle-glass"] .modeling-overview {
+    height: 138px !important;
+    min-height: 138px !important;
+    padding: 11px clamp(18px, 2.3vw, 30px) 10px !important;
+    background: linear-gradient(180deg, rgba(247,246,238,.84), rgba(239,242,233,.62)) !important;
+  }
+  html:root body[data-design="oracle-glass"] .modeling-hero {
+    height: 82px !important;
+    min-height: 82px !important;
+    padding: 12px 16px !important;
+    gap: 16px !important;
+    align-items: center !important;
+    border: 1px solid rgba(119, 164, 130, .48) !important;
+    border-radius: 18px !important;
+    background:
+      linear-gradient(105deg, rgba(255,255,250,.94), rgba(230,242,231,.70)),
+      radial-gradient(circle at 94% 18%, rgba(225,192,126,.18), transparent 34%) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.94), 0 13px 28px rgba(46, 86, 57, .09) !important;
+  }
+  html:root body[data-design="oracle-glass"] .hero-copy {
+    flex: 1 1 60% !important;
+    max-width: 62% !important;
+    min-width: 0 !important;
+  }
+  html:root body[data-design="oracle-glass"] .hero-kicker {
+    margin-bottom: 6px !important;
+    color: #728b7a !important;
+    font-size: 9px !important;
+    letter-spacing: .18em !important;
+  }
+  html:root body[data-design="oracle-glass"] .hero-copy h2 {
+    color: #24553e !important;
+    font-size: 27px !important;
+    line-height: 1.16 !important;
+    letter-spacing: .035em !important;
+  }
+  html:root body[data-design="oracle-glass"] .hero-subtitle {
+    display: block !important;
+    max-width: 37em !important;
+    margin: 7px 0 0 !important;
+    color: #597363 !important;
+    font-size: 13px !important;
+    line-height: 1.45 !important;
+  }
+  html:root body[data-design="oracle-glass"] .hero-side {
+    flex: 0 1 37% !important;
+    min-width: 220px !important;
+    gap: 6px !important;
+    align-items: flex-end !important;
+  }
+  html:root body[data-design="oracle-glass"] .hero-status { font-size: 11px !important; }
+  html:root body[data-design="oracle-glass"] .hero-status > span:last-child { font-size: 10px !important; }
+  html:root body[data-design="oracle-glass"] .hero-empty-note { font-size: 10px !important; }
+  html:root body[data-design="oracle-glass"] .hero-contract-line { font-size: 9px !important; }
+  html:root body[data-design="oracle-glass"] .overview-actions {
+    gap: 11px !important;
+    margin-top: 5px !important;
+  }
+  html:root body[data-design="oracle-glass"] .modeling-hero .text-button { font-size: 10px !important; }
+  html:root body[data-design="oracle-glass"] .subproblem-strip {
+    height: 31px !important;
+    margin-top: 5px !important;
+    gap: 6px !important;
+  }
+  html:root body[data-design="oracle-glass"] .subproblem-card {
+    height: 31px !important;
+    padding: 3px 10px !important;
+    border-radius: 10px !important;
+  }
+  html:root body[data-design="oracle-glass"] .subproblem-card strong { font-size: 10px !important; }
+  html:root body[data-design="oracle-glass"] .subproblem-card span:last-child { font-size: 9px !important; }
+  html:root body[data-design="oracle-glass"] .message-bubble {
+    font-size: 14px !important;
+    line-height: 1.68 !important;
+  }
+  html:root body[data-design="oracle-glass"] .message-name { font-size: 13px !important; }
+  html:root body[data-design="oracle-glass"] .message-role,
+  html:root body[data-design="oracle-glass"] .message-time { font-size: 10px !important; }
+}
+
+@media (min-width: 851px) and (max-width: 1180px) {
+  html:root body[data-design="oracle-glass"] .modeling-overview {
+    height: 118px !important;
+    min-height: 118px !important;
+    padding: 9px 16px 8px !important;
+  }
+  html:root body[data-design="oracle-glass"] .modeling-hero {
+    height: 76px !important;
+    min-height: 76px !important;
+    padding: 10px 13px !important;
+    gap: 10px !important;
+    border-radius: 16px !important;
+  }
+  html:root body[data-design="oracle-glass"] .hero-copy { max-width: 58% !important; }
+  html:root body[data-design="oracle-glass"] .hero-copy h2 { font-size: 23px !important; }
+  html:root body[data-design="oracle-glass"] .hero-subtitle {
+    display: block !important;
+    margin-top: 6px !important;
+    color: #5d7666 !important;
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+  }
+  html:root body[data-design="oracle-glass"] .hero-kicker { font-size: 8px !important; }
+  html:root body[data-design="oracle-glass"] .hero-side { min-width: 190px !important; gap: 4px !important; }
+  html:root body[data-design="oracle-glass"] .hero-empty-note { font-size: 9px !important; }
+  html:root body[data-design="oracle-glass"] .hero-contract-line { font-size: 8px !important; }
+  html:root body[data-design="oracle-glass"] .modeling-hero .text-button { font-size: 9px !important; }
+  html:root body[data-design="oracle-glass"] .subproblem-strip { height: 28px !important; margin-top: 4px !important; }
+  html:root body[data-design="oracle-glass"] .subproblem-card { height: 28px !important; }
+  html:root body[data-design="oracle-glass"] .message-bubble { font-size: 13px !important; line-height: 1.66 !important; }
+  html:root body[data-design="oracle-glass"] .right-tabs { gap: 7px !important; }
+}
+
+/* Workbench hierarchy: the active run/focus surface carries depth; rows read
+   like a quiet ledger.  Contextual panels can still have one primary card. */
+html:root body[data-design="oracle-glass"] .right-sidebar .task-item,
+html:root body[data-design="oracle-glass"] .right-sidebar .decision-row,
+html:root body[data-design="oracle-glass"] .right-sidebar .evidence-row {
+  border: 0 !important;
+  border-bottom: 1px solid rgba(126, 161, 132, .24) !important;
+  border-radius: 7px !important;
+  background: rgba(249,250,244,.34) !important;
+  box-shadow: none !important;
+}
+html:root body[data-design="oracle-glass"] .right-sidebar .decision-card {
+  border: 0 !important;
+  border-left: 2px solid rgba(181, 125, 108, .56) !important;
+  border-radius: 3px 9px 9px 3px !important;
+  background: rgba(255,249,248,.52) !important;
+  box-shadow: none !important;
+}
+html:root body[data-design="oracle-glass"] .right-sidebar .task-item:hover,
+html:root body[data-design="oracle-glass"] .right-sidebar .decision-row:hover,
+html:root body[data-design="oracle-glass"] .right-sidebar .evidence-row:hover {
+  background: rgba(224,240,225,.72) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.86) !important;
+  transform: translateX(2px) !important;
+}
+html:root body[data-design="oracle-glass"] #modelingPanel > .focus-card,
+html:root body[data-design="oracle-glass"] #tasksPanel > .run-card,
+html:root body[data-design="oracle-glass"] #knowledgePanel > .knowledge-status-card {
+  border-color: rgba(116, 162, 126, .54) !important;
+  background: linear-gradient(145deg, rgba(255,255,251,.98), rgba(236,244,234,.91)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.97), 0 15px 30px rgba(48,89,57,.12) !important;
+}
+html:root body[data-design="oracle-glass"] #knowledgePanel > .kb-search-card,
+html:root body[data-design="oracle-glass"] #evidencePanel .evidence-row,
+html:root body[data-design="oracle-glass"] #assemblyPanel .assembly-lane,
+html:root body[data-design="oracle-glass"] #assemblyPanel .content-pack-row {
+  border-color: rgba(137, 171, 142, .30) !important;
+  background: rgba(249,250,244,.48) !important;
+  box-shadow: none !important;
+}
+html:root body[data-design="oracle-glass"] .right-sidebar .run-card { border-top: 3px solid var(--v14-jade) !important; }
+
+/* Engineering strips and modals use the same paper/ink vocabulary instead of
+   the older blue dashboard treatment. */
+html:root body[data-design="oracle-glass"] .revision-stack,
+html:root body[data-design="oracle-glass"] .capability-source-strip,
+html:root body[data-design="oracle-glass"] .assembly-disclaimer {
+  border-color: rgba(126, 161, 132, .28) !important;
+  background: rgba(237,244,234,.58) !important;
+  color: var(--v14-muted) !important;
+}
+html:root body[data-design="oracle-glass"] .revision-stack b { color: #557263 !important; }
+html:root body[data-design="oracle-glass"] .modal-backdrop {
+  background: rgba(37, 60, 46, .22) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(110%) !important;
+  backdrop-filter: blur(10px) saturate(110%) !important;
+}
+html:root body[data-design="oracle-glass"] .modal {
+  border: 1px solid rgba(121, 164, 132, .58) !important;
+  border-radius: 22px !important;
+  background:
+    linear-gradient(145deg, rgba(255,255,251,.98), rgba(239,244,235,.95)),
+    url("assets/oracle-chat-bg-v1.png") center / cover no-repeat !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.96), 0 32px 84px rgba(31,61,40,.24) !important;
+}
+html:root body[data-design="oracle-glass"] .modal h2 { color: #24553e !important; font-size: 21px !important; }
+html:root body[data-design="oracle-glass"] .modal h3 { color: #2e654b !important; font-size: 13px !important; letter-spacing: .03em !important; }
+html:root body[data-design="oracle-glass"] .modal p,
+html:root body[data-design="oracle-glass"] .modal li { color: #526c5c !important; font-size: 12px !important; line-height: 1.7 !important; }
+html:root body[data-design="oracle-glass"] .modal pre {
+  border: 1px solid rgba(102, 147, 112, .28) !important;
+  background: #294638 !important;
+  color: #e7f2e6 !important;
+}
+html:root body[data-design="oracle-glass"] .modal .stat-box,
+html:root body[data-design="oracle-glass"] .trace-modal-row,
+html:root body[data-design="oracle-glass"] .exemplar-grid > div {
+  border-color: rgba(126, 161, 132, .32) !important;
+  background: rgba(247,249,241,.58) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.74) !important;
+}
+
+@media (max-width: 850px) {
+  /* Keep the phone a conversation surface; the subtitle and full hero-side
+     metadata stay available in desktop or through the detail/modal views. */
+  html:root body[data-design="oracle-glass"] .hero-subtitle { display: none !important; }
+  html:root body[data-design="oracle-glass"] .message-bubble { font-size: 13px !important; line-height: 1.62 !important; }
+  html:root body[data-design="oracle-glass"] .right-tabs { gap: 8px !important; }
+  html:root body[data-design="oracle-glass"] .right-tab { font-size: 10px !important; line-height: 16px !important; }
+  html:root body[data-design="oracle-glass"] .right-sidebar {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background: linear-gradient(180deg, #f0f5ec 0%, #e5eee3 100%) !important;
+  }
+  html:root body[data-design="oracle-glass"] .right-sidebar .task-item,
+  html:root body[data-design="oracle-glass"] .right-sidebar .decision-row,
+  html:root body[data-design="oracle-glass"] .right-sidebar .evidence-row { background: rgba(249,250,244,.58) !important; }
+  html:root body[data-design="oracle-glass"] .modal { max-height: 86vh !important; padding: 21px !important; }
+}
+
+@media (max-width: 500px) {
+  html:root body[data-design="oracle-glass"] .message-bubble { font-size: 13px !important; }
+}
+
+/* v14.1-tail · workspace mount and tactile details.  The mount is a single
+   quiet row in the knowledge panel; the source list stays behind a modal so
+   repository context does not compete with the conversation. */
+html:root body[data-design="oracle-glass"] .workspace-mount-strip {
+  display: flex !important;
+  align-items: center !important;
+  gap: 9px !important;
+  min-height: 48px !important;
+  margin-top: 9px !important;
+  padding: 7px 9px !important;
+  border: 1px solid rgba(117, 162, 128, .42) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(120deg, rgba(231,243,231,.78), rgba(251,249,239,.72)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.88), 0 5px 13px rgba(49, 88, 57, .055) !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-mount-strip[data-status="pending"] {
+  border-color: rgba(181, 145, 91, .30) !important;
+  background: linear-gradient(120deg, rgba(249,241,222,.72), rgba(251,249,239,.72)) !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-mount-strip[data-status="blocked"] {
+  border-color: rgba(177, 122, 108, .30) !important;
+  background: rgba(251,241,237,.70) !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-mount-mark {
+  display: grid !important;
+  place-items: center !important;
+  width: 29px !important;
+  height: 29px !important;
+  flex: 0 0 29px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(108, 157, 119, .34) !important;
+  border-radius: 10px !important;
+  background: rgba(255,255,251,.70) !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-mount-mark img {
+  width: 25px !important;
+  height: 25px !important;
+  object-fit: contain !important;
+  filter: saturate(.82) !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-mount-copy {
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-mount-copy strong {
+  display: block !important;
+  color: var(--v14-ink) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: .02em !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-mount-copy small {
+  display: block !important;
+  margin-top: 2px !important;
+  overflow: hidden !important;
+  color: var(--v14-muted) !important;
+  font-size: 8px !important;
+  line-height: 1.35 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-mount-count {
+  min-width: 25px !important;
+  padding: 3px 5px !important;
+  border-radius: 999px !important;
+  color: var(--v14-jade) !important;
+  background: rgba(218,237,220,.82) !important;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-mount-action {
+  flex: 0 0 auto !important;
+  padding: 5px 8px !important;
+  border: 1px solid rgba(99, 150, 111, .40) !important;
+  border-radius: 9px !important;
+  color: #356b4c !important;
+  background: rgba(255,255,251,.70) !important;
+  font-size: 9px !important;
+  font-weight: 700 !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-mount-action:hover {
+  background: rgba(220,240,222,.95) !important;
+  border-color: rgba(74, 137, 91, .65) !important;
+}
+
+/* Let the mascot carry the identity cue without adding another card or label. */
+html:root body[data-design="oracle-glass"] .modeling-hero::after {
+  content: "" !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  transform: none !important;
+  background: url("assets/ip/xiao-qinglong-mascot-v1.png") center 42% / contain no-repeat !important;
+  filter: saturate(.82) contrast(.98) !important;
+}
+
+html:root body[data-design="oracle-glass"] .workspace-browser {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-browser-intro,
+html:root body[data-design="oracle-glass"] .workspace-browser-note {
+  margin: 0 !important;
+  color: var(--v14-ink-soft) !important;
+  font-size: 11px !important;
+  line-height: 1.65 !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-browser-note {
+  padding-top: 9px !important;
+  border-top: 1px solid rgba(126, 161, 132, .28) !important;
+  color: var(--v14-muted) !important;
+  font-size: 9px !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-search-form {
+  display: flex !important;
+  gap: 7px !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-search-form input {
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+  padding: 9px 10px !important;
+  border: 1px solid rgba(126, 161, 132, .40) !important;
+  border-radius: 10px !important;
+  outline: 0 !important;
+  color: var(--v14-ink) !important;
+  background: rgba(255,255,251,.82) !important;
+  font-size: 11px !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-search-form input:focus {
+  border-color: rgba(75, 141, 105, .76) !important;
+  box-shadow: 0 0 0 3px rgba(86, 151, 108, .13) !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-search-form button {
+  flex: 0 0 auto !important;
+  padding: 0 12px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  color: #fffdf7 !important;
+  background: var(--v14-jade) !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-browser-meta {
+  color: var(--v14-muted) !important;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace !important;
+  font-size: 9px !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-results {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 7px !important;
+  max-height: min(48vh, 430px) !important;
+  overflow-y: auto !important;
+  padding: 2px 2px 2px 0 !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-result {
+  padding: 10px 11px !important;
+  border: 1px solid rgba(126, 161, 132, .30) !important;
+  border-left: 2px solid rgba(91, 145, 103, .62) !important;
+  border-radius: 11px !important;
+  background: rgba(249,250,244,.70) !important;
+  transition: background .18s ease, border-color .18s ease, transform .18s ease !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-result:hover {
+  transform: translateX(2px) !important;
+  border-color: rgba(91, 145, 103, .58) !important;
+  background: rgba(228,242,229,.82) !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-result-head {
+  display: flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-result-kind,
+html:root body[data-design="oracle-glass"] .workspace-result-match {
+  padding: 2px 5px !important;
+  border-radius: 5px !important;
+  color: #557763 !important;
+  background: rgba(224,238,224,.76) !important;
+  font-size: 8px !important;
+  font-weight: 750 !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-result-match { color: #927047 !important; background: rgba(247,237,216,.76) !important; }
+html:root body[data-design="oracle-glass"] .workspace-result-head button {
+  margin-left: auto !important;
+  padding: 2px 6px !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  color: #3f7958 !important;
+  background: transparent !important;
+  font-size: 8px !important;
+  font-weight: 750 !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-result-head button:hover { background: rgba(207,232,211,.80) !important; }
+html:root body[data-design="oracle-glass"] .workspace-result > strong {
+  display: block !important;
+  margin-top: 7px !important;
+  overflow: hidden !important;
+  color: var(--v14-ink) !important;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace !important;
+  font-size: 10px !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-result > p {
+  display: -webkit-box !important;
+  margin: 5px 0 0 !important;
+  overflow: hidden !important;
+  color: var(--v14-ink-soft) !important;
+  font-size: 10px !important;
+  line-height: 1.5 !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-result > small {
+  display: block !important;
+  margin-top: 6px !important;
+  overflow: hidden !important;
+  color: var(--v14-muted) !important;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace !important;
+  font-size: 8px !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-empty,
+html:root body[data-design="oracle-glass"] .workspace-loading {
+  padding: 24px 10px !important;
+  color: var(--v14-muted) !important;
+  text-align: center !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-empty span { display: block !important; color: var(--v14-jade) !important; font-size: 22px !important; }
+html:root body[data-design="oracle-glass"] .workspace-empty strong { display: block !important; margin-top: 5px !important; color: var(--v14-ink-soft) !important; font-size: 11px !important; }
+html:root body[data-design="oracle-glass"] .workspace-empty p { margin: 5px 0 0 !important; font-size: 9px !important; }
+html:root body[data-design="oracle-glass"] .workspace-loading { display: flex !important; align-items: center !important; justify-content: center !important; gap: 4px !important; font-size: 10px !important; }
+html:root body[data-design="oracle-glass"] .workspace-loading i { width: 5px !important; height: 5px !important; border-radius: 50% !important; background: var(--v14-jade) !important; animation: pulse 1.1s infinite ease-in-out !important; }
+html:root body[data-design="oracle-glass"] .workspace-loading i:nth-child(2) { animation-delay: .15s !important; }
+html:root body[data-design="oracle-glass"] .workspace-loading i:nth-child(3) { animation-delay: .3s !important; }
+
+@media (max-width: 850px) {
+  html:root body[data-design="oracle-glass"] .workspace-mount-strip { margin-top: 8px !important; }
+  html:root body[data-design="oracle-glass"] .workspace-results { max-height: 46vh !important; }
+  html:root body[data-design="oracle-glass"] .workspace-result { padding: 9px !important; }
+  html:root body[data-design="oracle-glass"] .workspace-result > p { font-size: 10px !important; }
+}
+
+/* v14.2-tail · tactile hierarchy pass
+   A small final layer for the parts that should feel handled: readable tabs,
+   a quiet mount signal, a clean mobile edge, and one deliberate reading inset.
+   It adds no new dashboard cards; depth comes from material contrast and
+   restrained state cues. */
+html:root body[data-design="oracle-glass"] .right-tabs {
+  gap: 8px !important;
+  padding-inline: 14px !important;
+  overflow-x: auto !important;
+  scrollbar-width: none !important;
+}
+html:root body[data-design="oracle-glass"] .right-tabs::-webkit-scrollbar { display: none !important; }
+html:root body[data-design="oracle-glass"] .right-tab {
+  flex: 0 0 auto !important;
+  min-width: 34px !important;
+  padding: 0 3px 10px !important;
+  overflow: visible !important;
+  color: #667a6d !important;
+  font-size: 11px !important;
+  font-weight: 650 !important;
+  line-height: 16px !important;
+  letter-spacing: .01em !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+}
+html:root body[data-design="oracle-glass"] .right-tab.active { color: #24583e !important; }
+html:root body[data-design="oracle-glass"] .right-tabs-label {
+  display: none !important;
+}
+
+html:root body[data-design="oracle-glass"] .workspace-inline-status {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  max-width: 116px !important;
+  margin-left: 7px !important;
+  padding: 2px 6px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(114, 163, 124, .34) !important;
+  border-radius: 999px !important;
+  color: #4c765b !important;
+  background: rgba(226, 240, 225, .66) !important;
+  font-family: var(--dragon-body-font) !important;
+  font-size: 8px !important;
+  font-weight: 650 !important;
+  letter-spacing: .02em !important;
+  line-height: 1.2 !important;
+  text-overflow: ellipsis !important;
+  vertical-align: 2px !important;
+  white-space: nowrap !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-inline-status::before {
+  content: "" !important;
+  width: 5px !important;
+  height: 5px !important;
+  flex: 0 0 5px !important;
+  border-radius: 50% !important;
+  background: #5b9a70 !important;
+  box-shadow: 0 0 0 3px rgba(91, 154, 112, .12) !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-inline-status[data-status="stale"],
+html:root body[data-design="oracle-glass"] .workspace-inline-status[data-status="pending"] {
+  color: #8b6a3b !important;
+  border-color: rgba(181, 145, 91, .34) !important;
+  background: rgba(248, 237, 211, .72) !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-inline-status[data-status="stale"]::before,
+html:root body[data-design="oracle-glass"] .workspace-inline-status[data-status="pending"]::before { background: #c0914e !important; }
+html:root body[data-design="oracle-glass"] .workspace-inline-status[data-status="blocked"] {
+  color: #9b665c !important;
+  border-color: rgba(178, 123, 109, .32) !important;
+  background: rgba(249, 235, 231, .72) !important;
+}
+html:root body[data-design="oracle-glass"] .workspace-inline-status[data-status="blocked"]::before { background: #b9786d !important; }
+
+/* Keep the title as one composed line on tablet widths. The right-side state
+   remains visible, so the copy gets a little more room instead of forcing a
+   lonely second line. */
+@media (min-width: 851px) and (max-width: 1180px) {
+  html:root body[data-design="oracle-glass"] .workspace-inline-status { display: none !important; }
+  html:root body[data-design="oracle-glass"] .hero-copy { max-width: 62% !important; min-width: 0 !important; }
+  html:root body[data-design="oracle-glass"] .hero-copy h2 {
+    max-width: 100% !important;
+    font-size: clamp(17px, 1.95vw, 20px) !important;
+    letter-spacing: .012em !important;
+    white-space: nowrap !important;
+  }
+  html:root body[data-design="oracle-glass"] .hero-subtitle { max-width: 28em !important; margin-top: 3px !important; font-size: 10px !important; line-height: 1.32 !important; }
+  html:root body[data-design="oracle-glass"] .hero-side { min-width: 0 !important; max-width: 34% !important; flex: 0 1 34% !important; overflow: hidden !important; }
+  html:root body[data-design="oracle-glass"] .hero-side .hero-empty-note { max-width: 100% !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+  html:root body[data-design="oracle-glass"] .hero-side .hero-contract-line { display: none !important; }
+  html:root body[data-design="oracle-glass"] .hero-side .overview-actions { max-width: 100% !important; gap: 5px !important; overflow: hidden !important; }
+  html:root body[data-design="oracle-glass"] .hero-side .overview-actions .text-button { font-size: 8px !important; }
+  html:root body[data-design="oracle-glass"] .right-tab { font-size: 10.5px !important; }
+}
+
+html:root body[data-design="oracle-glass"] .chat-feed {
+  scroll-padding-top: 12px !important;
+}
+html:root body[data-design="oracle-glass"] .message-bubble {
+  border-left-width: 2px !important;
+  border-left-color: rgba(105, 158, 119, .46) !important;
+  background: linear-gradient(145deg, rgba(255,255,253,.995), rgba(244,247,239,.94)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.98), 0 11px 26px rgba(42,78,50,.11) !important;
+}
+html:root body[data-design="oracle-glass"] .owner-message .message-bubble {
+  border-left-color: rgba(79, 143, 96, .64) !important;
+  background: linear-gradient(145deg, rgba(235,247,236,.995), rgba(215,237,220,.94)) !important;
+}
+html:root body[data-design="oracle-glass"] .modal p,
+html:root body[data-design="oracle-glass"] .modal li { font-size: 12.5px !important; line-height: 1.72 !important; }
+html:root body[data-design="oracle-glass"] .workspace-browser-intro { font-size: 12px !important; }
+
+@media (max-width: 850px) {
+  html:root body[data-design="oracle-glass"] .right-tabs { gap: 8px !important; padding-inline: 12px !important; }
+  html:root body[data-design="oracle-glass"] .right-tab { min-width: 32px !important; padding-bottom: 9px !important; font-size: 10px !important; line-height: 15px !important; }
+  html:root body[data-design="oracle-glass"] .workspace-inline-status { display: none !important; }
+  html:root body[data-design="oracle-glass"] .member-strip {
+    position: relative !important;
+    -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 30px), transparent 100%) !important;
+    mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 30px), transparent 100%) !important;
+    padding-right: 28px !important;
+  }
+  html:root body[data-design="oracle-glass"] .chat-feed { scroll-padding-top: 12px !important; }
+}
+
+@media (max-width: 500px) {
+  html:root body[data-design="oracle-glass"] .hero-kicker { max-width: 64% !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+}
+
+@media (min-width: 1181px) {
+  html:root body[data-design="oracle-glass"] .modeling-hero::after {
+    top: 1px !important;
+    right: 11px !important;
+    bottom: auto !important;
+    width: 122px !important;
+    height: 79px !important;
+    background-size: 78px auto !important;
+    background-position: center 42% !important;
+    opacity: .36 !important;
+  }
+}
+
+/* v14.2.2-final · authoritative laptop composition (last cascade layer) */
+@media (min-width: 1181px) and (max-width: 1320px) {
+  html:root body[data-design="oracle-glass"] .topbar { height: 76px !important; min-height: 76px !important; }
+  html:root body[data-design="oracle-glass"] .modeling-overview { height: 126px !important; min-height: 126px !important; padding-top: 9px !important; padding-bottom: 8px !important; }
+  html:root body[data-design="oracle-glass"] .modeling-hero { height: 72px !important; min-height: 72px !important; padding: 9px 13px !important; gap: 12px !important; }
+  html:root body[data-design="oracle-glass"] .hero-copy { max-width: 58% !important; }
+  html:root body[data-design="oracle-glass"] .hero-copy h2 { max-width: 100% !important; font-size: 21px !important; letter-spacing: .018em !important; white-space: nowrap !important; }
+  html:root body[data-design="oracle-glass"] .hero-subtitle { max-width: 29em !important; margin-top: 3px !important; font-size: 10px !important; line-height: 1.3 !important; }
+  html:root body[data-design="oracle-glass"] .hero-side { min-width: 0 !important; max-width: 38% !important; flex: 0 1 38% !important; overflow: hidden !important; }
+  html:root body[data-design="oracle-glass"] .hero-side .hero-empty-note { max-width: 100% !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+  html:root body[data-design="oracle-glass"] .hero-side .hero-contract-line { display: none !important; }
+  html:root body[data-design="oracle-glass"] .hero-side .overview-actions { max-width: 100% !important; gap: 5px !important; overflow: hidden !important; }
+  html:root body[data-design="oracle-glass"] .hero-side .overview-actions .text-button { font-size: 8px !important; }
+  html:root body[data-design="oracle-glass"] .modeling-hero::after { width: 104px !important; height: 70px !important; background-size: 70px auto !important; opacity: .28 !important; }
+}
+
+/* v14.2.2 · desktop conversation rhythm
+   The room should open on complete recent bubbles. A slightly tighter
+   reading measure on desktop keeps the latest messages visible without
+   turning the feed into a dense log; phones retain their larger type. */
+@media (min-width: 851px) {
+  html:root body[data-design="oracle-glass"] .message { gap: 8px !important; margin-bottom: 10px !important; }
+  html:root body[data-design="oracle-glass"] .message-meta { margin-bottom: 3px !important; }
+  html:root body[data-design="oracle-glass"] .message-bubble {
+    padding: 8px 11px !important;
+    font-size: 13px !important;
+    line-height: 1.55 !important;
+  }
+  html:root body[data-design="oracle-glass"] .message-provenance > summary {
+    min-height: 17px !important;
+    padding-top: 3px !important;
+    font-size: 8px !important;
+  }
+}
+
+/* v14.2.2 · topbar collision guard
+   The contest context is an absolute editorial caption. On a laptop it must
+   yield a bounded lane to the search control instead of crossing its hit area. */
+@media (min-width: 1181px) and (max-width: 1320px) {
+  html:root body[data-design="oracle-glass"] .contest-context {
+    left: 30% !important;
+    right: auto !important;
+    width: min(400px, calc(100% - 620px)) !important;
+    max-width: min(400px, calc(100% - 620px)) !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    transform: none !important;
+    align-items: flex-start !important;
+  }
+  html:root body[data-design="oracle-glass"] .contest-context .context-title,
+  html:root body[data-design="oracle-glass"] .contest-context .context-meta {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* v14.2.2 · laptop vertical cadence
+   Preserve the three-column room while reclaiming a measured strip of height
+   for the conversation at 720px-tall laptop canvases. Every reduction keeps
+   its label or control; this is spacing discipline, not information loss. */
+@media (min-width: 1181px) and (max-width: 1320px) {
+  html:root body[data-design="oracle-glass"] .chat-toolbar { height: 52px !important; min-height: 52px !important; }
+  html:root body[data-design="oracle-glass"] .member-strip { height: 50px !important; min-height: 50px !important; padding-top: 5px !important; padding-bottom: 5px !important; }
+  html:root body[data-design="oracle-glass"] .member-strip-item { height: 36px !important; min-height: 36px !important; }
+  html:root body[data-design="oracle-glass"] .stage-strip { height: 28px !important; padding-top: 5px !important; padding-bottom: 4px !important; }
+  html:root body[data-design="oracle-glass"] .modeling-overview { height: 118px !important; min-height: 118px !important; }
+  html:root body[data-design="oracle-glass"] .modeling-hero { height: 64px !important; min-height: 64px !important; }
+  html:root body[data-design="oracle-glass"] .composer-wrap { padding-top: 5px !important; padding-bottom: 8px !important; }
+  html:root body[data-design="oracle-glass"] .composer-tools { min-height: 20px !important; }
+  html:root body[data-design="oracle-glass"] .composer-tool { width: 21px !important; height: 21px !important; }
+  html:root body[data-design="oracle-glass"] .composer-row { margin-top: 3px !important; padding-top: 5px !important; padding-bottom: 5px !important; }
+  html:root body[data-design="oracle-glass"] .send-button { width: 30px !important; height: 30px !important; }
+}
+
+/* v14.2.2 · wide masthead breathing line
+   The room title already carries the product voice. On the wide canvas the
+   smaller template subtitle competed with the live contest caption, so keep
+   one quiet title line and reserve the lower baseline for runtime state. */
+@media (min-width: 1321px) {
+  html:root body[data-design="oracle-glass"] .template-title-block > span { display: none !important; }
+  html:root body[data-design="oracle-glass"] .template-title-block h2 { font-size: 29px !important; line-height: 31px !important; }
+  html:root body[data-design="oracle-glass"] .contest-context { bottom: 4px !important; }
+}
+
+/* v14.2.2 · Q rail baseline fit
+   The state badge used to add a two-pixel top offset to the rail header. Keep
+   the badge on the same baseline as the Q id so the title line stays inside
+   the existing 31/28px rail at every desktop width. */
+@media (min-width: 851px) {
+  html:root body[data-design="oracle-glass"] .subproblem-strip { height: 31px !important; }
+  html:root body[data-design="oracle-glass"] .subproblem-card {
+    height: 31px !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    padding: 3px 10px !important;
+  }
+  html:root body[data-design="oracle-glass"] .subproblem-card-head { line-height: 11px !important; }
+  html:root body[data-design="oracle-glass"] .subproblem-state { margin-top: 0 !important; padding: 0 4px !important; line-height: 11px !important; }
+  html:root body[data-design="oracle-glass"] .subproblem-card strong { margin-top: 2px !important; line-height: 1 !important; }
+}
+@media (min-width: 851px) and (max-width: 1180px) {
+  html:root body[data-design="oracle-glass"] .subproblem-strip,
+  html:root body[data-design="oracle-glass"] .subproblem-card { height: 28px !important; }
+  html:root body[data-design="oracle-glass"] .subproblem-card { padding: 2px 7px !important; }
+}
+
+/* v14.2.2 · wide context lane */
+@media (min-width: 1321px) {
+  html:root body[data-design="oracle-glass"] .contest-context {
+    transform: translateX(calc(-50% - 36px)) !important;
+  }
+  html:root body[data-design="oracle-glass"] .contest-context .context-title,
+  html:root body[data-design="oracle-glass"] .contest-context .context-meta {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* v14.2.3 · phone reading cadence
+   A phone chat should open on complete bubbles, not on a hard-cut tail of an
+   older message.  The hierarchy stays intact (avatar → message → evidence),
+   while the reading measure widens and secondary metadata becomes a quiet
+   one-line rail.  This is a compositional reduction, not a content removal. */
+@media (max-width: 850px) {
+  html:root body[data-design="oracle-glass"] .chat-feed {
+    padding-top: 8px !important;
+    padding-bottom: 36px !important;
+    scroll-padding-top: 28px !important;
+    scroll-padding-bottom: 42px !important;
+    -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 25px, #000 calc(100% - 10px), transparent 100%) !important;
+    mask-image: linear-gradient(180deg, transparent 0, #000 25px, #000 calc(100% - 10px), transparent 100%) !important;
+  }
+  html:root body[data-design="oracle-glass"] .message {
+    gap: 6px !important;
+    margin-bottom: 9px !important;
+  }
+  html:root body[data-design="oracle-glass"] .message .message-avatar {
+    flex-basis: 25px !important;
+    width: 25px !important;
+    height: 25px !important;
+    margin-top: 2px !important;
+    border-radius: 8px !important;
+  }
+  html:root body[data-design="oracle-glass"] .message-body {
+    width: calc(100% - 31px) !important;
+    max-width: calc(100% - 31px) !important;
+  }
+  html:root body[data-design="oracle-glass"] .message-meta {
+    min-height: 13px !important;
+    margin-bottom: 2px !important;
+    gap: 4px !important;
+  }
+  html:root body[data-design="oracle-glass"] .message-name { font-size: 9px !important; }
+  html:root body[data-design="oracle-glass"] .message-time { font-size: 7px !important; }
+  html:root body[data-design="oracle-glass"] .message-bubble {
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+    line-height: 1.46 !important;
+    border-radius: 5px 12px 12px 12px !important;
+  }
+  html:root body[data-design="oracle-glass"] .owner-message .message-bubble { border-radius: 12px 5px 12px 12px !important; }
+  html:root body[data-design="oracle-glass"] .message-provenance {
+    margin-top: 4px !important;
+  }
+  html:root body[data-design="oracle-glass"] .message-provenance > summary {
+    min-height: 16px !important;
+    padding-top: 2px !important;
+    font-size: 7px !important;
+    line-height: 9px !important;
+  }
+  html:root body[data-design="oracle-glass"] .message-provenance .provenance-summary em { max-width: 17em !important; }
+  html:root body[data-design="oracle-glass"] .message-tags,
+  html:root body[data-design="oracle-glass"] .message-actions { margin-top: 3px !important; gap: 3px !important; }
+  html:root body[data-design="oracle-glass"] .typing-line { min-height: 20px !important; }
+  html:root body[data-design="oracle-glass"] .composer-wrap { padding-top: 6px !important; padding-bottom: 9px !important; }
+  html:root body[data-design="oracle-glass"] .composer-tools { min-height: 22px !important; }
+  html:root body[data-design="oracle-glass"] .composer-tool { width: 22px !important; height: 22px !important; }
+  html:root body[data-design="oracle-glass"] .composer-row { margin-top: 3px !important; padding-top: 5px !important; padding-bottom: 5px !important; }
+  html:root body[data-design="oracle-glass"] .send-button { width: 30px !important; height: 30px !important; }
+}
+
+@media (max-width: 500px) {
+  html:root body[data-design="oracle-glass"] .chat-feed {
+    padding-inline: 11px !important;
+  }
+  html:root body[data-design="oracle-glass"] .message-body {
+    width: calc(100% - 31px) !important;
+    max-width: calc(100% - 31px) !important;
+  }
+}
+
+@media (min-width: 1181px) {
+  /* Give the desktop Q rail one extra pixel of breathing room so the card's
+     text baseline never meets the lower hairline on fractional DPRs. */
+  html:root body[data-design="oracle-glass"] .subproblem-strip,
+  html:root body[data-design="oracle-glass"] .subproblem-card { height: 32px !important; }
+}
+
+/* v14.2.6 · wide masthead lanes
+   Keep the visual title, live context and search hit area in disjoint lanes.
+   The title's rule is absolutely placed inside its own box, so the quiet
+   editorial accent remains without enlarging the box into the status line. */
+@media (min-width: 1321px) {
+  html:root body[data-design="oracle-glass"] .template-title-block {
+    left: calc(50% - 32px) !important;
+    width: min(29vw, 480px) !important;
+  }
+  html:root body[data-design="oracle-glass"] .template-title-block::after {
+    position: absolute !important;
+    right: auto !important;
+    bottom: 0 !important;
+    left: 50% !important;
+    display: block !important;
+    margin: 0 !important;
+    transform: translateX(-50%) !important;
+  }
+  html:root body[data-design="oracle-glass"] .contest-context { bottom: 0 !important; }
+}
+
+/* A non-handshake notice may still appear on a phone (for example, a failed
+   search). Reserve just its visual band so it never sits on top of the latest
+   bubble; the successful connection notice is intentionally quieted in JS. */
+@media (max-width: 850px) {
+  html:root body[data-design="oracle-glass"]:has(.toast.prepare) .chat-feed,
+  html:root body[data-design="oracle-glass"]:has(.toast.show) .chat-feed {
+    padding-bottom: 64px !important;
+    scroll-padding-bottom: 64px !important;
+  }
+  html:root body[data-design="oracle-glass"] .toast {
+    max-width: min(280px, calc(100vw - 24px)) !important;
+    padding: 8px 12px !important;
+    font-size: 10px !important;
+    line-height: 1.35 !important;
+  }
+}
+
+/* v14.2.8 · boundary reading fit
+   The 1321–1360px transition is the first wide composition where one extra
+   wrapped line can leave a bubble grazing the feed edge.  Keep the recent
+   three rows tactile and reclaim only quiet historical chrome. */
+@media (min-width: 1321px) and (max-width: 1360px) {
+  html:root body[data-design="oracle-glass"] .chat-feed { padding-bottom: 0 !important; }
+  html:root body[data-design="oracle-glass"] .message-bubble { padding-block: 7px !important; }
+  html:root body[data-design="oracle-glass"] .message:nth-of-type(-n+4) { margin-bottom: 8px !important; }
+  html:root body[data-design="oracle-glass"] .message:nth-of-type(-n+4) .message-bubble,
+  html:root body[data-design="oracle-glass"] .message:nth-last-of-type(-n+2) .message-bubble { padding-block: 6px !important; }
+  html:root body[data-design="oracle-glass"] .message:nth-last-of-type(2) { margin-bottom: 8px !important; }
+}
+
+/* Short laptop canvases have a different failure mode: the older P1 bubble
+   can leave a visible tail above the reading edge.  A little lower breathing
+   room makes that boundary intentional while the newest row remains whole. */
+@media (min-width: 851px) and (max-width: 1160px) {
+  html:root body[data-design="oracle-glass"] .chat-feed { padding-bottom: 1px !important; }
+}
+@media (min-width: 1161px) and (max-width: 1180px) and (max-height: 820px) {
+  html:root body[data-design="oracle-glass"] .chat-feed { padding-bottom: 18px !important; }
+}
+@media (min-width: 1181px) and (max-width: 1320px) and (max-height: 820px) {
+  html:root body[data-design="oracle-glass"] .chat-feed { padding-bottom: 30px !important; }
+}
+
+/* v14.2.9 · phone Q rail
+   The mobile rail is a locator, not a second dashboard.  Keep its id/state
+   on one quiet line and retain the full title in the native title attribute. */
+@media (max-width: 850px) {
+  html:root body[data-design="oracle-glass"] .subproblem-card {
+    min-height: 0 !important;
+    height: 24px !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 2px 5px !important;
+  }
+  html:root body[data-design="oracle-glass"] .subproblem-card strong { display: none !important; }
+  html:root body[data-design="oracle-glass"] .subproblem-card > span:not(.subproblem-card-head),
+  html:root body[data-design="oracle-glass"] .subproblem-card > em { display: none !important; }
+  html:root body[data-design="oracle-glass"] .subproblem-card-head { width: 100% !important; align-items: center !important; }
+}
+
+/* v14.2.10 · narrow-phone edge
+   At 360px the previous bubble can otherwise leave a tiny rounded sliver
+   above the first readable row.  Give the feed a little more lower paper so
+   the boundary resolves between messages instead of through one. */
+@media (max-width: 375px) {
+  html:root body[data-design="oracle-glass"] .chat-feed {
+    padding-bottom: 52px !important;
+    scroll-padding-bottom: 58px !important;
+  }
+}
+
+/* v14.2.11 · low-height desktop reading room
+   A short laptop window should still feel like a room for conversation.  The
+   compact layer keeps the Q id, stage and owner control, while folding only
+   secondary hero copy and vertical chrome so two recent bubbles remain in view. */
+@media (min-width: 1321px) and (max-height: 760px) {
+  html:root body[data-design="oracle-glass"] .modeling-overview {
+    height: 96px !important;
+    min-height: 96px !important;
+    padding-top: 7px !important;
+    padding-bottom: 7px !important;
+  }
+  html:root body[data-design="oracle-glass"] .modeling-hero {
+    height: 52px !important;
+    min-height: 52px !important;
+    padding: 6px 13px !important;
+  }
+  html:root body[data-design="oracle-glass"] .hero-subtitle,
+  html:root body[data-design="oracle-glass"] .hero-contract-line { display: none !important; }
+  html:root body[data-design="oracle-glass"] .hero-copy h2 { font-size: 22px !important; line-height: 1.1 !important; }
+  html:root body[data-design="oracle-glass"] .subproblem-strip,
+  html:root body[data-design="oracle-glass"] .subproblem-card { height: 28px !important; }
+}
+
+@media (min-width: 1181px) and (max-width: 1320px) and (max-height: 760px) {
+  html:root body[data-design="oracle-glass"] .modeling-overview {
+    height: 80px !important;
+    min-height: 80px !important;
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+  }
+  html:root body[data-design="oracle-glass"] .modeling-hero {
+    height: 42px !important;
+    min-height: 42px !important;
+    padding: 5px 11px !important;
+  }
+  html:root body[data-design="oracle-glass"] .hero-subtitle,
+  html:root body[data-design="oracle-glass"] .hero-contract-line { display: none !important; }
+  html:root body[data-design="oracle-glass"] .hero-copy h2 { font-size: 17px !important; line-height: 1.1 !important; }
+  html:root body[data-design="oracle-glass"] .subproblem-strip,
+  html:root body[data-design="oracle-glass"] .subproblem-card { height: 25px !important; }
+}
+
+@media (min-width: 851px) and (max-width: 1180px) and (max-height: 760px) {
+  html:root body[data-design="oracle-glass"] .modeling-overview {
+    height: 88px !important;
+    min-height: 88px !important;
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+  }
+  html:root body[data-design="oracle-glass"] .modeling-hero {
+    height: 50px !important;
+    min-height: 50px !important;
+    padding: 5px 11px !important;
+  }
+  html:root body[data-design="oracle-glass"] .hero-subtitle,
+  html:root body[data-design="oracle-glass"] .hero-contract-line { display: none !important; }
+  html:root body[data-design="oracle-glass"] .hero-copy h2 { font-size: 19px !important; line-height: 1.1 !important; }
+  html:root body[data-design="oracle-glass"] .subproblem-strip,
+  html:root body[data-design="oracle-glass"] .subproblem-card { height: 26px !important; }
+}
+
+/* Shared short-screen cleanup: the hero keeps one status line, and the Q rail
+   becomes a true locator row rather than a clipped two-line card. */
+@media (min-width: 851px) and (max-height: 760px) {
+  html:root body[data-design="oracle-glass"] .modeling-hero .hero-side {
+    height: 100% !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    gap: 0 !important;
+  }
+  html:root body[data-design="oracle-glass"] .modeling-hero .hero-empty-note,
+  html:root body[data-design="oracle-glass"] .modeling-hero .overview-actions { display: none !important; }
+  html:root body[data-design="oracle-glass"] .modeling-hero .hero-status {
+    font-size: 9px !important;
+    line-height: 1.1 !important;
+  }
+  html:root body[data-design="oracle-glass"] .subproblem-card {
+    display: flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    min-height: 0 !important;
+    padding: 2px 7px !important;
+    overflow: hidden !important;
+  }
+  html:root body[data-design="oracle-glass"] .subproblem-card-head {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    align-items: center !important;
+  }
+  html:root body[data-design="oracle-glass"] .subproblem-card strong {
+    display: block !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    font-size: 8px !important;
+    line-height: 1 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  html:root body[data-design="oracle-glass"] .subproblem-card > span:not(.subproblem-card-head),
+  html:root body[data-design="oracle-glass"] .subproblem-card > em { display: none !important; }
 }

@@ -76,6 +76,25 @@ def test_kb_document_citation_is_accepted_but_not_a_release_shortcut(client):
     assert not api.valid_evidence_ref("kbchunk:not-a-real-id")
 
 
+def test_workspace_repo_citation_is_bounded_and_accepted(client):
+    base = snapshot(client)["revision"]
+    repo_ref = "repo:skills/01-审题破题.md"
+    response = client.post(f"/api/projects/{api.PROJECT_ID}/messages", json={
+        "text": "请以共享技能卡为候选输入，并回到题面核验",
+        "base_revision": base,
+        "claim_class": "hypothesis",
+        "evidence_refs": [repo_ref],
+        "target_revision": VALID_MANIFEST,
+        "idempotency_key": "msg-repo-citation-1",
+    })
+    assert response.status_code == 200
+    assert response.json()["event"]["payload"]["evidence_refs"] == [repo_ref]
+    assert api.valid_evidence_ref(repo_ref)
+    assert not api.valid_evidence_ref("repo:../outside.txt")
+    assert not api.valid_evidence_ref("repo:.env")
+    assert not api.valid_evidence_ref("repo:backend/.env")
+
+
 def test_idempotency_key_cannot_change_request(client):
     base = snapshot(client)["revision"]
     first = client.post(f"/api/projects/{api.PROJECT_ID}/messages", json={"text": "A", "base_revision": base, "idempotency_key": "same"})

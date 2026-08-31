@@ -297,3 +297,32 @@ python -m pytest backend -q                 预计 87+ passed（以当前 checko
 | Critic/Challenger | 反例、失败模型、验证章节 | 只按检索分数否决方案 |
 | Paper/Release | 引用定位、排版模板、检查清单 | 输出未审计的全文复制 |
 | Owner（你） | 批准索引、外发、引用和最终采用 | 将 Agent 评分当作审批 |
+
+## 12. 仓库协作上下文挂载（T07）
+
+外部资料盘的 `kbdoc:` 引用与仓库协作资料的 `repo:` 引用必须分开显示。仓库上下文
+用于让 Agent 读取本项目的技能、任务、说明和审计记录，不替代题面资料的证据链。
+
+```text
+GET /api/projects/{id}/workspace/catalog
+GET /api/projects/{id}/workspace/search?q=敏感性分析&top_k=20&path=docs
+```
+
+catalog 只读扫描 `README.md`、`TASKS.md`、`AGENTS.md`、`app.js`、`index.html`、
+`styles.css`、`docker-compose.yml` 与 `backend/`、`assets/`、`docs/`、`skills/`、
+`notes/`、`workflows/`、`models/`、`paper/`、`viz/`、`scripts/`、`experiments/`；
+`.git`、`.collab`、`runtime`、`.env`、隐藏目录和
+符号链接不进入索引。响应含 `manifest_sha`/`manifest_sha256`、`items`、`counts`、
+`source_refs`；检索结果含 `snippet`、`match_source` 和边界说明。正文检索与 hash
+均有文件大小上限，返回始终为相对路径。
+
+`source_integrity=observed` 的含义是边界、读取行为和 manifest 可审计，不是对内容
+正确性或授权状态的认证。`repo:<relative-path>` 只能作为候选上下文（可以保留在
+`evidence_refs` 作为来源指针，但不提供证据充分性）：它不能直接升级成 `kbdoc:`、
+`VERIFIED` 或论文 claim。Agent 应在每次运行中记录
+仓库 manifest、当前题面/数据 revision、使用的 repo refs 与后续验证结果；manifest
+变化时旧上下文标记 `STALE`，不可静默复用。
+
+这条仓库挂载链路仍是本地、进程内、有界 lexical search；不承诺全文语义理解、页级
+OCR、向量召回、持久化索引或生产级权限。向外部 Agent relay 时仍遵守最小片段、
+敏感级别、Owner 批准和 nonce/input hash 校验。

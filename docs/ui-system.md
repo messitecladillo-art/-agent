@@ -129,3 +129,35 @@ claim class + evidence refs + target revision + independent review + gate
 - `#panelBackdrop` 与 `.right-sidebar` 必须位于同一个 shell 堆叠上下文；遮罩低于抽屉，不能覆盖抽屉文字。
 - 移动抽屉保留纸面渐变和边缘阴影，但不对自身内容使用 `backdrop-filter`；液态玻璃只作用于其后的聊天空间。
 - 打开抽屉后仍应能读清 Q、阻断、证据和审批字段；关闭后聊天区恢复原有层级，且不得产生横向滚动。
+
+## 12. v14 质感原则与真实运行限制
+
+v14 的设计语言以“可进入、可停留、可判断”为准，而不是继续叠加装饰：
+
+- 暖纸面是唯一连续底，液态玻璃只用于顶栏、悬浮工具条和按需控制抽屉；消息、公式、证据和表格保持近不透明，避免透明叠层削弱阅读。
+- 当前 Q/当前运行是唯一主浮层；普通任务、决策和证据行使用安静清单样式，仅 hover/focus 短暂抬升。边缘高光、短软阴影、按压下沉足以表达触感，不使用持续抖动或大面积模糊。
+- 小青龙、甲骨刻痕和 QingJia 展示体承担品牌记忆，不承担状态语义。状态必须同时显示文字、claim class、evidence refs 和 revision。
+- 首屏优先级固定为：当前 Q → 阶段/阻断 → 群聊正文 → provenance → 任务控制；低频字段按需展开，不能让装饰抢占消息宽度。
+
+### 12.1 workspace catalog 的界面边界
+
+仓库资料挂载卡应显示 `workspace manifest`、来源 `repo:<relative-path>` 和
+`source_integrity=observed`，并与外部资料的 `kbdoc:` 视觉区分。`repo:` 只表示
+候选上下文，不得显示成“已验证资料”或自动填入论文结论；manifest 变化时卡片应
+提示 stale 并要求重新检索。右侧资料面板可以给出 counts、匹配片段和路径，但不应
+一次展开整库内容。
+
+### 12.2 真实运行标识
+
+当前本地 API 仍是 offline-dev：事件可持久化为单进程 journal，模型 adapter、
+OIDC/RBAC、签名 relay、语义索引和生产级沙箱尚未默认启用。界面必须把
+`SIMULATED · fixture`、`LIVE EVENT`、`PENDING_RELAY`、`UNVERIFIED` 等状态写出来，
+不能用绿色、头像或动画暗示正确性。v14 的“高端”验收只在多视口无溢出、字体回退、
+Toast/composer 不相交、reduced-motion 和 source/revision 可追溯均通过后成立。
+
+### 12.3 低高度桌面收束（v14.2.11）
+
+当桌面视口高度不超过 760px 时，首屏不再让 hero 和小问卡片争夺聊天空间：
+hero 只保留标题与 Owner 状态，Q 轨收束为单行定位器，资料库/能力装配等低频动作
+回到控制面；聊天区目标是保留至少两条完整近期消息。该收束只改变垂直留白和次级
+说明，不删除题面、阶段、阻断、责任人与证据入口。

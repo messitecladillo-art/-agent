@@ -62,3 +62,30 @@ dispatch（Coordinator 创建 task envelope）
 ```
 
 所有写请求都应保存响应中的 `revision`，下一次写入带上同一个 `base_revision`/`target_revision`；收到 `409 STALE_REVISION` 时先拉取 snapshot 并人工确认，不要静默覆盖。开发版要验证真实 provider 时，另行实现 `ModelAdapter`，不要把 API key 放进前端或事件 payload。
+
+## Workspace / repo catalog（T07）
+
+Agent 可通过以下只读接口挂载仓库协作上下文：
+
+```text
+GET /api/projects/{project_id}/workspace/catalog
+GET /api/projects/{project_id}/workspace/search?q=&top_k=&path=
+```
+
+catalog 仅扫描仓库白名单：`README.md`、`TASKS.md`、`AGENTS.md`、`app.js`、
+`index.html`、`styles.css`、`docker-compose.yml` 以及 `backend/`、`assets/`、
+`docs/`、`skills/`、`notes/`、`workflows/`、`models/`、`paper/`、`viz/`、
+`scripts/`、`experiments/`。`.git`、`.collab`、`runtime`、`.env`、隐藏项和
+符号链接永不进入索引。响应包含 `manifest_sha`（兼容别名
+`manifest_sha256`）、相对路径 `items`、按类型 `counts` 和
+`repo:<relative-path>` `source_refs`；搜索片段限制为 1 MiB 文本文件，
+`top_k`、查询长度和结果均有上限。
+
+`source_integrity` 的最低解释是：路径在允许的仓库根内、内容 hash/大小状态
+与返回的 manifest 一致、读取过程未执行文件。它不表示文档内容正确、题目适配
+或授权状态已确认。`repo:` 引用只能作为候选上下文；写入论文或发送给外部 Agent
+前，仍须绑定当前题面/数据 revision，完成独立验证、artifact provenance、Owner
+审批和外发授权。manifest 变化时旧上下文必须标记 stale，不能静默复用。
+
+当前实现是每次请求的进程内扫描，并非持久化 FTS/向量库；超大文件可能只返回
+metadata，语义检索、页级定位、OCR 和生产级 RBAC/签名 relay 尚未由该接口承诺。

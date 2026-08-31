@@ -323,3 +323,25 @@ route_score = Σ(weight_i × score_i) − penalty
 4. **生产版**：Postgres + Redis/NATS/Temporal + 对象存储 + OIDC/RBAC + 审计链 + 模型评测路由。
 
 下一步如果要把这个 MVP 接成真实系统，优先替换单进程 journal 为 SQLite WAL/Postgres，接入真实 `ModelAdapter`，再启用 OIDC/RBAC 和签名 relay；前端布局和交互可以直接沿用本目录。
+
+## 12. Workspace / repo catalog（T07）
+
+除了外部数学建模资料盘，Agent 还可以按需挂载本仓库中已审核的协作上下文。只读接口不扫描用户资料根、不读取 secrets、不执行仓库文件，仅允许 `README.md`、`TASKS.md`、`AGENTS.md`、`app.js`、`index.html`、`styles.css`、`docker-compose.yml` 及 `backend/`、`assets/`、`docs/`、`skills/`、`notes/`、`workflows/`、`models/`、`paper/`、`viz/`、`scripts/`、`experiments/`。
+
+```text
+GET /api/projects/HGC-MF-2026-001/workspace/catalog
+GET /api/projects/HGC-MF-2026-001/workspace/search?q=source%20refs&top_k=20&path=docs
+```
+
+响应携带 `manifest_sha`/`manifest_sha256`、`items`、`counts` 与 `repo:<relative-path>` `source_refs`。正文检索仅对不超过 1 MiB 的文本文件提供有界片段；路径穿越、绝对路径、隐藏目录、符号链接和超大文件均 fail-closed。`repo:` 可以作为有界候选指针随消息记录在 `evidence_refs` 字段中，但只代表“该仓库快照中存在候选上下文”，不代表内容已适用于当前题目，更不足以单独构成论文证据；必须继续经过题面契约、数据/数学验证、独立审查和 Owner 门禁。若 manifest 变化，Agent 应丢弃旧上下文并重新读取 catalog。
+
+## 13. v14 质感原则
+
+v14 的视觉目标是“可进入、可停留、可判断”，而不是增加更多装饰：
+
+- 用一张连续的暖纸面承载群聊，把玻璃限制在顶栏、悬浮工具条和按需控制抽屉；消息、证据和公式保持接近不透明，优先可读性。
+- 只保留一个主浮层（当前运行/当前 Q），普通任务行改为安静清单；边缘高光、短软阴影和按压下沉表达触感，不用持续动画制造高级感。
+- 小青龙与甲骨印记是品牌记忆点，不承担状态语义；状态必须同时写出文字、claim class、evidence 和 revision。
+- 首屏信息优先级固定为：当前 Q → 阶段与阻断 → 消息正文 → 证据/provenance → 任务控制；低频字段按需展开。
+- v14 的“高端”结论必须以多视口截图、无横向溢出、字体回退、Toast/composer 不相交和 reduced-motion 回归为依据；当前本地服务仍是 offline-dev，不应包装成生产级协作或模型调用。
+- 当前界面版本为 `v14.2.13`：1321–1360px 临界宽度保留完整气泡，≤760px 桌面窗口收束 hero/Q 轨以保留两条近期消息，手机 Q 轨改为单行编号/状态；成功连接反馈由顶栏承载，避免 toast 遮挡工作区。

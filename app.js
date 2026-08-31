@@ -43,6 +43,10 @@ const pendingLiveEvents = new Map();
 let replayPromise = null;
 const seenSnapshotMessages = new Set();
 let knowledgeState = { summary: null, results: [], query: '', loading: false, indexRevision: null };
+// Versioned repository context is mounted separately from the user's private
+// materials pack.  Keeping the two snapshots distinct prevents a skill/README
+// pointer from being mistaken for a mathematical source claim.
+let workspaceState = { catalog: null, results: [], query: '', loading: false, revision: null, integrity: null };
 let capabilityState = {
   catalog: null,
   loading: false,
@@ -289,10 +293,21 @@ const defaultQuestionByMember = { scope: 'Q1', data: 'Q2', routeA: 'Q3', routeB:
 const VALID_CLAIM_CLASSES = new Set(['observed', 'derived', 'hypothesis']);
 const VALID_PROVENANCE_STATUSES = new Set(['RECEIVED', 'PRODUCED', 'READY_FOR_REVIEW', 'VERIFIED', 'ACCEPTED', 'RELEASED', 'UNVERIFIED', 'BLOCKED', 'PENDING_RELAY', 'LOCAL_PENDING']);
 
+function isSafeWorkspaceRef(value) {
+  const candidate = String(value || '').trim();
+  if (!candidate.toLowerCase().startsWith('repo:')) return false;
+  const rel = candidate.slice(5);
+  if (!rel || rel.length > 300 || rel.includes('\\') || rel.includes('\0') || rel.startsWith('/')) return false;
+  const parts = rel.split('/');
+  const roots = new Set(['README.md', 'TASKS.md', 'AGENTS.md', 'app.js', 'index.html', 'styles.css', 'docker-compose.yml', 'docs', 'skills', 'notes', 'workflows', 'models', 'paper', 'viz', 'scripts', 'experiments', 'backend', 'assets']);
+  const sensitive = /(?:^|[._-])(secret|secrets|credential|credentials|password|passwd|token|api[_-]?key|private[_-]?key)(?:[._-]|$)/i;
+  return Boolean(parts.length && roots.has(parts[0]) && parts.every(part => part && part !== '.' && part !== '..' && !part.startsWith('.') && !sensitive.test(part)));
+}
+
 function sanitizeEvidenceRefs(value) {
   if (!Array.isArray(value)) return [];
   const pattern = /^(?:artifact|run|claim|review|fixture):[^\s]+$|^kbdoc:kbdoc_[0-9a-f]{16}(?:#p\d+)?$|^kbchunk:kbchunk_kbdoc_[0-9a-f]{16}_\d+(?:#p\d+)?$/i;
-  return value.filter(ref => typeof ref === 'string' && pattern.test(ref.trim())).map(ref => ref.trim());
+  return value.filter(ref => typeof ref === 'string' && (pattern.test(ref.trim()) || isSafeWorkspaceRef(ref))).map(ref => ref.trim());
 }
 
 function normalizeProvenance(message, source = 'fixture') {
@@ -934,7 +949,29 @@ function renderMessages() {
   // after the HTML is painted.  Align once now and once after layout so the
   // latest Owner message is actually visible on a small screen, rather than
   // leaving a clipped provenance row at the bottom.
-  const alignLatest = () => { feed.scrollTop = feed.scrollHeight; };
+  const alignLatest = () => {
+    if (!feed) return;
+    // Chat rooms open at the newest message, but a narrow viewport should not
+    // make the first visible bubble look sliced by the hard scroll edge.  Keep
+    // a small, bounded reading inset when there is enough breathing room below
+    // the latest message; desktop remains bottom-aligned like a normal chat.
+    feed.scrollTop = feed.scrollHeight;
+    if (window.innerWidth > 850) return;
+    const feedRect = feed.getBoundingClientRect();
+    const articles = [...feed.querySelectorAll('.message')];
+    const latest = articles[articles.length - 1];
+    if (!latest) return;
+    const latestRect = latest.getBoundingClientRect();
+    const spareBelow = Math.max(0, feedRect.bottom - latestRect.bottom - 10);
+    const clipped = articles.find(article => {
+      const rect = article.getBoundingClientRect();
+      return rect.bottom > feedRect.top && rect.top < feedRect.top + 2;
+    });
+    if (!clipped || spareBelow <= 0) return;
+    const clip = Math.max(0, feedRect.top + 10 - clipped.getBoundingClientRect().top);
+    const inset = Math.min(36, clip, spareBelow);
+    if (inset > 0) feed.scrollTop = Math.max(0, feed.scrollTop - inset);
+  };
   alignLatest();
   if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(alignLatest);
   window.setTimeout(alignLatest, 80);
@@ -947,6 +984,19 @@ function showToast(text) {
   // composer.  Prepare the band first, re-align only when the reader was
   // already near the end, then reveal the pill.  This prevents the first
   // animation frame from sitting on top of the newest bubble.
+  // A successful socket handshake is already represented by the LIVE control
+  // and revision chip in the top bar.  Keeping that informational toast out of
+  // the reading plane on every viewport preserves the latest bubble's tactile
+  // surface; failures and user actions still use the normal transient notice.
+  if (String(text).startsWith('已连接事件源')) {
+    window.clearTimeout(showToast.timer);
+    window.clearTimeout(showToast.revealTimer);
+    toast.classList.remove('show', 'prepare');
+    toast.setAttribute('aria-hidden', 'true');
+    toast.textContent = text;
+    return;
+  }
+  toast.removeAttribute('aria-hidden');
   const wasNearBottom = feed ? feed.scrollHeight - feed.scrollTop - feed.clientHeight < 48 : false;
   const align = () => {
     if (feed && wasNearBottom) feed.scrollTop = feed.scrollHeight;
@@ -1084,7 +1134,7 @@ function renderKnowledgeSummary(summary) {
   const statusLabel = document.getElementById('kbStatusLabel');
   const statusMeta = document.getElementById('kbStatusMeta');
   const dot = document.querySelector('.knowledge-status-card .knowledge-dot');
-  if (statusLabel) statusLabel.textContent = status === 'UNAVAILABLE' ? '资料库未配置' : (status === 'LOCAL_PENDING' ? `${rootLabel} · 同步中` : `${rootLabel} · 已建立索引`);
+  if (statusLabel) statusLabel.textContent = status === 'UNAVAILABLE' ? '资料索引 · 未连接' : (status === 'LOCAL_PENDING' ? `${rootLabel} · 同步中` : `${rootLabel} · 已建立索引`);
   if (statusMeta) {
     const scanned = summary?.last_scan_at || summary?.scanned_at || summary?.indexed_at;
     const scanText = scanned ? `扫描快照 ${String(scanned).replace('T', ' ').slice(0, 19)}` : '尚未扫描';
@@ -1217,7 +1267,12 @@ function renderPendingKbCitations() {
   const hint = document.getElementById('kbCitationHint');
   if (!hint) return;
   hint.hidden = knowledgePendingRefs.length === 0;
-  hint.textContent = knowledgePendingRefs.length ? `已挂 ${knowledgePendingRefs.length} 条资料引用` : '';
+  const workspaceCount = knowledgePendingRefs.filter(ref => String(ref).toLowerCase().startsWith('repo:')).length;
+  const kbCount = knowledgePendingRefs.length - workspaceCount;
+  const labels = [];
+  if (kbCount) labels.push(`${kbCount} 条资料`);
+  if (workspaceCount) labels.push(`${workspaceCount} 条工程上下文`);
+  hint.textContent = labels.length ? `已挂 ${labels.join(' · ')}` : '';
 }
 
 function citeKnowledgeItem(item) {
@@ -1237,6 +1292,182 @@ function citeKnowledgeItem(item) {
 function openKnowledgePanel() {
   selectRightPanel('knowledge');
   if (!knowledgeState.summary) loadKnowledgeSummary();
+}
+
+/*
+ * Versioned workspace mount.
+ *
+ * This is deliberately a small, progressive-disclosure surface next to the
+ * private materials KB.  The catalog endpoint returns only allowlisted repo
+ * metadata and bounded lexical snippets; a `repo:` ref is a context pointer,
+ * never a mathematical fact or a release-proof artifact.
+ */
+function workspaceEndpoint(path = '') {
+  return LIVE_API ? `${LIVE_API}/api/projects/${LIVE_PROJECT}/workspace${path}` : '';
+}
+
+function workspaceErrorMessage(payload, fallback = '工程上下文请求失败') {
+  const detail = payload?.detail;
+  if (typeof detail === 'string') return detail;
+  if (detail && typeof detail === 'object') return detail.message || detail.code || fallback;
+  return fallback;
+}
+
+function workspaceCounts(catalog) {
+  const counts = catalog?.counts || {};
+  return {
+    items: Number.isFinite(Number(counts.items)) ? Number(counts.items) : 0,
+    searchable: Number.isFinite(Number(counts.searchable)) ? Number(counts.searchable) : 0,
+    assets: Number.isFinite(Number(counts.asset)) ? Number(counts.asset) : 0,
+  };
+}
+
+function renderWorkspaceMount(catalog) {
+  const root = document.getElementById('workspaceMountStrip');
+  if (!root) return;
+  const ready = Boolean(catalog && catalog.schema_version === 'workspace-catalog/v1');
+  const counts = workspaceCounts(catalog);
+  root.dataset.status = ready ? 'ready' : (LIVE_API ? 'pending' : 'blocked');
+  root.setAttribute('aria-label', ready ? `工程上下文已挂载，${counts.items} 个来源` : '工程上下文尚未挂载');
+  const meta = document.getElementById('workspaceMountMeta');
+  const count = document.getElementById('workspaceMountCount');
+  const inline = document.getElementById('workspaceInlineStatus');
+  if (ready) {
+    const revision = compactRevision(catalog.manifest_sha || catalog.manifest_sha256, 17);
+    const integrity = String(workspaceState.integrity?.status || '').toUpperCase();
+    const integrityNote = integrity === 'STALE_DECLARATION' ? ' · 声明待更新' : '';
+    if (meta) meta.textContent = `${counts.searchable} 可检索 · ${counts.assets} 个视觉资产 · runtime mount · ${revision}${integrityNote}`;
+    if (count) count.textContent = String(counts.items);
+    if (inline) {
+      // Keep the persistent chip quiet; the detailed panel carries the
+      // declaration warning and the title exposes it to assistive readers.
+      inline.textContent = `工程上下文 · ${counts.items}`;
+      inline.dataset.status = integrity === 'STALE_DECLARATION' ? 'stale' : 'ready';
+      inline.title = `版本化工程上下文：${counts.items} 个来源，${counts.searchable} 个可检索${integrity === 'STALE_DECLARATION' ? '；声明待更新' : ''}`;
+    }
+  } else {
+    if (meta) meta.textContent = LIVE_API ? '正在读取白名单工作区 · 只读上下文' : '实时服务未连接 · 仅保留演示界面';
+    if (count) count.textContent = '—';
+    if (inline) {
+      inline.textContent = LIVE_API ? '工程上下文 · 读取中' : '工程上下文 · 未连接';
+      inline.dataset.status = LIVE_API ? 'pending' : 'blocked';
+      inline.title = LIVE_API ? '正在读取版本化工程上下文' : '实时服务未连接';
+    }
+  }
+}
+
+function workspaceResultMarkup(item) {
+  const path = item?.path_rel || item?.path || '';
+  if (!path) return '';
+  const ref = item.source_ref || `repo:${path}`;
+  const kind = item.kind || 'source';
+  const match = item.match_source && item.match_source !== 'browse' ? item.match_source : 'workspace';
+  const snippet = item.snippet || (item.text_searchable ? '文本源 · 可按关键词检索' : '资源目录项 · 按需核对原文件');
+  const hash = item.hash_status === 'HASHED' ? 'hash linked' : (item.hash_status || 'metadata');
+  return `<article class="workspace-result" data-workspace-path="${escapeHTML(path)}"><div class="workspace-result-head"><span class="workspace-result-kind">${escapeHTML(kind)}</span><span class="workspace-result-match">${escapeHTML(match)}</span><button type="button" data-workspace-cite="${escapeHTML(path)}">挂到群聊</button></div><strong>${escapeHTML(path)}</strong><p>${escapeHTML(snippet)}</p><small>${escapeHTML(ref)} · ${escapeHTML(hash)} · ${escapeHTML(kbFormatBytes(item.size_bytes ?? item.size))}</small></article>`;
+}
+
+function renderWorkspaceResults(results, root = document.getElementById('workspaceResults')) {
+  if (!root) return;
+  const rows = Array.isArray(results) ? results : [];
+  if (!rows.length) {
+    root.innerHTML = '<div class="workspace-empty"><span>⌁</span><strong>当前快照没有命中</strong><p>换一个文件名、目录或能力关键词。</p></div>';
+    return;
+  }
+  root.innerHTML = rows.slice(0, 24).map(workspaceResultMarkup).join('');
+}
+
+async function loadWorkspaceCatalog(force = false) {
+  if (!LIVE_API) {
+    renderWorkspaceMount(null);
+    return null;
+  }
+  workspaceState.loading = true;
+  try {
+    const response = await fetch(`${workspaceEndpoint('/catalog')}${force ? `?refresh=${Date.now()}` : ''}`);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(workspaceErrorMessage(payload, 'WORKSPACE_CATALOG_ERROR'));
+    workspaceState.catalog = payload;
+    workspaceState.revision = payload.manifest_sha || payload.manifest_sha256 || null;
+    workspaceState.results = Array.isArray(payload.items) ? payload.items.slice(0, 24) : [];
+    renderWorkspaceMount(payload);
+    return payload;
+  } catch (error) {
+    workspaceState.catalog = null;
+    workspaceState.results = [];
+    workspaceState.integrity = null;
+    renderWorkspaceMount(null);
+    showToast(`工程上下文读取失败（${error.message || 'unknown'}）`);
+    return null;
+  } finally {
+    workspaceState.loading = false;
+  }
+}
+
+async function runWorkspaceSearch(queryOverride = '', targetRoot = null) {
+  const input = document.getElementById('workspaceSearchInput');
+  const query = String(queryOverride ?? input?.value ?? '').trim();
+  if (input && queryOverride !== undefined) input.value = query;
+  const root = targetRoot || document.getElementById('workspaceResults');
+  if (!LIVE_API) {
+    if (root) root.innerHTML = '<div class="workspace-empty"><strong>实时服务未连接</strong><p>当前只显示演示界面，未挂载工作区。</p></div>';
+    return null;
+  }
+  if (root) root.innerHTML = '<div class="workspace-loading"><i></i><i></i><i></i><span>读取当前工作区…</span></div>';
+  try {
+    const params = new URLSearchParams({ q: query, top_k: '24' });
+    const response = await fetch(`${workspaceEndpoint('/search')}?${params.toString()}`);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(workspaceErrorMessage(payload, 'WORKSPACE_SEARCH_ERROR'));
+    workspaceState.query = query;
+    workspaceState.revision = payload.manifest_sha || payload.manifest_sha256 || workspaceState.revision;
+    workspaceState.results = Array.isArray(payload.results || payload.items) ? (payload.results || payload.items) : [];
+    renderWorkspaceResults(workspaceState.results, root);
+    const meta = root?.parentElement?.querySelector('.workspace-browser-meta');
+    if (meta) meta.textContent = `${payload.returned_count ?? workspaceState.results.length} 个命中 · ${compactRevision(payload.manifest_sha || workspaceState.revision, 17)} · 仅白名单上下文`;
+    return payload;
+  } catch (error) {
+    if (root) root.innerHTML = `<div class="workspace-empty"><strong>检索暂不可用</strong><p>${escapeHTML(error.message || '请稍后重试')}</p></div>`;
+    showToast(`工程上下文检索失败（${error.message || 'unknown'}）`);
+    return null;
+  }
+}
+
+function citeWorkspaceItem(item) {
+  const path = item?.path_rel || item?.path;
+  const ref = item?.source_ref || (path ? `repo:${path}` : '');
+  if (!path || !isSafeWorkspaceRef(ref)) {
+    showToast('该路径不在工程白名单内');
+    return;
+  }
+  if (!knowledgePendingRefs.includes(ref)) knowledgePendingRefs.push(ref);
+  const input = document.getElementById('messageInput');
+  const prefix = input.value.trim() ? `${input.value.trim()}\n` : '';
+  input.value = `${prefix}@工程上下文 请核对「${path}」（${ref}），说明它能支持的工作流边界、版本与待复核风险。`;
+  input.focus();
+  renderPendingKbCitations();
+  closeModal();
+  showToast(`已把 ${path} 挂到下一条群聊消息`);
+}
+
+async function openWorkspaceBrowser() {
+  if (!workspaceState.catalog && LIVE_API) await loadWorkspaceCatalog();
+  const catalog = workspaceState.catalog;
+  const counts = workspaceCounts(catalog);
+  const revision = compactRevision(catalog?.manifest_sha || workspaceState.revision, 17);
+  showModal('工程上下文 · 只读挂载', `<div class="workspace-browser"><p class="workspace-browser-intro">当前工程的版本化 skills、notes、docs、代码与视觉资产。这里只提供候选上下文；不会把仓库说明自动当成数学事实。</p><form id="workspaceSearchForm" class="workspace-search-form"><input id="workspaceSearchInput" type="search" autocomplete="off" placeholder="搜文件名、能力、流程或关键词…" aria-label="搜索工程上下文"><button type="submit">检索</button></form><div class="workspace-browser-meta">${catalog ? `${counts.items} 个来源 · ${counts.searchable} 可检索 · ${revision}` : (LIVE_API ? '工作区暂不可用' : '实时服务未连接')}</div><div id="workspaceResults" class="workspace-results"></div><p class="workspace-browser-note">repo: 引用只证明上下文位置；进入模型或论文前仍需题面锁定、参数来源、独立验证与 Owner 审批。</p></div>`);
+  const root = document.getElementById('workspaceResults');
+  renderWorkspaceResults(workspaceState.results.length ? workspaceState.results : (catalog?.items || []).slice(0, 24), root);
+  const form = document.getElementById('workspaceSearchForm');
+  if (form) form.addEventListener('submit', event => { event.preventDefault(); runWorkspaceSearch(undefined, root); });
+  if (root) root.addEventListener('click', event => {
+    const button = event.target.closest('[data-workspace-cite]');
+    if (!button) return;
+    const path = button.dataset.workspaceCite;
+    const item = workspaceState.results.find(row => (row.path_rel || row.path) === path) || catalog?.items?.find(row => (row.path_rel || row.path) === path);
+    citeWorkspaceItem(item || { path_rel: path, source_ref: `repo:${path}` });
+  });
+  document.getElementById('workspaceSearchInput')?.focus();
 }
 
 /*
@@ -1296,21 +1527,26 @@ function renderCapabilityCatalog(catalog) {
     presetSelect.innerHTML = capabilityPresets().map(item => `<option value="${escapeHTML(item.id)}">${escapeHTML(item.title)}</option>`).join('') || '<option value="">暂无标准模板</option>';
     if (current && [...presetSelect.options].some(option => option.value === current)) presetSelect.value = current;
   }
+  const applyPresetButton = document.getElementById('applyPresetBtn');
+  if (applyPresetButton) {
+    applyPresetButton.disabled = capabilityPresets().length === 0;
+    applyPresetButton.setAttribute('aria-disabled', String(applyPresetButton.disabled));
+  }
   const presetRoot = document.getElementById('presetList');
   if (presetRoot) {
     const blocks = new Map(capabilityBlocks().map(item => [item.id, item]));
     presetRoot.innerHTML = capabilityPresets().map(preset => {
       const flow = (preset.block_ids || []).map(id => blocks.get(id)?.title || id).slice(0, 9);
       return `<article class="preset-card"><div class="preset-card-head"><strong>${escapeHTML(preset.title)}</strong><em>${escapeHTML((preset.archetype_ids || []).length)} 类题型</em></div><p>${escapeHTML(preset.description)}</p><div class="preset-flow">${flow.map((name, index) => `${index ? '<i>›</i>' : ''}<span>${escapeHTML(name)}</span>`).join('')}</div></article>`;
-    }).join('') || '<div class="assembly-loading">能力模板尚未加载。</div>';
+    }).join('') || '<div class="assembly-loading">能力模板目录为空。</div>';
   }
   const blockRoot = document.getElementById('blockPalette');
   if (blockRoot) {
-    blockRoot.innerHTML = capabilityBlocks().map(block => `<button type="button" class="assembly-item ${block.required ? 'required-item' : ''}" data-assembly-add-type="block" data-assembly-add-id="${escapeHTML(block.id)}" title="输入：${escapeHTML(Object.keys(block.input_ports || {}).join(', ') || '无')}；输出：${escapeHTML(Object.keys(block.output_ports || {}).join(', ') || '无')}"><strong>${escapeHTML(block.title)}${block.required ? ' · 必选' : ''}</strong><span>${escapeHTML(block.kind)} · ${escapeHTML(Object.keys(block.output_ports || {}).join(' · ') || '无输出')}</span>${block.evidence_output ? `<em>证据输出</em>` : ''}</button>`).join('') || '<div class="assembly-loading">没有可用工作块。</div>';
+    blockRoot.innerHTML = capabilityBlocks().map(block => `<button type="button" class="assembly-item ${block.required ? 'required-item' : ''}" data-assembly-add-type="block" data-assembly-add-id="${escapeHTML(block.id)}" title="输入：${escapeHTML(Object.keys(block.input_ports || {}).join(', ') || '无')}；输出：${escapeHTML(Object.keys(block.output_ports || {}).join(' · ') || '无')}"><strong>${escapeHTML(block.title)}${block.required ? ' · 必选' : ''}</strong><span>${escapeHTML(block.kind)} · ${escapeHTML(Object.keys(block.output_ports || {}).join(' · ') || '无输出')}</span>${block.evidence_output ? `<em>证据输出</em>` : ''}</button>`).join('') || '<div class="assembly-loading">工作块目录为空。</div>';
   }
   const methodRoot = document.getElementById('methodPalette');
   if (methodRoot) {
-    methodRoot.innerHTML = capabilityMethods().map(method => `<button type="button" class="assembly-item" data-assembly-add-type="method" data-assembly-add-id="${escapeHTML(method.id)}" title="适用：${escapeHTML((method.applicability || []).join('；'))}；禁用：${escapeHTML((method.prohibitions || []).join('；'))}"><strong>${escapeHTML(method.title)}</strong><span>${escapeHTML(method.family)} · ${(method.validation || []).slice(0, 2).map(escapeHTML).join(' + ')}</span><em>候选卡 · ${escapeHTML(method.source_kind || 'curated/inferred')}</em></button>`).join('') || '<div class="assembly-loading">没有可用方法卡。</div>';
+    methodRoot.innerHTML = capabilityMethods().map(method => `<button type="button" class="assembly-item" data-assembly-add-type="method" data-assembly-add-id="${escapeHTML(method.id)}" title="适用：${escapeHTML((method.applicability || []).join('；'))}；禁用：${escapeHTML((method.prohibitions || []).join('；'))}"><strong>${escapeHTML(method.title)}</strong><span>${escapeHTML(method.family)} · ${(method.validation || []).slice(0, 2).map(escapeHTML).join(' + ')}</span><em>候选卡 · ${escapeHTML(method.source_kind || 'curated/inferred')}</em></button>`).join('') || '<div class="assembly-loading">方法卡目录为空。</div>';
   }
   const packRoot = document.getElementById('contentPackPalette');
   if (packRoot) {
@@ -1513,7 +1749,7 @@ function renderAssemblyCanvas() {
   }
   if (!root) return;
   if (!nodes.length) {
-    root.innerHTML = `<div class="assembly-empty"><span>${dragonIcon('mark', { className: 'dragon-affordance' })}</span><strong>从左侧加入第一个节点</strong><p>建议顺序：题面 → 数据/机制 → baseline → 方法 → 验证 → claim。</p></div>`;
+    root.innerHTML = `<div class="assembly-empty"><span>${dragonIcon('mark', { className: 'dragon-affordance' })}</span><strong>节点尚未编排</strong><p>建议链路：题面 → 数据/机制 → baseline → 方法 → 验证 → claim。</p></div>`;
     return;
   }
   root.innerHTML = nodes.map((node, index) => {
@@ -2159,6 +2395,8 @@ function mergeLiveModeling(snapshot) {
 
 function applyLiveSnapshot(snapshot) {
   if (!snapshot) return;
+  workspaceState.integrity = snapshot.source_integrity || snapshot.context?.source_integrity || workspaceState.integrity;
+  if (workspaceState.catalog) renderWorkspaceMount(workspaceState.catalog);
   mergeLiveModeling(snapshot);
   liveRevision = snapshot.revision || liveRevision;
   const snapshotContext = snapshot.context || {};
@@ -2363,6 +2601,8 @@ function bindEvents() {
   document.getElementById('exemplarBtn').addEventListener('click', exemplarStudyModal);
   document.getElementById('routeCompareBtn').addEventListener('click', routeCompareModal);
   document.getElementById('knowledgeBtn').addEventListener('click', openKnowledgePanel);
+  const workspaceBrowseButton = document.getElementById('workspaceBrowseBtn');
+  if (workspaceBrowseButton) workspaceBrowseButton.addEventListener('click', openWorkspaceBrowser);
   document.getElementById('assemblyBtn').addEventListener('click', openAssemblyPanel);
   const panelToggle = document.getElementById('panelToggleBtn');
   if (panelToggle) panelToggle.addEventListener('click', () => {
@@ -2457,9 +2697,17 @@ function bindEvents() {
 }
 
 window.showToast = showToast; window.closeModal = closeModal;
+// Expose the workspace boundary for smoke tests and future host adapters. The
+// functions still enforce the same local allowlist; exporting them does not
+// grant a caller access to arbitrary paths or external providers.
+window.openWorkspaceBrowser = openWorkspaceBrowser;
+window.loadWorkspaceCatalog = loadWorkspaceCatalog;
+window.runWorkspaceSearch = runWorkspaceSearch;
+window.isSafeWorkspaceRef = isSafeWorkspaceRef;
 window.selectedSubproblem = 'Q2';
 initDragonMotion();
-renderRuntimeContext(); renderMembers(); renderTasks(); renderDecisions(); renderEvidence(); renderModelingOverview(); renderMessages(); renderPendingKbCitations(); bindEvents(); initTemplateShell(); connectLiveTransport();
+renderRuntimeContext(); renderMembers(); renderTasks(); renderDecisions(); renderEvidence(); renderModelingOverview(); renderMessages(); renderPendingKbCitations(); renderWorkspaceMount(null); bindEvents(); initTemplateShell(); connectLiveTransport();
 if (LIVE_API) loadKnowledgeSummary();
 if (LIVE_API) loadCapabilityCatalog();
+if (LIVE_API) loadWorkspaceCatalog();
 if (LIVE_API_BLOCKED) showToast('已阻止未列入 allowlist 的实时 API；当前保持 SIMULATED 演示');

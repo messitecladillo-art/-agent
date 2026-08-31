@@ -80,6 +80,29 @@
 | 多视口 | 1440×900、1024×768、768×1024、390×844、360×800 无横向溢出，消息/阶段/字体可读 | `experiments/log.md` v13.5 记录 |
 | 移动抽屉清晰度 | 遮罩低于抽屉；抽屉正文不受自身 backdrop-filter 模糊；背景仍柔和压暗 | `experiments/log.md` v13.5.3 记录 |
 
+## T07-R workspace catalog / v14 文档口径（附加切片）
+
+| 项目 | 口径 | 验收位置 |
+|---|---|---|
+| 仓库挂载 | 只读 allowlist：README/TASKS/AGENTS + app/index/styles/docker + backend/assets/docs/skills/notes/workflows/models/paper/viz/scripts/experiments；排除 secrets、runtime、.collab、链接与绝对路径 | `backend/README.md`、`docs/api-contract.md` §10 |
+| source_integrity | `observed` 只证明路径边界、读取行为和 manifest 可审计，不证明内容正确、授权或题面适配 | `docs/knowledge-base-integration.md` §12 |
+| repo 引用 | `repo:<relative-path>` 可作为候选指针保留在 `evidence_refs`，但不得单独升级为 kbdoc/VERIFIED/论文 claim | `README.md` §12、`docs/api-contract.md` §10.1 |
+| v14 质感原则 | 连续暖纸面、局部玻璃、单一主浮层、安静任务清单、触感反馈不喧闹；保持多视口与安全带验收 | `README.md` §13、`docs/ui-system.md` §12 |
+| 真实运行限制 | offline-dev、进程内 journal、无默认真实模型/RBAC/签名 relay；状态必须显式标识 | `backend/README.md`、`docs/ui-system.md` §12.2 |
+
+## v14.2.13 最终回归记录
+
+| 主题 | 验收证据 |
+|---|---|
+| 触感层级 | 暖纸面连续承载；消息/证据近不透明；单一主浮层；成功连接提示由顶栏状态承载，不再遮挡右栏 |
+| 宽屏临界 | 1321/1340/1350/1360/1366/1440×900：聊天气泡不与 feed 上下边界相交，masthead 三轨无几何重叠 |
+| 低高度桌面 | 1280/1366/1440×720 与 1024×720：hero/Q 收束为单行定位层，聊天区保留至少两条完整近期消息 |
+| 平板/短屏 | 1024/1180/1280×768：无横向溢出，首个可见气泡完整，Q 轨可读 |
+| 手机 | 390×844、360×800：Q 轨单行编号/状态，气泡与 composer 不相交，抽屉遮罩 z10 / 面板 z20 |
+| 工程挂载 | workspace catalog 86 项、67 项可检索、13 项视觉资产；`skills` 检索返回24项；越权路径返回400 |
+| 代码与测试 | 后端 `100 passed`；Python compileall、Node syntax、CSS 花括号计数均通过；密钥与大文件扫描无命中 |
+| 运行边界 | 本地 API 仍为 offline-dev；运行时 manifest 以当前 allowlist 计算，忽略旧 `.collab` 声明并显式标记 `STALE_DECLARATION` |
+
 ---
 
 ## 任务模板（复制使用）

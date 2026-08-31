@@ -19,6 +19,7 @@ import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Set
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
@@ -41,6 +42,7 @@ try:  # Works both as ``backend.app`` and as ``app`` from the backend folder.
         metadata_snapshot_to_catalog,
     )
     from .problem_contract import build_problem_contract
+    from .repo_catalog import CatalogPathError, WorkspaceCatalog
 except ImportError:  # pragma: no cover - exercised by the documented launch command
     from orchestrator import acceptance_blocked, canonical_path, validate_dependency_graph, write_sets_conflict
     from model_gateway import ModelGateway, ModelRequest, default_profiles
@@ -56,6 +58,7 @@ except ImportError:  # pragma: no cover - exercised by the documented launch com
         metadata_snapshot_to_catalog,
     )
     from problem_contract import build_problem_contract
+    from repo_catalog import CatalogPathError, WorkspaceCatalog
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,6 +71,41 @@ RUN_ID = "RUN-MF-2026-0831"
 LOCAL_AGENT_IDS = {"owner", "user", "coordinator", "codex/root", "scope", "data", "routeA", "routeB", "critic", "validator"}
 REVISION_PATTERN = re.compile(r"^(?:manifest|source):[0-9a-fA-F]{64}$")
 
+# The repository itself is a bounded, read-only context source.  Instantiate it
+# before loading the runtime revision so the advertised input hash can be
+# derived from the current checkout rather than from a stale ignored evidence
+# file left by an earlier run.
+workspace_catalog = WorkspaceCatalog(ROOT)
+
+
+def _declared_manifest_revision() -> Optional[str]:
+    """Read the optional local evidence declaration without trusting it."""
+    manifest = ROOT / ".collab" / "manifest.sha256"
+    try:
+        lines = manifest.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        declared = re.search(r"Manifest digest.*?:\s*([0-9a-fA-F]{64})", line, flags=re.IGNORECASE)
+        if declared:
+            return declared.group(1).lower()
+    for line in lines:
+        candidate = line.strip().split(maxsplit=1)[0]
+        if re.fullmatch(r"[0-9a-fA-F]{64}", candidate):
+            return candidate.lower()
+    return None
+
+
+def _runtime_workspace_revision() -> Optional[str]:
+    """Return a manifest-shaped digest of the current allowlisted checkout."""
+    try:
+        digest = str(workspace_catalog.catalog().get("manifest_sha", ""))
+        if digest.startswith("sha256:") and len(digest.split(":", 1)[1]) == 64:
+            return digest.split(":", 1)[1].lower()
+    except Exception:  # pragma: no cover - defensive startup fallback
+        return None
+    return None
+
 
 def load_input_revision() -> str:
     """Read the frozen source manifest when available.
@@ -77,19 +115,13 @@ def load_input_revision() -> str:
     stable source revision from the project id and report that fact in the
     snapshot rather than inventing a short hash.
     """
-    manifest = ROOT / ".collab" / "manifest.sha256"
-    try:
-        lines = manifest.read_text(encoding="utf-8").splitlines()
-        for line in lines:
-            declared = re.search(r"Manifest digest.*?:\s*([0-9a-fA-F]{64})", line, flags=re.IGNORECASE)
-            if declared:
-                return f"manifest:{declared.group(1).lower()}"
-        for line in lines:
-            candidate = line.strip().split(maxsplit=1)[0]
-            if re.fullmatch(r"[0-9a-fA-F]{64}", candidate):
-                return f"manifest:{candidate.lower()}"
-    except OSError:
-        pass
+    # Prefer the current checkout digest.  The ignored .collab declaration is
+    # useful evidence, but it must never make a changed source tree look
+    # current.  Keeping the ``manifest:`` shape preserves the existing API
+    # contract while making the value auditable at runtime.
+    current = _runtime_workspace_revision()
+    if current:
+        return f"manifest:{current}"
     serialized = json.dumps({"project_id": PROJECT_ID, "run_id": RUN_ID, "source": "unavailable"}, sort_keys=True, separators=(",", ":"))
     return "source:" + hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
@@ -379,8 +411,29 @@ def valid_evidence_ref(value: str) -> bool:
     # KB references are source pointers, not a shortcut around the artifact or
     # numerical validation gates.  ``#pN`` is reserved for a future page-level
     # chunk adapter; the current MVP emits document-level ``kbdoc`` refs.
+    candidate = str(value).strip()
     pattern = r"(?:artifact|run|claim|file):[^\s]{2,300}|kbdoc:kbdoc_[0-9a-f]{16}(?:#p\d+)?|kbchunk:kbchunk_kbdoc_[0-9a-f]{16}_\d+(?:#p\d+)?"
-    return bool(re.fullmatch(pattern, str(value), flags=re.IGNORECASE))
+    if re.fullmatch(pattern, candidate, flags=re.IGNORECASE):
+        return True
+    # Workspace refs are bounded source pointers emitted by WorkspaceCatalog.
+    # They are evidence of where a prompt/skill came from, not proof that a
+    # mathematical claim is verified.  Keep the same allowlist and traversal
+    # rules as the catalog so an arbitrary local path can never be smuggled
+    # into a message, task result, or review record.
+    if not candidate.lower().startswith("repo:"):
+        return False
+    rel = candidate[5:]
+    if not rel or len(rel) > 300 or "\\" in rel or "\x00" in rel or rel.startswith("/"):
+        return False
+    parts = PurePosixPath(rel).parts
+    allowed_roots = {
+        "README.md", "TASKS.md", "AGENTS.md", "app.js", "index.html", "styles.css", "docker-compose.yml",
+        "docs", "skills", "notes", "workflows", "models", "paper", "viz", "scripts", "experiments", "backend", "assets",
+    }
+    if not parts or parts[0] not in allowed_roots:
+        return False
+    sensitive = re.compile(r"(?:^|[._-])(secret|secrets|credential|credentials|password|passwd|token|api[_-]?key|private[_-]?key)(?:[._-]|$)", flags=re.IGNORECASE)
+    return all(part not in {"", ".", ".."} and not part.startswith(".") and not sensitive.search(part) for part in parts)
 
 
 def modeling_provenance(message: MessageIn) -> Dict[str, Any]:
@@ -1070,14 +1123,37 @@ app = FastAPI(title="G-CUP MAS Local API", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:4173", "http://127.0.0.1:4173"], allow_credentials=False, allow_methods=["GET", "POST"], allow_headers=["*"])
 
 
+def source_integrity_snapshot() -> Dict[str, Any]:
+    """Expose whether the ignored local declaration matches this checkout."""
+    declared = _declared_manifest_revision()
+    runtime = _runtime_workspace_revision()
+    if runtime and declared and runtime == declared:
+        status = "MATCHED"
+    elif runtime and declared:
+        status = "STALE_DECLARATION"
+    elif runtime:
+        status = "RUNTIME_ONLY"
+    else:
+        status = "UNAVAILABLE"
+    return {
+        "status": status,
+        "declared_revision": f"manifest:{declared}" if declared else None,
+        "runtime_revision": f"manifest:{runtime}" if runtime else None,
+        "source": "workspace_catalog_allowlist",
+        "note": "运行时 revision 来自当前白名单工作区；.collab 声明仅作对照，不会覆盖当前源码。",
+    }
+
+
 @app.get("/health")
 async def health() -> Dict[str, Any]:
+    integrity = source_integrity_snapshot()
     return {
         "ok": True,
         "project_id": PROJECT_ID,
         "run_id": RUN_ID,
         "revision": store.revision,
         "input_revision": INPUT_REVISION,
+        "source_integrity": integrity,
         "mode": "offline-dev",
         "event_chain_valid": store.chain_valid,
     }
@@ -1144,6 +1220,28 @@ def knowledge_context(
     """Prompt-sized KB context for model adapters; no arbitrary file access."""
     _require_project(project_id)
     return knowledge_base.context(q, module=module, kind=kind, year=year, extension=extension, top_k=top_k)
+
+
+@app.get("/api/projects/{project_id}/workspace/catalog")
+def workspace_catalog_snapshot(project_id: str) -> Dict[str, Any]:
+    """Return allowlisted repository metadata for Agent context mounting."""
+    _require_project(project_id)
+    return workspace_catalog.catalog()
+
+
+@app.get("/api/projects/{project_id}/workspace/search")
+def workspace_catalog_search(
+    project_id: str,
+    q: str = Query(default="", max_length=240),
+    top_k: int = Query(default=20, ge=1, le=50),
+    path: Optional[str] = Query(default=None, max_length=240),
+) -> Dict[str, Any]:
+    """Search the allowlisted repository by metadata and bounded text body."""
+    _require_project(project_id)
+    try:
+        return workspace_catalog.search(q, top_k=top_k, path=path)
+    except CatalogPathError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/projects/{project_id}/capabilities/catalog")
@@ -1861,6 +1959,7 @@ async def snapshot(project_id: str) -> Dict[str, Any]:
     if project_id != PROJECT_ID:
         raise HTTPException(status_code=404, detail="project not found")
     async with store.get_lock():
+        integrity = source_integrity_snapshot()
         return {
             "project_id": PROJECT_ID,
             "run_id": RUN_ID,
@@ -1874,6 +1973,7 @@ async def snapshot(project_id: str) -> Dict[str, Any]:
                 "worktree_revision": INPUT_REVISION,
                 "control_revision": store.revision,
                 "event_chain_valid": store.chain_valid,
+                "source_integrity": integrity,
             },
             "tasks": copy.deepcopy(list(store.tasks.values())),
             "messages": copy.deepcopy(store.messages[-100:]),
@@ -1898,6 +1998,7 @@ async def snapshot(project_id: str) -> Dict[str, Any]:
             "next_seq": store.events[-1].seq if store.events else 0,
             "agent_sync": {"antigravity": "PENDING_RELAY"},
             "event_chain_valid": store.chain_valid,
+            "source_integrity": integrity,
         }
 
 

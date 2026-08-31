@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f8f7f2" />
     <title>青甲 Agent · 多 Agent 群聊式数学建模</title>
-    <link rel="stylesheet" href="styles.css?v=20260901-oracle-glass-qingjia-tactile-v13.5.3" />
+    <link rel="stylesheet" href="styles.css?v=20260901-oracle-glass-qingjia-tactile-v14.2.13" />
   </head>
   <body data-design="oracle-glass">
     <div class="app-shell">
@@ -149,8 +149,8 @@
           <section class="modeling-overview" aria-label="题面到论文的建模链">
             <div class="modeling-hero">
               <div class="hero-copy">
-                <p class="hero-kicker">小青龙工作台 / OWNER CONTROL</p>
-                <h2 class="qingjia-display">把题面变成可验证的模型</h2>
+                <p class="hero-kicker">小青龙工作台 / OWNER CONTROL <span class="workspace-inline-status" id="workspaceInlineStatus" title="版本化工程上下文">工程上下文 · 读取中</span></p>
+                <h2 class="qingjia-display">题面 · 模型 · 可验证链</h2>
                 <p class="hero-subtitle">从原题句到论文 claim，每一步都留下可复核的接口与证据。</p>
               </div>
               <div class="hero-side">
@@ -185,7 +185,7 @@
         </section>
 
         <aside class="sidebar right-sidebar" aria-label="建模控制、任务与证据">
-          <div class="right-tabs"><div class="right-tabs-label">工作台</div><button class="right-tab active" data-panel="modeling">建模控制</button><button class="right-tab" data-panel="tasks">任务面板</button><button class="right-tab" data-panel="evidence">证据账本 <span class="tab-badge">7</span></button><button class="right-tab" data-panel="knowledge">资料库 <span class="tab-badge" id="kbTabBadge">—</span></button><button class="right-tab" data-panel="assembly">能力装配 <span class="tab-badge" id="capabilityBadge">—</span></button><button class="panel-close" id="panelCloseBtn" aria-label="收起控制面板"><img src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></button></div>
+          <div class="right-tabs"><div class="right-tabs-label">工作台</div><button class="right-tab active" data-panel="modeling" aria-label="建模控制" title="建模控制">建模</button><button class="right-tab" data-panel="tasks" aria-label="任务面板" title="任务面板">任务</button><button class="right-tab" data-panel="evidence" aria-label="证据账本" title="证据账本">证据 <span class="tab-badge">7</span></button><button class="right-tab" data-panel="knowledge" aria-label="资料库" title="资料库">资料 <span class="tab-badge" id="kbTabBadge">—</span></button><button class="right-tab" data-panel="assembly" aria-label="能力装配" title="能力装配">装配 <span class="tab-badge" id="capabilityBadge">—</span></button><button class="panel-close" id="panelCloseBtn" aria-label="收起控制面板"><img src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></button></div>
 
           <div class="right-content" id="modelingPanel">
             <div class="focus-card" id="focusCard"></div>
@@ -196,7 +196,7 @@
           <div class="right-content" id="tasksPanel" hidden>
             <div class="run-card">
               <div class="run-card-head"><span class="run-status"><i></i> RUNNING · 演示快照</span><span class="run-id" id="runIdLabel">RUN-MF-2026-0831</span></div>
-              <h3>把 A 题变成可检验的决策模型</h3>
+              <h3>A题 · 决策模型运行</h3>
               <div class="revision-stack"><span>input <b id="inputRevisionLabel">fixture:2016-2025…</b></span><span>worktree <b id="worktreeRevisionLabel">fixture:modeling…</b></span><span>control <b id="controlRevisionLabel">fixture:run-bootstrap…</b></span></div>
               <div class="run-metrics"><div><strong id="completedMetric">8/14</strong><span>节点完成</span></div><div><strong>02:18:44</strong><span>运行时长</span></div><div><strong>3</strong><span>待裁决</span></div></div>
             </div>
@@ -227,6 +227,12 @@
               <p id="kbStatusMeta">原始文件只读；索引随本地同步快照更新。</p>
               <div class="kb-stats" id="kbStats"><div><b>—</b><span>可检索文件</span></div><div><b>—</b><span>同步中</span></div><div><b>—</b><span>索引大小</span></div></div>
             </div>
+            <div class="workspace-mount-strip" id="workspaceMountStrip" data-status="pending">
+              <span class="workspace-mount-mark"><img src="assets/ip/xiao-qinglong-data-v1.png" alt="" aria-hidden="true" /></span>
+              <span class="workspace-mount-copy"><strong>工程上下文</strong><small id="workspaceMountMeta">skills · notes · docs · code · 待同步</small></span>
+              <span class="workspace-mount-count" id="workspaceMountCount">—</span>
+              <button type="button" class="workspace-mount-action" id="workspaceBrowseBtn">浏览</button>
+            </div>
             <div class="knowledge-card kb-search-card">
               <form id="kbSearchForm" class="kb-search-form">
                 <div class="kb-search-row"><input id="kbSearchInput" type="search" autocomplete="off" placeholder="搜题目、年份、模型、模板…" aria-label="搜索本地数学建模资料"/><button type="submit" id="kbSearchBtn">检索</button></div>
@@ -235,28 +241,28 @@
               <div class="kb-suggestions" aria-label="快捷检索"><button type="button" data-kb-query="2016 2024 国赛 优秀论文">近十年范文</button><button type="button" data-kb-query="官方评阅标准">评阅口径</button><button type="button" data-kb-query="论文模板 写作规范">论文模板</button><button type="button" data-kb-query="遗传算法 线性规划">方法与代码</button></div>
             </div>
             <div class="kb-results-head"><strong>检索结果</strong><span id="kbResultMeta">输入关键词后调用</span></div>
-            <div id="kbResults" class="kb-results"><div class="kb-empty"><span class="dragon-empty-icon"><img src="assets/ip/xiao-qinglong-face-v3.png" alt="" /></span><strong>让 Agent 从资料包找证据</strong><p>先选“近十年范文”或输入题目/模型关键词。</p></div></div>
+             <div id="kbResults" class="kb-results"><div class="kb-empty"><span class="dragon-empty-icon"><img src="assets/ip/xiao-qinglong-face-v3.png" alt="" /></span><strong>候选资料 · 待检索</strong><p>选择范文、评阅或方法索引。</p></div></div>
             <div class="kb-disclaimer"><span class="dragon-note-icon"><img src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></span><p>资料建议只作为候选证据。范文、扫描件和模板不会自动变成当前题目的结论；引用前仍需题面、变量、验证与 Owner 审批。</p></div>
           </div>
 
           <div class="right-content assembly-content" id="assemblyPanel" hidden>
-            <div class="assembly-hero">
-              <div><span class="assembly-kicker">CAPABILITY STUDIO</span><h3>把资料变成可组合能力</h3><p>标准链守住竞赛底线，自由链允许你按题型拼出自己的方法路线。</p></div>
+              <div class="assembly-hero">
+               <div><span class="assembly-kicker">CAPABILITY STUDIO</span><h3>能力编排工作台</h3><p>标准链守住竞赛底线，自由链按题型组合方法路线。</p></div>
               <span class="assembly-orbit" aria-hidden="true"><img src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></span>
             </div>
             <div class="assembly-mode-switch" role="tablist" aria-label="工作流模式"><button type="button" class="assembly-mode active" data-assembly-mode="standard">标准流程</button><button type="button" class="assembly-mode" data-assembly-mode="free">自由装配</button></div>
             <div class="capability-source-strip" id="capabilitySourceStrip"><span class="knowledge-dot pending"></span><span>能力目录正在读取资料快照…</span></div>
 
             <section class="problem-contract-card" aria-label="动态题面契约">
-              <div class="problem-contract-head"><div><span class="section-kicker">OPEN CONTRACT</span><h4>从任意题面生成小问草稿</h4></div><span class="contract-state" id="problemContractState">DRAFT · 未核验</span></div>
-              <p>不固定 A/B/C 或 Q1–Q4；先把题面中的编号、交付动词、变量、约束和验证提示提成可编辑草稿。</p>
+               <div class="problem-contract-head"><div><span class="section-kicker">OPEN CONTRACT</span><h4>题面契约 · 小问结构化</h4></div><span class="contract-state" id="problemContractState">DRAFT · 未核验</span></div>
+              <p>题面编号、交付动词、变量、约束与验证提示 → 可编辑契约字段。</p>
               <textarea id="problemDraftInput" rows="3" placeholder="粘贴题面或某一段小问… 例如：问题一：根据附件预测需求；问题二：在容量约束下优化方案。"></textarea>
               <div class="problem-contract-actions"><button type="button" class="mini-action primary" id="draftProblemContractBtn">生成契约草稿</button><span id="problemContractMeta">来源、单位与语义仍需 Scope-Lock/Owner 核对</span></div>
               <div id="problemContractResult" class="problem-contract-result" hidden></div>
             </section>
 
             <section class="assembly-section" data-assembly-view="standard">
-              <div class="assembly-section-head"><div><span class="section-kicker">SAFE START</span><h4>先选题型，再载入底线流程</h4></div><button type="button" class="text-button" id="capabilityRefreshBtn">刷新能力</button></div>
+               <div class="assembly-section-head"><div><span class="section-kicker">SAFE START</span><h4>题型映射 · 标准流程</h4></div><button type="button" class="text-button" id="capabilityRefreshBtn">刷新能力</button></div>
               <div class="assembly-select-grid"><label>题型起点<select id="capabilityArchetypeSelect" aria-label="题型起点"></select></label><label>标准模板<select id="capabilityPresetSelect" aria-label="标准工作流模板"></select></label></div>
               <button type="button" class="assembly-primary-action" id="applyPresetBtn"><span>载入标准链</span><img class="dragon-affordance" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></button>
               <div class="preset-list" id="presetList"></div>
@@ -264,12 +270,12 @@
             </section>
 
             <section class="assembly-section" data-assembly-view="free" hidden>
-              <div class="assembly-section-head"><div><span class="section-kicker">COMPOSE</span><h4>拖出你的模型链</h4></div><span class="assembly-count" id="assemblyCount">0 个节点</span></div>
+               <div class="assembly-section-head"><div><span class="section-kicker">COMPOSE</span><h4>模型链编排</h4></div><span class="assembly-count" id="assemblyCount">0 个节点</span></div>
               <div class="assembly-toolbar"><button type="button" class="mini-action" id="clearAssemblyBtn">清空</button><button type="button" class="mini-action primary" id="validateAssemblyBtn">检查链路</button></div>
               <div class="assembly-lanes"><div class="assembly-lane"><div class="lane-title"><span>工作块</span><em>必选/可插拔</em></div><div id="blockPalette" class="assembly-palette"><div class="assembly-loading">等待能力目录…</div></div></div><div class="assembly-lane"><div class="lane-title"><span>方法卡</span><em>适用性优先</em></div><div id="methodPalette" class="assembly-palette"><div class="assembly-loading">等待能力目录…</div></div></div></div>
               <div class="content-pack-row"><div class="lane-title"><span>内容包</span><em>从资料库取证</em></div><div id="contentPackPalette" class="content-pack-palette"></div></div>
               <div class="assembly-chain-head"><span>当前链 · 点击节点查看卡片</span><div class="assembly-chain-actions"><button type="button" class="text-button" id="innovationBtn">创新差异卡</button><button type="button" class="text-button" id="sendAssemblyBtn">发到群聊</button></div></div>
-              <div id="assemblyCanvas" class="assembly-canvas"><div class="assembly-empty"><span><img class="dragon-affordance" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></span><strong>从左侧加入第一个节点</strong><p>建议顺序：题面 → 数据/机制 → baseline → 方法 → 验证 → claim。</p></div></div>
+              <div id="assemblyCanvas" class="assembly-canvas"><div class="assembly-empty"><span><img class="dragon-affordance" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></span><strong>节点尚未编排</strong><p>建议链路：题面 → 数据/机制 → baseline → 方法 → 验证 → claim。</p></div></div>
               <div id="assemblyGate" class="assembly-gate neutral"><span class="gate-icon"><img class="dragon-gate-icon" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></span><div><strong>尚未检查链路</strong><p>检查后会显示端口、环路、必需验证与证据门。</p></div></div>
               <div id="assemblyDiff" class="assembly-diff" hidden></div>
               <div id="innovationSummary" class="innovation-summary" hidden></div>
@@ -277,7 +283,7 @@
             <div class="assembly-disclaimer"><span>!</span><p>能力卡是从本地资料目录/抽样正文归纳的候选知识，不是对所有范文或模型正确性的认证；进入论文前仍需题面、参数来源、独立复现与群主审批。</p></div>
           </div>
 
-            <div class="approval-bar"><div><span class="approval-lock"><img src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></span><span>群主审批门</span></div><button id="approveAllBtn" class="approve-button">查看审批队列</button></div>
+             <div class="approval-bar"><div><span class="approval-lock"><img src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></span><span>Owner 审批</span></div><button id="approveAllBtn" class="approve-button">查看审批队列</button></div>
         </aside>
       </main>
       <button class="panel-backdrop" id="panelBackdrop" aria-label="关闭控制面板" hidden></button>
@@ -285,6 +291,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <div class="modal-backdrop" id="modalBackdrop" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><button class="modal-close" id="modalClose" aria-label="关闭">×</button><div id="modalBody"></div></div></div>
-    <script src="app.js?v=20260901-oracle-glass-qingjia-tactile-v13.5.3"></script>
+    <script src="app.js?v=20260901-oracle-glass-qingjia-tactile-v14.2.13"></script>
   </body>
 </html>
