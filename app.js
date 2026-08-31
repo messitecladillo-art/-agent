@@ -1,0 +1,2465 @@
+/* 建模议事厅 · frontend-only MVP
+ * The mock event stream mirrors agent-collab/v1 envelopes. Replace dispatch()
+ * with WebSocket/SSE calls when the FastAPI gateway is connected.
+ */
+
+const queryParams = new URLSearchParams(window.location.search);
+function resolveLiveApi(raw) {
+  if (!raw && !queryParams.has('live')) return '';
+  const candidate = raw || window.location.origin;
+  try {
+    const url = new URL(candidate, window.location.origin);
+    const loopback = new Set(['localhost', '127.0.0.1', '[::1]', '::1']).has(url.hostname);
+    if (url.origin === window.location.origin || loopback) return url.origin;
+  } catch (_) { /* the caller receives a visible blocked-state toast below */ }
+  return '';
+}
+const requestedLiveApi = queryParams.get('api') || (queryParams.has('live') ? window.location.origin : '');
+const LIVE_API = resolveLiveApi(requestedLiveApi);
+const LIVE_API_BLOCKED = Boolean(requestedLiveApi && !LIVE_API);
+// Fixture revisions are intentionally human-readable and are not hashes of a
+// real contest input. A live snapshot replaces all three values with the
+// server-issued manifest/control revisions.
+const DEMO_INPUT_REVISION = 'fixture:2016-2025-exemplar-sample-v1';
+const LIVE_PROJECT = 'HGC-MF-2026-001';
+const DEMO_CONTEXT = Object.freeze({
+  projectId: 'HGC-MF-2026-001',
+  runId: 'RUN-MF-2026-0831',
+  inputRevision: DEMO_INPUT_REVISION,
+  worktreeRevision: 'fixture:modeling-first-ui-v2',
+  controlRevision: 'fixture:run-bootstrap-v1',
+  mode: 'simulated',
+  sourceStatus: 'fixture',
+  sourceLabel: 'SIMULATED · fixture',
+});
+let runtimeContext = { ...DEMO_CONTEXT, mode: LIVE_API ? 'live' : 'simulated', sourceStatus: LIVE_API ? 'connecting' : 'fixture', sourceLabel: LIVE_API ? 'LIVE · connecting' : DEMO_CONTEXT.sourceLabel };
+let liveSocket = null;
+let liveRevision = null;
+let liveSeq = 0;
+let liveReconnectTimer = null;
+let liveConnected = false;
+const seenLiveEvents = new Set();
+const pendingLiveEvents = new Map();
+let replayPromise = null;
+const seenSnapshotMessages = new Set();
+let knowledgeState = { summary: null, results: [], query: '', loading: false, indexRevision: null };
+let capabilityState = {
+  catalog: null,
+  loading: false,
+  revision: null,
+  mode: 'standard',
+  assembly: { nodes: [], edges: [], presetId: null, archetypeId: null, validation: null, revision: null, diff: null, previousNodes: [], previousEdges: [], committedRevision: null, innovationCard: null, previousInnovationCard: null, contentPackIds: [], previousContentPackIds: [], contentPackEvidenceRefs: [], contentPackEvidenceByPack: {}, contentPackIndexRevision: null, contentPackResolutionRevision: null, methodBlockWarnings: [] },
+  problemContract: null,
+};
+// Monotonic client-side fence: several UI actions can trigger compose calls
+// close together (preset change + content-pack toggle + explicit check).  An
+// older response must never overwrite the newer graph's validation/diff.
+let assemblyValidationEpoch = 0;
+
+const capabilityContentPacks = [
+  { id: 'problem-evidence', title: '题面证据', note: '题面、附件、单位与约束', query: '历年赛题 附件 约束 单位' },
+  { id: 'paper-structure', title: '范文结构', note: '问题分析、模型链、验证章节', query: '优秀论文 问题分析 模型假设 验证' },
+  { id: 'method-code', title: '方法与代码', note: '算法入口、参数与复现线索', query: '模型算法 代码 参数 复现' },
+  { id: 'counterexample', title: '反例与边界', note: '敏感性、失败模式、禁用条件', query: '敏感性分析 误差 适用条件 反例' },
+  { id: 'paper-template', title: '写作模板', note: '摘要、三线表、排版与答辩', query: '论文模板 写作规范 三线表 答辩' },
+];
+
+// The Xiao-Qinglong IP is the visual language for all dynamic UI symbols.
+// Keep the paths local and deterministic: these are decoration only, while
+// the adjacent text remains the accessible source of truth for identity and
+// status.  The static shell uses the same asset family.
+const DRAGON_ASSETS = Object.freeze({
+  mark: 'assets/ip/xiao-qinglong-mark-v1.png',
+  face: 'assets/ip/xiao-qinglong-face-v3.png',
+  avatar: 'assets/ip/xiao-qinglong-avatar-v1.png',
+  mascot: 'assets/ip/xiao-qinglong-mascot-v1.png',
+  data: 'assets/ip/xiao-qinglong-data-v1.png',
+  question: 'assets/ip/xiao-qinglong-question-v1.png',
+  thinking: 'assets/ip/xiao-qinglong-thinking-v1.png',
+  verified: 'assets/ip/xiao-qinglong-verified-v1.png',
+});
+
+// Motion is deliberately kept separate from the static icon map.  The v3
+// clip is a short, cleaned candidate asset: it is suitable for a one-shot
+// identity preview, but its seam has not been accepted as a permanent loop.
+const DRAGON_MOTION_ASSETS = Object.freeze({
+  idle: Object.freeze({
+    src: 'assets/ip/xiao-qinglong-idle-v3.mp4',
+    poster: 'assets/ip/xiao-qinglong-idle-v3-poster.png',
+    loop: false,
+    review: 'candidate:one-shot',
+  }),
+});
+
+const DRAGON_MEMBER_ASSETS = Object.freeze({
+  // Identity surfaces use the same simplified face; affordances/statuses use
+  // the companion line mark. This keeps the IP legible without turning every
+  // row into a large illustration.
+  scope: 'question',
+  data: 'data',
+  routeA: 'thinking',
+  routeB: 'avatar',
+  critic: 'question',
+  validator: 'verified',
+  owner: 'face',
+});
+
+const DRAGON_STATUS_ASSETS = Object.freeze({
+  pass: 'mark',
+  verified: 'mark',
+  accepted: 'mark',
+  released: 'mark',
+  produced: 'mark',
+  active: 'mark',
+  in_progress: 'mark',
+  review: 'mark',
+  ready_for_review: 'mark',
+  warn: 'mark',
+  unverified: 'mark',
+  blocked: 'mark',
+  wait: 'mark',
+  queued: 'mark',
+  pending: 'mark',
+  pending_relay: 'mark',
+  local_pending: 'mark',
+});
+
+const members = [
+  { id: 'scope', name: 'Scope-Lock', title: '题面哨兵 · 范围锁定', model: 'Claude · Opus（独立上下文）', shortModel: 'Claude Opus', avatar: 'S', color: 'agent-blue', state: '在线', presence: 'online', task: 'G1 题面契约' },
+  { id: 'data', name: 'Data-Auditor', title: '数据工程 · 质量审计', model: 'Qoder · Tool/Code Profile', shortModel: 'Qoder', avatar: 'D', color: 'agent-teal', state: '工作中', presence: 'busy', task: 'G3 数据体检' },
+  { id: 'routeA', name: 'Model-A', title: '独立方案 A · 机制路线', model: 'Codex · GPT-5.6 Terra', shortModel: 'GPT-5.6 Terra', avatar: 'A', color: 'agent-violet', state: '工作中', presence: 'busy', task: 'G6-A 路线提案' },
+  { id: 'routeB', name: 'Model-B', title: '独立方案 B · 统计路线', model: 'Claude · Independent Reasoner', shortModel: 'Claude Independent', avatar: 'B', color: 'agent-amber', state: '待审查', presence: 'online', task: 'G6-B 路线提案' },
+  { id: 'critic', name: 'Critic', title: '对抗审查 · 反例构造', model: 'Antigravity · Gemini（待 relay）', shortModel: 'Gemini', avatar: 'C', color: 'agent-rose', state: '待 relay', presence: 'pending', task: 'G7 方案评分' },
+  { id: 'validator', name: 'Validator', title: '独立验证 · 不确定性', model: 'Codex · GPT-5.5', shortModel: 'GPT-5.5', avatar: 'V', color: 'agent-slate', state: '等待集成', presence: 'online', task: 'G14 验证门' },
+];
+
+const tasks = [
+  { id: 'G1', title: '题面契约与覆盖表', owner: 'Scope-Lock', meta: 'fixture 投影 · 题面未导入，不能核验', state: 'produced', status: 'PRODUCED', subproblemId: 'Q1', icon: '·' },
+  { id: 'G3', title: '数据质量与泄漏审计', owner: 'Data-Auditor', meta: '正在处理 · 68%', state: 'active', status: 'IN_PROGRESS', subproblemId: 'Q2', icon: '↗' },
+  { id: 'G5', title: '子问题数学化与接口契约', owner: 'Coordinator', meta: '等待 G3/G4 汇合', state: 'wait', status: 'QUEUED', subproblemId: 'Q2', icon: '·' },
+  { id: 'G6-A', title: '独立路线 A：机制 + 优化', owner: 'Model-A', meta: '等待关键参数', state: 'wait', status: 'QUEUED', subproblemId: 'Q3', icon: '…' },
+  { id: 'G6-B', title: '独立路线 B：统计 + 仿真', owner: 'Model-B', meta: '提案已提交 · READY_FOR_REVIEW', state: 'review', status: 'READY_FOR_REVIEW', subproblemId: 'Q3', icon: '✓' },
+  { id: 'G7', title: 'Critic 评分与反例', owner: 'Critic', meta: '3 个 P1 风险', state: 'blocked', status: 'BLOCKED', subproblemId: 'Q4', icon: '!' },
+  { id: 'G9', title: '群主路线审批', owner: '你 · Owner', meta: '需要你的裁决', state: 'wait', status: 'QUEUED', subproblemId: 'Q3', icon: '◆' },
+  { id: 'G10', title: '数据管线与基线实现', owner: 'Data-Auditor', meta: '未开始', state: 'wait', status: 'QUEUED', subproblemId: 'Q2', icon: '·' },
+];
+
+const decisions = [
+  { id: 'dec-1', title: '是否采用路线 B 作为主线？', body: 'Critic 认为 B 的可解释性更好，但对极端样本的外推仍需敏感性实验。', agent: 'C', color: 'agent-rose', label: '路线裁决' },
+  { id: 'dec-2', title: '接受参数 θ 的先验范围吗？', body: 'Domain 专家给出 [0.15, 0.35]，来源已附 DOI；需要确认是否纳入主模型。', agent: 'D', color: 'agent-teal', label: '假设审批' },
+  { id: 'dec-3', title: '批准将 Antigravity 加入独立审查？', body: '当前 relay 尚未完成身份与输入哈希确认，批准后才会发送冻结快照。', agent: 'A', color: 'antigravity-color', label: '外部授权' },
+];
+
+const evidence = [
+  { icon: '§', title: 'problem_contract.yaml', status: 'PRODUCED', source: 'fixture', meta: 'Scope-Lock · fixture · 未独立复核', claimRefs: ['C-Q1-01'] },
+  { icon: '▦', title: 'data_quality_report.md', status: 'READY_FOR_REVIEW', source: 'fixture', meta: 'Data-Auditor · 4 个异常待处理', claimRefs: ['C-DATA-02'] },
+  { icon: '∑', title: 'route_B_spec.md', status: 'READY_FOR_REVIEW', source: 'fixture', meta: 'Model-B · 3 个复现入口 · 未验收', claimRefs: ['C-Q2-03'] },
+  { icon: '⚑', title: 'critic_findings.json', status: 'BLOCKED', source: 'fixture', meta: 'Critic · 3 × P1 未关闭', claimRefs: ['C-17'] },
+  { icon: '⌁', title: 'relay_antigravity.yaml', status: 'PENDING_RELAY', source: 'fixture', meta: '外部协作 · 输入哈希待 ACK', claimRefs: [] },
+];
+
+// These are deliberately generic fixture entities, not facts about a real
+// contest problem.  The UI uses them to demonstrate the minimum modeling
+// trace that a real problem must populate before a paper claim can pass a
+// release gate.
+const subproblems = [
+  { id: 'Q1', title: '目标与边界', prompt: '等待真实题面：把目标、决策对象与硬约束逐句映射', deliverable: '问题契约 + 约束表', state: 'unverified', stateLabel: '题面待导入', coverage: '0/6 可核对', risk: 'prompt_refs 缺失', focus: 'scope', sourceStatus: 'fixture', promptRefs: [], variables: ['utility', 'cost'] },
+  { id: 'Q2', title: '参数与机制', prompt: '等待真实题面：识别状态、参数、观测量及其可识别范围', deliverable: '变量/单位/假设登记', state: 'unverified', stateLabel: '来源待复核', coverage: '2/6 字段', risk: 'θ 先验待来源', focus: 'routeA', sourceStatus: 'fixture', promptRefs: [], variables: ['theta', 'cost'] },
+  { id: 'Q3', title: '方案与算法', prompt: '等待真实题面：比较 baseline、主路线与 fallback 的接口', deliverable: '路线 spec + 算法入口', state: 'unverified', stateLabel: '接口待复核', coverage: '3/7 字段', risk: 'A/B 接口未对齐', focus: 'routeB', sourceStatus: 'fixture', promptRefs: [], variables: ['utility', 'violation'] },
+  { id: 'Q4', title: '验证与决策', prompt: '等待真实题面：用题型匹配的检查支撑可写入论文的结论', deliverable: 'clean-run + claim map', state: 'blocked', stateLabel: 'P0 阻断', coverage: '0/6 可核对', risk: '题面与 clean-run 缺失', focus: 'critic', sourceStatus: 'fixture', promptRefs: [], variables: ['violation'] },
+];
+
+const modelChain = [
+  { id: 'prompt', label: '题面句', detail: '待导入原文 / 页码', state: 'blocked' },
+  { id: 'q', label: '小问 Q2', detail: '交付物待锁定', state: 'current' },
+  { id: 'vars', label: '变量/单位', detail: 'θ · 元/期 · %', state: 'current' },
+  { id: 'assumption', label: '假设', detail: '适用域 / 禁用条件', state: 'current' },
+  { id: 'route', label: '路线 A/B', detail: 'baseline + fallback', state: 'current' },
+  { id: 'algorithm', label: '算法', detail: '入口 / 容差 / 失败模式', state: 'current' },
+  { id: 'validation', label: '验证', detail: '2 类互补检查', state: 'blocked' },
+  { id: 'claim', label: '论文 claim', detail: '不可发布', state: 'blocked' },
+];
+
+const routeSpecs = [
+  {
+    id: 'routeA', name: '路线 A · 机制 + 优化', role: 'primary', badge: '候选主线',
+    objective: '显式约束下最大化综合效用', baseline: '线性/规则 baseline',
+    units: '效用 1 · 成本 元 · 覆盖率 %', provenance: '参数 θ：待 DOI/附件',
+    applicability: '常规区间；边界情形需情景扰动', fallback: '退回可行基线 + 上下界',
+    validation: '可行性 + 敏感性', status: 'IN_PROGRESS', warning: '量纲与 θ 来源尚未闭合',
+    problemType: 'optimization',
+    interfaces: { inputs: ['θ:无量纲', 'cost:元/期'], outputs: ['utility:无量纲', 'violation_rate:%'], granularity: '决策日 × 方案', provenance: 'fixture:data_dictionary-v2', disabledWhen: 'θ 来源或单位未核验' },
+    validationChecks: [
+      { kind: 'feasibility', label: '可行性/约束违反率', scope: '全场景', threshold: '≤ 5%', exitCode: null, resultHash: null },
+      { kind: 'sensitivity', label: '参数敏感性', scope: 'θ ± 20%', threshold: '方向不反转', exitCode: null, resultHash: null },
+    ],
+  },
+  {
+    id: 'routeB', name: '路线 B · 统计 + 仿真', role: 'fallback', badge: '独立方案',
+    objective: '在约束违反率 ≤ 5% 时稳健评估策略', baseline: '分层回归 baseline',
+    units: '收益 元/期 · 违反率 % · 时间 日', provenance: 'data_dictionary v2（fixture）',
+    applicability: '样本覆盖区间；极端样本禁用', fallback: '分位数规则 + 保守策略',
+    validation: '滚动回测 + 10,000 次扰动', status: 'READY_FOR_REVIEW', warning: '极端外推仍有 P1 finding',
+    problemType: 'simulation',
+    interfaces: { inputs: ['x:观测量', 'horizon:日'], outputs: ['utility:元/期', 'risk:%'], granularity: '个体 × 时间窗', provenance: 'fixture:data_dictionary-v2', disabledWhen: '样本超出覆盖区间' },
+    validationChecks: [
+      { kind: 'rolling_backtest', label: '滚动回测', scope: '按时间隔离', threshold: '相对 baseline 不恶化', exitCode: 0, resultHash: null },
+      { kind: 'perturbation', label: '扰动仿真', scope: '10,000 次；常规区间', threshold: '风险分位数可报告', exitCode: null, resultHash: null },
+    ],
+  },
+];
+
+// Structured modeling entities are deliberately separate from display text.
+// A real snapshot must replace the fixture rows with prompt refs and hashes;
+// missing fields remain visible as UNVERIFIED instead of being inferred.
+const variableRegistry = [
+  { id: 'theta', symbol: 'θ', role: '参数', unit: '无量纲', domain: '[0.15, 0.35]', sourceStatus: 'UNVERIFIED', provenance: 'fixture:data_dictionary-v2', evidenceRefs: [] },
+  { id: 'cost', symbol: 'c', role: '成本', unit: '元/期', domain: '≥ 0', sourceStatus: 'UNVERIFIED', provenance: 'fixture:problem-contract', evidenceRefs: [] },
+  { id: 'utility', symbol: 'U', role: '目标', unit: '无量纲', domain: '需题面定义', sourceStatus: 'UNVERIFIED', provenance: 'fixture:problem-contract', evidenceRefs: [] },
+  { id: 'violation', symbol: 'r_v', role: '约束指标', unit: '%', domain: '[0, 100%]', sourceStatus: 'UNVERIFIED', provenance: 'fixture:validation-plan', evidenceRefs: [] },
+];
+
+const modelEdges = [
+  { from: 'prompt', to: 'q', field: 'deliverable', unit: '—', granularity: '小问', provenance: 'fixture:problem-contract', status: 'UNVERIFIED' },
+  { from: 'q', to: 'vars', field: 'variables/constraints', unit: 'mixed', granularity: 'Q2', provenance: 'fixture:problem-contract', status: 'UNVERIFIED' },
+  { from: 'vars', to: 'route', field: 'θ,c,U,r_v', unit: 'mixed', granularity: '决策日 × 方案', provenance: 'fixture:data_dictionary-v2', status: 'UNVERIFIED' },
+  { from: 'route', to: 'validation', field: 'result + baseline', unit: '元/期,%', granularity: '时间窗/场景', provenance: 'fixture:validation-plan', status: 'BLOCKED' },
+  { from: 'validation', to: 'claim', field: 'metric + uncertainty', unit: '需定义', granularity: '报告范围', provenance: 'none', status: 'BLOCKED' },
+];
+
+const validationPlans = [
+  { id: 'V-OPT-01', problemType: 'optimization', checkKinds: ['feasibility', 'sensitivity'], scope: '全部可行场景', threshold: '违反率 ≤ 5%；方向不反转', cleanRun: { command: '未接入真实题面', exitCode: null, resultHash: null }, status: 'UNVERIFIED' },
+  { id: 'V-SIM-01', problemType: 'simulation', checkKinds: ['rolling_backtest', 'perturbation'], scope: '时间隔离 + 常规覆盖区间', threshold: '相对 baseline 不恶化；报告风险分位数', cleanRun: { command: '未接入真实题面', exitCode: null, resultHash: null }, status: 'BLOCKED' },
+];
+
+const problemContract = {
+  sourceStatus: 'fixture',
+  promptRefs: [],
+  note: '演示不包含真实题面；导入 problem_contract 后才允许逐小问进入 VERIFIED。',
+};
+
+let releaseGate = { status: 'BLOCKED', paperClaims: { total: 0, unverified: 0 }, blockingTasks: ['fixture: no live release gate'], reason: 'SIMULATED fixture' };
+
+const gateMatrix = [
+  { id: 'scope', label: '题面覆盖', detail: '真实 problem_contract 尚未导入；不能从标题推断覆盖', status: 'unverified', statusLabel: 'UNVERIFIED' },
+  { id: 'math', label: '数学化与量纲', detail: 'Q2 有 2 个单位/来源字段待补', status: 'warn', statusLabel: '待补齐' },
+  { id: 'route', label: '路线接口', detail: 'A/B baseline、fallback 已列；接口待复核', status: 'warn', statusLabel: '待复核' },
+  { id: 'finding', label: 'P0/P1 finding', detail: 'F-G7-01：极端外推未验证', status: 'blocked', statusLabel: '阻断' },
+  { id: 'validation', label: '题型验证', detail: '需两类互补检查 + clean-run', status: 'blocked', statusLabel: '阻断' },
+  { id: 'paper', label: '论文 claim 覆盖', detail: 'fixture claim 不具备 manifest provenance', status: 'blocked', statusLabel: '不可写入' },
+  { id: 'release', label: '发布审计', detail: 'Owner approval + 清洁环境复现', status: 'blocked', statusLabel: '锁定' },
+];
+
+const FIXTURE_MODELING = JSON.parse(JSON.stringify({ subproblems, modelChain, routeSpecs, variableRegistry, modelEdges, validationPlans, gateMatrix }));
+
+function restoreFixtureModeling() {
+  subproblems.splice(0, subproblems.length, ...JSON.parse(JSON.stringify(FIXTURE_MODELING.subproblems)));
+  modelChain.splice(0, modelChain.length, ...JSON.parse(JSON.stringify(FIXTURE_MODELING.modelChain)));
+  routeSpecs.splice(0, routeSpecs.length, ...JSON.parse(JSON.stringify(FIXTURE_MODELING.routeSpecs)));
+  variableRegistry.splice(0, variableRegistry.length, ...JSON.parse(JSON.stringify(FIXTURE_MODELING.variableRegistry)));
+  modelEdges.splice(0, modelEdges.length, ...JSON.parse(JSON.stringify(FIXTURE_MODELING.modelEdges)));
+  validationPlans.splice(0, validationPlans.length, ...JSON.parse(JSON.stringify(FIXTURE_MODELING.validationPlans)));
+  gateMatrix.splice(0, gateMatrix.length, ...JSON.parse(JSON.stringify(FIXTURE_MODELING.gateMatrix)));
+}
+
+const modelingMetrics = [
+  { value: '4/4', label: '小问骨架（非题面）', tone: 'warn' },
+  { value: '0/4', label: '题面 prompt 已核验', tone: 'risk' },
+  { value: '2/5', label: '互补验证已准备', tone: 'warn' },
+  { value: 'BLOCKED', label: '发布 readiness', tone: 'risk' },
+];
+
+let messages = [
+  { type: 'system', text: 'Coordinator 已创建 RUN-MF-2026-0831。输入快照已冻结；当前为 SIMULATED fixture，revision 仅用于演示链路。' },
+  { type: 'date', text: '今天 14:18' },
+  { id: 'm1', member: 'scope', time: '14:19', kind: '证据', text: '<strong>题面范围已锁定。</strong> A 题共 4 个小问，交付物包括最优策略、敏感性分析和可解释图表；附件 2 的单位与题干存在一处疑点，我已标为 <code>BLOCKED-1</code>。', tags: [['题面契约', 'blue'], ['BLOCKED-1', 'rose']], actions: ['查看原文映射', '打开 evidence'] },
+  { id: 'm2', member: 'data', time: '14:21', kind: '进展', text: '数据表共 18,426 行、12 列。发现 2.1% 缺失、17 个重复键和一列疑似目标泄漏。我不会直接删除样本，先提交三种清洗方案及其影响。', tags: [['数据审计', 'teal'], ['泄漏风险', 'rose']] },
+  { id: 'm3', member: 'routeB', time: '14:24', kind: '提案', text: '<strong>路线 B（统计 + 仿真）已提交。</strong> 以分层回归作为 baseline，以状态空间模型解释动态过程，最后用蒙特卡洛评估策略稳健性。所有参数均连接到 <code>data_dictionary v2</code>。', quote: { title: '独立方案 B · route_B_spec.md', text: '目标：在约束违反率 ≤ 5% 的条件下最大化综合效用；验证：滚动回测 + 10,000 次扰动。' }, tags: [['ROUTE-B', 'violet'], ['3 个验收命令', 'teal']], actions: ['比较 A/B', '查看公式'] },
+  { id: 'm4', member: 'routeA', time: '14:27', kind: '提案', text: '<strong>路线 A 仍在推导。</strong> 我把机制约束写成混合整数模型，正在检查“成本”和“覆盖率”是否能在同一目标函数中合法归一。预计 14:36 提交。', tags: [['ROUTE-A', 'blue'], ['量纲检查中', 'amber']] },
+  { id: 'm5', member: 'critic', time: '14:29', kind: '质疑', text: '<strong>发现 P1：路线 B 的极端样本外推没有证据。</strong> 当前回测只覆盖常规区间；若题目要求“最不利情形”，需要补充分位数敏感性或给出禁用条件。请 Model-B 在同一输入 revision 上回应。', tags: [['P1', 'rose'], ['需要反例', 'amber']], actions: ['发起反驳线程', '定位 claim C-17'] },
+  { id: 'm6', member: 'validator', time: '14:31', kind: '验证', text: '我已从干净快照复跑路线 B 的 baseline：结果一致，随机种子 <code>20260831</code>，但状态空间模型尚未集成，当前只能标记为 <code>PRODUCED</code>，不能写入论文结论。', tags: [['clean snapshot', 'teal'], ['PRODUCED ≠ VERIFIED', 'amber']] },
+  { id: 'm7', member: 'owner', time: '14:32', kind: '群主', text: '先不合并。@Data-Auditor 优先处理泄漏列，@Model-A 继续量纲检查；@Critic 请把 P1 的最小反例写进审查工件。等三项证据齐了我再裁决主路线。', tags: [['Owner 指令', 'blue'], ['冻结合并', 'amber']] },
+];
+
+const kindClass = { '提案': 'violet', '质疑': 'rose', '证据': 'teal', '验证': 'teal', '进展': 'blue', '群主': 'blue', '决策': 'amber', '审查': 'rose', '修复': 'teal', '外部协作': 'amber', '外部 ACK': 'teal', '复跑': 'violet', '派发': 'blue', '交接': 'amber', '心跳': 'teal', '回执': 'teal', '群聊': 'blue', '装配': 'violet', '待同步': 'amber' };
+
+const defaultTaskByMember = { scope: 'G1', data: 'G3', routeA: 'G6-A', routeB: 'G6-B', critic: 'G7', validator: 'G14', owner: 'G9' };
+const defaultQuestionByMember = { scope: 'Q1', data: 'Q2', routeA: 'Q3', routeB: 'Q3', critic: 'Q4', validator: 'Q4', owner: 'Q4' };
+
+const VALID_CLAIM_CLASSES = new Set(['observed', 'derived', 'hypothesis']);
+const VALID_PROVENANCE_STATUSES = new Set(['RECEIVED', 'PRODUCED', 'READY_FOR_REVIEW', 'VERIFIED', 'ACCEPTED', 'RELEASED', 'UNVERIFIED', 'BLOCKED', 'PENDING_RELAY', 'LOCAL_PENDING']);
+
+function sanitizeEvidenceRefs(value) {
+  if (!Array.isArray(value)) return [];
+  const pattern = /^(?:artifact|run|claim|review|fixture):[^\s]+$|^kbdoc:kbdoc_[0-9a-f]{16}(?:#p\d+)?$|^kbchunk:kbchunk_kbdoc_[0-9a-f]{16}_\d+(?:#p\d+)?$/i;
+  return value.filter(ref => typeof ref === 'string' && pattern.test(ref.trim())).map(ref => ref.trim());
+}
+
+function normalizeProvenance(message, source = 'fixture') {
+  const rawClass = message.claimClass ?? message.claim_class;
+  const rawStatus = message.status;
+  const claimClass = VALID_CLAIM_CLASSES.has(rawClass) ? rawClass : 'unknown';
+  const evidenceRefs = sanitizeEvidenceRefs(message.evidenceRefs ?? message.evidence_refs);
+  let status = VALID_PROVENANCE_STATUSES.has(rawStatus) ? rawStatus : 'UNVERIFIED';
+  // A fixture has no artifact manifest. Never let a copied status badge turn
+  // into a verified paper claim merely because it came from static data.
+  if (source === 'fixture' && ['VERIFIED', 'ACCEPTED', 'RELEASED'].includes(status)) status = 'PRODUCED';
+  // Live status is also fail-closed in the browser: the server must explicitly
+  // attest that the referenced artifact manifest was checked before a release
+  // state is shown. A bare status string is not evidence.
+  if (['VERIFIED', 'ACCEPTED', 'RELEASED'].includes(status) && !(message.manifestLinked || message.manifest_linked) && evidenceRefs.length === 0) status = 'UNVERIFIED';
+  return {
+    ...message,
+    source,
+    sourceLabel: message.sourceLabel || (source === 'live' ? 'LIVE EVENT' : source === 'snapshot' ? 'LIVE SNAPSHOT' : source === 'local_pending' ? 'LOCAL_PENDING' : 'SIMULATED · fixture'),
+    status,
+    claimClass,
+    evidenceRefs,
+    targetRevision: message.targetRevision || message.target_revision || 'UNVERIFIED',
+  };
+}
+
+function normalizeFixtureMessages(items) {
+  return items.map((message, index) => {
+    if (message.type === 'system' || message.type === 'date') return message;
+    const member = getMember(message.member);
+    const kind = message.kind || '进展';
+    return normalizeProvenance({
+      ...message,
+      taskId: message.taskId || defaultTaskByMember[message.member] || `G${index + 1}`,
+      subproblemId: message.subproblemId || defaultQuestionByMember[message.member] || 'Q1',
+      modelProfile: message.modelProfile || member.shortModel || member.model,
+      targetRevision: message.targetRevision || DEMO_INPUT_REVISION,
+    }, 'fixture');
+  });
+}
+
+messages = normalizeFixtureMessages(messages);
+
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+/**
+ * Render a local Xiao-Qinglong image as a decorative UI symbol.
+ *
+ * Dynamic rows still carry their human-readable labels and state text; the
+ * image is intentionally hidden from assistive technology so it cannot
+ * compete with that source of truth.  Pass { decorative: false, alt } only
+ * when an image itself conveys information that is not present in nearby
+ * text.  `className` is limited to internal, static class names and is
+ * escaped before being inserted into HTML.
+ */
+function dragonIcon(kind = 'avatar', options = {}) {
+  const opts = typeof options === 'string' ? { className: options } : (options || {});
+  const key = Object.prototype.hasOwnProperty.call(DRAGON_ASSETS, kind) ? kind : 'face';
+  const className = ['dragon-icon', `dragon-icon-${key}`, opts.className].filter(Boolean).join(' ');
+  const decorative = opts.decorative !== false;
+  const alt = decorative ? '' : String(opts.alt || '');
+  const title = opts.title ? ` title="${escapeHTML(opts.title)}"` : '';
+  const loading = opts.loading ? ` loading="${escapeHTML(opts.loading)}"` : '';
+  return `<img class="${escapeHTML(className)}" data-dragon-asset="${escapeHTML(key)}" src="${escapeHTML(DRAGON_ASSETS[key])}" alt="${escapeHTML(alt)}"${decorative ? ' aria-hidden="true"' : ''}${title}${loading} decoding="async">`;
+}
+
+function dragonMemberAsset(memberOrId) {
+  const id = typeof memberOrId === 'string' ? memberOrId : memberOrId?.id;
+  return DRAGON_MEMBER_ASSETS[id] || 'face';
+}
+
+function dragonStatusAsset(status) {
+  const key = String(status || '').trim().toLowerCase().replace(/\s+/g, '_');
+  return DRAGON_STATUS_ASSETS[key] || 'mark';
+}
+
+function dragonEvidenceAsset(item, status) {
+  // Evidence rows are intentionally quiet: the same monoline dragon mark
+  // keeps the icon family coherent while filename/status text carries the
+  // actual document semantics.
+  return dragonStatusAsset(status);
+}
+
+function dragonDecisionMember(item) {
+  const color = String(item?.color || '').toLowerCase();
+  if (color.includes('antigravity')) return 'critic';
+  const byInitial = { C: 'critic', D: 'data', A: 'routeA', B: 'routeB', V: 'validator', Z: 'owner' };
+  return byInitial[String(item?.agent || '').trim().toUpperCase()] || 'owner';
+}
+
+// Expose the tiny adapter for future HTML fragments and test harnesses while
+// keeping the canonical asset map immutable.
+window.DRAGON_ASSETS = DRAGON_ASSETS;
+window.DRAGON_MOTION_ASSETS = DRAGON_MOTION_ASSETS;
+window.dragonIcon = dragonIcon;
+
+/**
+ * Mount the Xiao-Qinglong motion asset on identity surfaces only.
+ *
+ * The video is muted/autoplay/inline, pauses while the tab is hidden, and
+ * falls back to the static face for reduced-motion preferences, autoplay
+ * failures, media errors, and the end of this non-looping candidate clip.
+ * Keeping this adapter in one place prevents every message/avatar from
+ * starting a separate animation and leaves the larger modeling canvas quiet.
+ */
+function initDragonMotion() {
+  const nodes = [...document.querySelectorAll('[data-dragon-motion]')];
+  if (!nodes.length) return;
+
+  const reducedQuery = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)')
+    : null;
+
+  const setFallback = (node, state) => {
+    node.classList.add('is-fallback');
+    node.classList.remove('is-ended');
+    if (state) node.dataset.motionState = state;
+  };
+
+  const setReduced = (node, video) => {
+    video.pause();
+    node.classList.add('motion-reduced', 'is-fallback');
+    node.dataset.motionState = 'reduced-motion';
+  };
+
+  const playNode = (node, video) => {
+    if (reducedQuery?.matches || node.classList.contains('is-ended')) return;
+    const playResult = video.play();
+    if (playResult && typeof playResult.catch === 'function') {
+      playResult.catch(() => setFallback(node, 'autoplay-blocked'));
+    }
+  };
+
+  nodes.forEach(node => {
+    const video = node.querySelector('.brand-motion-video');
+    if (!video) return;
+    const key = node.dataset.dragonMotion || 'idle';
+    const config = DRAGON_MOTION_ASSETS[key] || DRAGON_MOTION_ASSETS.idle;
+    const poster = node.querySelector('.brand-motion-poster');
+
+    video.muted = true;
+    video.defaultMuted = true;
+    video.playsInline = true;
+    video.loop = node.dataset.motionLoop
+      ? node.dataset.motionLoop === 'true'
+      : config.loop === true;
+    if (!video.getAttribute('poster')) video.setAttribute('poster', config.poster);
+    if (poster && !poster.getAttribute('src')) poster.setAttribute('src', config.poster);
+    node.dataset.motionReview = config.review;
+    node.dataset.motionState = 'loading';
+    node.classList.add('is-fallback');
+
+    video.addEventListener('loadeddata', () => {
+      if (reducedQuery?.matches) {
+        setReduced(node, video);
+        return;
+      }
+      node.classList.remove('is-fallback', 'motion-reduced', 'is-ended');
+      node.dataset.motionState = 'playing';
+      playNode(node, video);
+    });
+    video.addEventListener('playing', () => {
+      if (!reducedQuery?.matches) {
+        node.classList.remove('is-fallback', 'motion-reduced');
+        node.dataset.motionState = 'playing';
+      }
+    });
+    video.addEventListener('ended', () => {
+      if (video.loop) return;
+      video.pause();
+      node.classList.add('is-ended', 'is-fallback');
+      node.dataset.motionState = 'ended-fallback';
+    });
+    video.addEventListener('error', () => setFallback(node, 'media-error'));
+    if (reducedQuery?.matches) setReduced(node, video);
+    else playNode(node, video);
+  });
+
+  const onReducedChange = () => nodes.forEach(node => {
+    const video = node.querySelector('.brand-motion-video');
+    if (!video) return;
+    if (reducedQuery?.matches) setReduced(node, video);
+    else if (!node.classList.contains('is-ended')) {
+      node.classList.remove('motion-reduced', 'is-fallback');
+      node.dataset.motionState = 'resuming';
+      playNode(node, video);
+    }
+  });
+  if (reducedQuery?.addEventListener) reducedQuery.addEventListener('change', onReducedChange);
+  else if (reducedQuery?.addListener) reducedQuery.addListener(onReducedChange);
+
+  document.addEventListener('visibilitychange', () => {
+    nodes.forEach(node => {
+      const video = node.querySelector('.brand-motion-video');
+      if (!video || reducedQuery?.matches) return;
+      if (document.hidden) {
+        video.pause();
+        if (!node.classList.contains('is-ended')) node.dataset.motionState = 'paused-hidden';
+      } else if (!node.classList.contains('is-ended') && !['media-error', 'autoplay-blocked'].includes(node.dataset.motionState)) {
+        if (video.readyState >= 2) node.classList.remove('is-fallback');
+        playNode(node, video);
+      }
+    });
+  });
+}
+
+function getMember(id) {
+  if (id === 'owner') return { id: 'owner', name: '你 · 群主', title: '裁决 / 发布 / 授权', model: 'Human Owner', shortModel: 'Owner', avatar: 'Z', color: 'owner-color' };
+  return members.find(member => member.id === id) || members[0];
+}
+
+function compactRevision(value, length = 18) {
+  const text = String(value || 'UNVERIFIED');
+  return text.length > length ? `${text.slice(0, length)}…` : text;
+}
+
+function contextModeLabel() {
+  if (runtimeContext.mode === 'live' && runtimeContext.sourceStatus === 'local_event_store') return 'LIVE · 本地事件源';
+  if (runtimeContext.mode === 'live') return 'LIVE · 同步中';
+  return 'SIMULATED · fixture';
+}
+
+function renderRuntimeContext() {
+  const root = document.getElementById('runtimeContext');
+  if (!root) return;
+  root.dataset.projectId = runtimeContext.projectId || DEMO_CONTEXT.projectId;
+  root.dataset.runId = runtimeContext.runId || DEMO_CONTEXT.runId;
+  const source = document.getElementById('sourcePill');
+  const revision = document.getElementById('contextRevision');
+  const runId = document.getElementById('runIdLabel');
+  const input = document.getElementById('inputRevisionLabel');
+  const worktree = document.getElementById('worktreeRevisionLabel');
+  const control = document.getElementById('controlRevisionLabel');
+  if (source) {
+    source.textContent = contextModeLabel();
+    source.classList.toggle('live-source', runtimeContext.mode === 'live' && runtimeContext.sourceStatus === 'local_event_store');
+  }
+  if (revision) revision.textContent = `input ${compactRevision(runtimeContext.inputRevision)} · control ${compactRevision(runtimeContext.controlRevision)}`;
+  if (runId) runId.textContent = runtimeContext.runId || 'UNVERIFIED';
+  if (input) input.textContent = compactRevision(runtimeContext.inputRevision, 22);
+  if (worktree) worktree.textContent = compactRevision(runtimeContext.worktreeRevision, 22);
+  if (control) control.textContent = compactRevision(runtimeContext.controlRevision, 22);
+  const heroStatus = document.getElementById('heroSourceStatus');
+  const heroNote = document.getElementById('heroEmptyNote');
+  const heroDot = document.querySelector('.hero-status-dot');
+  if (heroStatus) {
+    const hasPrompt = subproblems.some(item => Array.isArray(item.promptRefs) && item.promptRefs.length > 0);
+    heroStatus.textContent = hasPrompt ? '题面已关联' : (runtimeContext.mode === 'live' ? '真实题面待导入' : '演示题面 · 未核验');
+    if (heroDot) heroDot.classList.toggle('linked', hasPrompt);
+  }
+  if (heroNote) {
+    heroNote.textContent = runtimeContext.mode === 'live' ? '导入 PDF → 抽取变量 → 审批路线' : '锁定题面 → 登记变量 → 比较路线';
+  }
+}
+
+function setRuntimeContext(patch) {
+  runtimeContext = { ...runtimeContext, ...patch };
+  renderRuntimeContext();
+  renderModelingOverview();
+}
+
+function routeAudit(route) {
+  const interfaceData = route.interfaces || {};
+  const requiredInterface = [interfaceData.inputs, interfaceData.outputs, interfaceData.granularity, interfaceData.provenance, interfaceData.disabledWhen];
+  const missingInterface = requiredInterface.filter(value => !value || (Array.isArray(value) && value.length === 0)).length;
+  const checks = Array.isArray(route.validationChecks) ? route.validationChecks : [];
+  const completeChecks = checks.filter(check => Number(check.exitCode) === 0 && typeof check.resultHash === 'string' && /^[0-9a-f]{64}$/i.test(check.resultHash) && check.scope && check.threshold);
+  const kinds = new Set(checks.map(check => check.kind).filter(Boolean));
+  return { missingInterface, checks, completeChecks, distinctKinds: kinds.size, ready: missingInterface === 0 && completeChecks.length >= 2 && kinds.size >= 2 };
+}
+
+function routeFieldValue(value) {
+  if (Array.isArray(value)) return value.join(' · ');
+  if (value && typeof value === 'object') return value.label || value.value || JSON.stringify(value);
+  return value || 'UNVERIFIED';
+}
+
+function renderValidationChecks(route) {
+  const audit = routeAudit(route);
+  return audit.checks.map(check => {
+    const passed = Number(check.exitCode) === 0 && typeof check.resultHash === 'string' && /^[0-9a-f]{64}$/i.test(check.resultHash);
+    return `<span class="validation-chip ${passed ? 'pass' : 'blocked'}"><b>${escapeHTML(check.kind || 'unknown')}</b><small>${escapeHTML(check.scope || 'scope UNVERIFIED')} · ${escapeHTML(check.threshold || 'threshold UNVERIFIED')} · ${passed ? 'hash linked' : 'clean-run/hash 待补'}</small></span>`;
+  }).join('');
+}
+
+function renderModelingOverview() {
+  const metricRoot = document.getElementById('modelingMetrics');
+  const questionRoot = document.getElementById('subproblemStrip');
+  const chainRoot = document.getElementById('modelChainStrip');
+  const variableRoot = document.getElementById('variableStrip');
+  if (!metricRoot || !questionRoot || !chainRoot) return;
+  metricRoot.innerHTML = modelingMetrics.map(item => `<div class="modeling-metric ${item.tone}"><strong>${escapeHTML(item.value)}</strong><span>${escapeHTML(item.label)}</span></div>`).join('');
+  const selected = subproblems.find(item => item.id === (window.selectedSubproblem || 'Q2')) || subproblems[1];
+  questionRoot.innerHTML = subproblems.map(item => {
+    const fullStateLabel = item.stateLabel || item.state || 'UNVERIFIED';
+    const compactStateLabel = item.state === 'blocked'
+      ? '阻断'
+      : item.state === 'unverified'
+        ? (String(fullStateLabel).includes('待') ? '待复核' : '未核验')
+        : String(fullStateLabel).slice(0, 8);
+    return `<button class="subproblem-card ${item.id === selected.id ? 'active' : ''}" data-subproblem="${escapeHTML(item.id)}" title="${escapeHTML(`${item.id} · ${fullStateLabel} · ${item.deliverable || ''}`)}"><span class="subproblem-card-head"><span class="subproblem-id">${escapeHTML(item.id)}</span><span class="subproblem-state ${item.state}" aria-label="${escapeHTML(fullStateLabel)}">${escapeHTML(compactStateLabel)}</span></span><strong>${escapeHTML(item.title)}</strong><span>${escapeHTML(item.coverage)} · ${escapeHTML(item.risk)}</span><em>${item.promptRefs?.length ? 'prompt linked' : 'prompt_refs UNVERIFIED'}</em></button>`;
+  }).join('');
+  chainRoot.innerHTML = modelChain.map((node, index) => `${index ? '<span class="chain-arrow">›</span>' : ''}<button class="chain-node ${node.state}" data-chain-node="${node.id}"><strong>${escapeHTML(node.label)}</strong><span>${escapeHTML(node.detail)}</span></button>`).join('');
+  if (variableRoot) variableRoot.innerHTML = variableRegistry.slice(0, 8).map(item => `<div class="variable-pill"><b>${escapeHTML(item.symbol || item.id)}</b><span>${escapeHTML(item.unit || 'unit UNVERIFIED')}</span><em>${escapeHTML(item.sourceStatus || 'UNVERIFIED')}</em></div>`).join('');
+  renderFocusCard(selected);
+  renderRouteCompare();
+  renderGateMatrix();
+}
+
+function renderFocusCard(selected) {
+  const root = document.getElementById('focusCard');
+  if (!root) return;
+  const promptStatus = selected.promptRefs?.length ? 'linked' : 'UNVERIFIED · no prompt_refs';
+  const variableNames = (selected.variables || []).map(id => variableRegistry.find(item => item.id === id)?.symbol || id).join(' · ') || 'UNVERIFIED';
+  root.innerHTML = `<div class="focus-card-kicker"><span>当前小问 · ${escapeHTML(selected.id)}</span><span class="tag amber">${escapeHTML(selected.stateLabel)}</span></div><h3>${escapeHTML(selected.title)}</h3><p>${escapeHTML(selected.prompt)}</p><div class="focus-fields"><div class="focus-field"><span>题面来源</span><strong>${escapeHTML(promptStatus)}</strong></div><div class="focus-field"><span>交付物</span><strong>${escapeHTML(selected.deliverable)}</strong></div><div class="focus-field"><span>变量候选</span><strong>${escapeHTML(variableNames)}</strong></div><div class="focus-field"><span>责任 Agent</span><strong>${escapeHTML(getMember(selected.focus).name)}</strong></div><div class="focus-field risk"><span>最大阻断</span><strong>${escapeHTML(selected.risk)}</strong></div></div>`;
+}
+
+function renderRouteCompare() {
+  const root = document.getElementById('routeCompare');
+  if (!root) return;
+  root.innerHTML = routeSpecs.map(route => {
+    const audit = routeAudit(route);
+    const interfaceData = route.interfaces || {};
+    const interfaceText = `${routeFieldValue(interfaceData.inputs)} → ${routeFieldValue(interfaceData.outputs)}`;
+    return `<article class="route-card ${route.role === 'primary' ? 'primary' : ''}"><div class="route-card-head"><strong>${escapeHTML(route.name)}</strong><span class="route-badge ${route.role === 'fallback' ? 'fallback' : ''}">${escapeHTML(route.badge)}</span></div><p>${escapeHTML(route.objective)}</p><div class="route-fields"><div class="route-field"><span>Baseline</span><b>${escapeHTML(route.baseline)}</b></div><div class="route-field"><span>接口（输入 → 输出）</span><b>${escapeHTML(interfaceText)}</b></div><div class="route-field"><span>单位/粒度</span><b>${escapeHTML(`${route.units} · ${interfaceData.granularity || 'UNVERIFIED'}`)}</b></div><div class="route-field"><span>参数 provenance</span><b>${escapeHTML(interfaceData.provenance || route.provenance || 'UNVERIFIED')}</b></div><div class="route-field"><span>适用/禁用</span><b>${escapeHTML(`${route.applicability}；${interfaceData.disabledWhen || '禁用条件 UNVERIFIED'}`)}</b></div><div class="route-field"><span>Fallback</span><b>${escapeHTML(route.fallback)}</b></div></div><div class="validation-checks">${renderValidationChecks(route)}</div><div class="route-warning">${escapeHTML(route.warning)} · ${escapeHTML(route.status)} · ${audit.ready ? '结构可审查' : `不可审批：接口缺 ${audit.missingInterface} 项 / clean-run ${audit.completeChecks.length}/2`}</div></article>`;
+  }).join('');
+}
+
+function renderGateMatrix() {
+  const root = document.getElementById('gateMatrix');
+  if (!root) return;
+  const blocked = gateMatrix.filter(item => item.status === 'blocked').length;
+  const label = document.getElementById('gateCriticalLabel');
+  if (label) label.textContent = `${blocked} 项阻断`;
+  root.innerHTML = gateMatrix.map(gate => `<div class="gate-row"><span class="gate-icon ${gate.status}">${dragonIcon(dragonStatusAsset(gate.status), { className: 'dragon-gate-icon' })}</span><span class="gate-copy"><strong>${escapeHTML(gate.label)}</strong><span>${escapeHTML(gate.detail)}</span></span><span class="gate-status ${gate.status}">${escapeHTML(gate.statusLabel)}</span></div>`).join('');
+  const progress = document.querySelector('.stage-progress');
+  if (progress) {
+    const total = gateMatrix.length || 1;
+    const passed = gateMatrix.filter(item => item.status === 'pass').length;
+    const width = releaseGate.status === 'READY' ? 100 : Math.max(12, Math.round((passed / total) * 100));
+    progress.style.width = `${width}%`;
+    progress.setAttribute('aria-valuenow', String(width));
+  }
+}
+
+function renderMembers() {
+  const list = document.getElementById('memberList');
+  if (!list) return;
+  const presenceClass = member => member.presence === 'busy' ? 'busy' : member.presence === 'pending' ? 'pending' : '';
+  list.innerHTML = members.map(member => `
+      <button class="member-item ${member.id === 'critic' ? 'active' : ''}" data-member="${member.id}" title="${escapeHTML(`${member.name} · ${member.title} · ${member.state}`)}">
+      <div class="avatar ${member.color}">${dragonIcon(member.dragonAsset || dragonMemberAsset(member), { className: 'dragon-avatar' })}<span class="status-dot ${presenceClass(member)}"></span></div>
+      <div class="member-copy"><strong>${escapeHTML(member.name)}</strong><span>${escapeHTML(member.title)}</span></div>
+      <span class="member-presence ${presenceClass(member)}" title="${escapeHTML(member.state)}"></span>
+    </button>`).join('');
+}
+
+/*
+ * The reference layout keeps the current group roster close to the message
+ * stream, like a social chat header.  This is a compact projection of the
+ * same canonical `members` array used by the left roster: it never invents a
+ * second identity source and remains keyboard/assistive-technology friendly.
+ */
+function renderMemberStrip() {
+  const strip = document.getElementById('memberStrip');
+  if (!strip) return;
+  const roster = ['owner', ...members.map(member => member.id)];
+  strip.innerHTML = roster.map(id => {
+    const member = getMember(id);
+    const isOwner = id === 'owner';
+    const label = isOwner ? '青禾' : member.name;
+    const role = isOwner ? '群主' : String(member.title || '').split('·')[0].trim();
+    const state = isOwner ? '裁决 / 发布 / 授权' : `${member.state || '状态待同步'} · ${member.shortModel || member.model || '模型待标注'}`;
+    const presence = isOwner ? 'online' : (member.presence === 'busy' ? 'busy' : member.presence === 'pending' ? 'pending' : 'online');
+    const stateLabel = isOwner ? '在线' : (member.state || '待同步');
+    return `<button type="button" class="member-strip-item is-${presence} ${isOwner ? 'is-owner' : ''}" data-member="${escapeHTML(id)}" data-presence="${escapeHTML(presence)}" title="${escapeHTML(`${member.title || label} · ${state}`)}" aria-label="${escapeHTML(`${label}，${role}，${state}`)}"><span class="member-strip-avatar ${escapeHTML(member.color || '')}">${dragonIcon(member.dragonAsset || dragonMemberAsset(member), { className: 'dragon-strip-avatar' })}<i></i></span><span class="member-strip-copy"><strong>${escapeHTML(label)}</strong><small>${escapeHTML(role)}<em>${escapeHTML(stateLabel)}</em></small></span></button>`;
+  }).join('');
+}
+
+function renderTasks() {
+  document.getElementById('taskList').innerHTML = tasks.map(task => `
+    <button class="task-item" data-task="${escapeHTML(task.id)}">
+      <span class="task-state ${task.state}">${dragonIcon(task.dragonAsset || dragonStatusAsset(task.state || task.status), { className: 'dragon-task-icon' })}</span>
+      <span class="task-copy"><strong>${escapeHTML(task.id)} · ${escapeHTML(task.title)}</strong><span>${escapeHTML(task.owner)} · ${escapeHTML(task.meta)}${task.subproblemId ? ` · ${escapeHTML(task.subproblemId)}` : ''}</span></span>
+      <span class="task-arrow">${dragonIcon('mark', { className: 'dragon-affordance' })}</span>
+    </button>`).join('');
+}
+
+function taskUiState(status) {
+  return ({ VERIFIED: 'verified', ACCEPTED: 'accepted', RELEASED: 'released', IN_PROGRESS: 'active', CLAIMED: 'active', READY_FOR_REVIEW: 'review', PRODUCED: 'produced', UNVERIFIED: 'unverified', BLOCKED: 'blocked', FAILED: 'blocked', TIMEOUT: 'blocked', QUEUED: 'wait' })[status] || 'unverified';
+}
+
+function mergeSnapshotTasks(serverTasks) {
+  (serverTasks || []).forEach(serverTask => {
+    const existing = tasks.find(task => task.id === serverTask.id);
+    const hasManifestEvidence = Boolean(serverTask.manifest_linked || serverTask.result?.manifest_linked || serverTask.result?.validation_gate?.ready && (serverTask.result?.artifact_refs || []).length);
+    let safeStatus = serverTask.status;
+    if (['VERIFIED', 'ACCEPTED', 'RELEASED'].includes(safeStatus) && !hasManifestEvidence) safeStatus = 'UNVERIFIED';
+    const mapped = { state: taskUiState(safeStatus), owner: serverTask.owner || serverTask.claimed_by || 'Coordinator', meta: safeStatus === 'UNVERIFIED' ? `${serverTask.status} · provenance 未闭合` : (serverTask.status || '已同步'), status: safeStatus, rawStatus: serverTask.status, subproblemId: serverTask.subproblem_id || serverTask.subproblemId };
+    if (existing) Object.assign(existing, mapped);
+    else tasks.push({ id: serverTask.id, title: serverTask.title || '未命名任务', icon: mapped.state === 'verified' || mapped.state === 'accepted' || mapped.state === 'released' ? '✓' : mapped.state === 'blocked' ? '!' : '·', ...mapped });
+  });
+  renderTasks();
+  const completed = tasks.filter(task => ['verified', 'accepted', 'released'].includes(task.state)).length;
+  const metric = document.getElementById('completedMetric');
+  if (metric) metric.textContent = `${completed}/14`;
+}
+
+function projectLiveControl(payload) {
+  const body = payload?.payload || {};
+  if (payload?.revision) setRuntimeContext({ controlRevision: payload.revision });
+  if (body.task) mergeSnapshotTasks([body.task]);
+  if (payload?.type === 'ASSEMBLY_UPDATED' || body.assembly_revision) {
+    capabilityState.assembly.committedRevision = body.assembly_revision || capabilityState.assembly.committedRevision;
+    capabilityState.assembly.revision = body.assembly_revision || capabilityState.assembly.revision;
+    if (Object.prototype.hasOwnProperty.call(body, 'innovation_card')) {
+      capabilityState.assembly.innovationCard = body.innovation_card ? JSON.parse(JSON.stringify(body.innovation_card)) : null;
+      capabilityState.assembly.previousInnovationCard = capabilityState.assembly.innovationCard ? JSON.parse(JSON.stringify(capabilityState.assembly.innovationCard)) : null;
+      renderInnovationSummary();
+    }
+    if (Array.isArray(body.content_pack_ids)) {
+      capabilityState.assembly.contentPackIds = [...body.content_pack_ids];
+      capabilityState.assembly.previousContentPackIds = [...body.content_pack_ids];
+      capabilityState.assembly.contentPackEvidenceRefs = Array.isArray(body.content_pack_evidence_refs) ? [...body.content_pack_evidence_refs] : [];
+      capabilityState.assembly.contentPackIndexRevision = body.content_pack_index_revision || null;
+      capabilityState.assembly.contentPackResolutionRevision = body.content_pack_resolution_revision || null;
+      renderCapabilityCatalog(capabilityState.catalog);
+    }
+    if (Array.isArray(body.method_block_warnings)) capabilityState.assembly.methodBlockWarnings = JSON.parse(JSON.stringify(body.method_block_warnings));
+    capabilityState.assembly.validation = body.status === 'BLOCKED' ? { valid: false, errors: ['ASSEMBLY_GATE_BLOCKED'] } : capabilityState.assembly.validation;
+    renderAssemblyGate();
+  }
+  if (body.approval) {
+    const button = document.getElementById('approveAllBtn');
+    if (button) button.innerHTML = '审批已记录 · 查看队列 <span>→</span>';
+  }
+  if (payload?.type === 'RELAY' || body.relay_id) {
+    const state = document.querySelector('.external-member .relay-state');
+    const subtitle = document.querySelector('.external-member .member-copy span');
+    if (state) state.textContent = body.status || 'PENDING';
+    if (subtitle) subtitle.textContent = body.input_hash ? `冻结包 ${String(body.input_hash).slice(0, 18)}…` : '等待外部 ACK';
+  }
+}
+
+function projectLiveSnapshotCollections(snapshot) {
+  const approvals = snapshot.approvals || [];
+  if (approvals.length) {
+    const button = document.getElementById('approveAllBtn');
+    if (button) button.innerHTML = `审批已记录 · ${approvals.length} 项 <span>→</span>`;
+  }
+  const latestRelay = (snapshot.relays || []).slice(-1)[0];
+  if (latestRelay) {
+    const state = document.querySelector('.external-member .relay-state');
+    const subtitle = document.querySelector('.external-member .member-copy span');
+    if (state) state.textContent = latestRelay.status || 'PENDING_RELAY';
+    if (subtitle) subtitle.textContent = latestRelay.input_hash ? `冻结包 ${String(latestRelay.input_hash).slice(0, 18)}…` : '等待外部 ACK';
+  }
+  const savedAssembly = snapshot.assembly || snapshot.assemblies?.main;
+  if (savedAssembly && typeof savedAssembly === 'object') {
+    assemblyValidationEpoch += 1;
+    capabilityState.assembly = {
+      nodes: Array.isArray(savedAssembly.nodes) ? JSON.parse(JSON.stringify(savedAssembly.nodes)) : [],
+      edges: Array.isArray(savedAssembly.edges) ? JSON.parse(JSON.stringify(savedAssembly.edges)) : [],
+      presetId: savedAssembly.preset_id || null,
+      archetypeId: savedAssembly.archetype_id || null,
+      validation: savedAssembly.validation || null,
+      revision: savedAssembly.assembly_revision || null,
+      diff: savedAssembly.diff || null,
+      previousNodes: Array.isArray(savedAssembly.nodes) ? JSON.parse(JSON.stringify(savedAssembly.nodes)) : [],
+      previousEdges: Array.isArray(savedAssembly.edges) ? JSON.parse(JSON.stringify(savedAssembly.edges)) : [],
+      committedRevision: savedAssembly.assembly_revision || null,
+      innovationCard: savedAssembly.innovation_card ? JSON.parse(JSON.stringify(savedAssembly.innovation_card)) : null,
+      previousInnovationCard: savedAssembly.innovation_card ? JSON.parse(JSON.stringify(savedAssembly.innovation_card)) : null,
+      contentPackIds: Array.isArray(savedAssembly.content_pack_ids) ? [...savedAssembly.content_pack_ids] : [],
+      previousContentPackIds: Array.isArray(savedAssembly.content_pack_ids) ? [...savedAssembly.content_pack_ids] : [],
+      contentPackEvidenceRefs: Array.isArray(savedAssembly.content_pack_evidence_refs) ? [...savedAssembly.content_pack_evidence_refs] : [],
+      contentPackEvidenceByPack: {},
+      contentPackIndexRevision: savedAssembly.content_pack_index_revision || null,
+      contentPackResolutionRevision: savedAssembly.content_pack_resolution_revision || null,
+      methodBlockWarnings: Array.isArray(savedAssembly.method_block_warnings) ? JSON.parse(JSON.stringify(savedAssembly.method_block_warnings)) : [],
+    };
+    renderInnovationSummary();
+    renderCapabilityCatalog(capabilityState.catalog);
+    renderAssemblyCanvas();
+    renderAssemblyGate();
+  }
+  const findingList = Object.values(snapshot.findings || {}).flat();
+  const openCritical = findingList.filter(item => item.status === 'open' && ['P0', 'P1', 'CRITICAL'].includes(String(item.severity || '').toUpperCase())).length;
+  const g7 = tasks.find(task => task.id === 'G7');
+  if (g7 && openCritical === 0 && g7.state === 'blocked') {
+    g7.meta = '关键 finding 已关闭 · 等待独立审查';
+    g7.state = 'active';
+    g7.icon = '↗';
+    renderTasks();
+  }
+  if (snapshot.release_gate && typeof snapshot.release_gate === 'object') {
+    releaseGate = snapshot.release_gate;
+    const paperGate = gateMatrix.find(item => item.id === 'paper');
+    const release = gateMatrix.find(item => item.id === 'release');
+    if (paperGate) {
+      const claims = releaseGate.paper_claims || releaseGate.paperClaims || {};
+      paperGate.detail = `${claims.total || 0} 个 claim；${claims.unverified || 0} 个未验证`;
+      paperGate.status = claims.unverified ? 'blocked' : 'warn';
+      paperGate.statusLabel = claims.unverified ? '不可写入' : '待 Owner 审批';
+    }
+    if (release) {
+      release.status = releaseGate.status === 'READY' ? 'pass' : 'blocked';
+      release.statusLabel = releaseGate.status === 'READY' ? '可申请发布' : '锁定';
+      release.detail = releaseGate.blocking_tasks?.length ? `阻断任务：${releaseGate.blocking_tasks.join('、')}` : (releaseGate.reason || '服务端门禁');
+    }
+    renderGateMatrix();
+  }
+}
+
+function renderDecisions() {
+  document.getElementById('decisionList').innerHTML = decisions.map(item => `
+    <article class="decision-card" data-decision="${item.id}">
+      <h4>${escapeHTML(item.title)}</h4><p>${escapeHTML(item.body)}</p>
+      <div class="decision-meta"><span class="mini-avatar ${item.color}">${dragonIcon(dragonMemberAsset(dragonDecisionMember(item)), { className: 'dragon-mini-avatar' })}</span><span>${escapeHTML(item.label)} · 需要群主决定</span></div>
+      <div class="decision-actions"><button class="decision-approve" data-action="approve">批准</button><button class="decision-more" data-action="inspect">展开证据</button></div>
+    </article>`).join('');
+}
+
+function renderEvidence() {
+  document.getElementById('evidenceList').innerHTML = evidence.map(item => {
+    const rawStatus = item.status || 'UNVERIFIED';
+    const status = item.source === 'fixture' && ['VERIFIED', 'ACCEPTED', 'RELEASED'].includes(rawStatus) ? 'PRODUCED' : rawStatus;
+    return `<button class="evidence-row" data-evidence="${escapeHTML(item.title)}"><span class="evidence-icon">${dragonIcon(item.dragonAsset || dragonEvidenceAsset(item, status), { className: 'dragon-evidence-icon' })}</span><span><strong>${escapeHTML(item.title)}</strong><span>${escapeHTML(item.meta)}</span></span><span class="evidence-status ${String(status).toLowerCase()}">${escapeHTML(status)}</span><span class="evidence-ok">${dragonIcon('mark', { className: 'dragon-affordance' })}</span></button>`;
+  }).join('');
+}
+
+function messageClockMinutes(value) {
+  const text = String(value ?? '').trim();
+  const match = text.match(/(?:^|\D)(\d{1,2}):(\d{2})(?:\D|$)/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour > 23 || minute > 59) return null;
+  return hour * 60 + minute;
+}
+
+function isSameMessageGroup(previous, current) {
+  if (!previous || !current) return false;
+  if (previous.type === 'system' || previous.type === 'date' || current.type === 'system' || current.type === 'date') return false;
+  if (!previous.member || !current.member || previous.member !== current.member) return false;
+  const previousMinutes = messageClockMinutes(previous.time || previous.timestamp || previous.createdAt);
+  const currentMinutes = messageClockMinutes(current.time || current.timestamp || current.createdAt);
+  if (previousMinutes === null || currentMinutes === null) return false;
+  let delta = Math.abs(currentMinutes - previousMinutes);
+  if (delta > 720) delta = 1440 - delta;
+  return delta <= 2;
+}
+
+function safeMessageAttachmentUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw || typeof URL === 'undefined') return '';
+  try {
+    const parsed = new URL(raw, window.location.href);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return '';
+    const allowedOrigins = new Set([window.location.origin]);
+    if (LIVE_API) allowedOrigins.add(new URL(LIVE_API, window.location.href).origin);
+    return allowedOrigins.has(parsed.origin) ? parsed.href : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function renderMessageAttachments(attachments) {
+  const source = Array.isArray(attachments) ? attachments : (attachments ? [attachments] : []);
+  const cards = source.slice(0, 4).map(item => {
+    const record = typeof item === 'string' ? { name: item, path: item } : (item && typeof item === 'object' ? item : null);
+    if (!record) return '';
+    const name = String(record.name || record.title || record.filename || record.path || '未命名附件');
+    const url = safeMessageAttachmentUrl(record.url || record.href || record.path);
+    const mime = String(record.mimeType || record.mime_type || '').toLowerCase();
+    const type = String(record.type || record.kind || '').toLowerCase();
+    const isImage = type === 'image' || mime.startsWith('image/');
+    const status = String(record.status || 'UNVERIFIED');
+    const refs = sanitizeEvidenceRefs(record.evidenceRefs || record.evidence_refs || (record.evidenceRef ? [record.evidenceRef] : []));
+    const meta = [status, refs[0]].filter(Boolean).join(' · ');
+    if (isImage && url) {
+      return '<a class="attachment-card attachment-image" href="' + escapeHTML(url) + '" target="_blank" rel="noreferrer noopener"><img src="' + escapeHTML(url) + '" alt="' + escapeHTML(name) + '" loading="lazy" /><span><strong>' + escapeHTML(name) + '</strong>' + (meta ? '<em>' + escapeHTML(meta) + '</em>' : '') + '</span></a>';
+    }
+    const open = url
+      ? '<a class="attachment-card attachment-file" href="' + escapeHTML(url) + '" target="_blank" rel="noreferrer noopener">'
+      : '<div class="attachment-card attachment-file is-unlinked" title="附件地址未通过安全校验">';
+    const close = url ? '</a>' : '</div>';
+    return open + '<span class="attachment-file-mark" aria-hidden="true">件</span><span><strong>' + escapeHTML(name) + '</strong>' + (meta ? '<em>' + escapeHTML(meta) + '</em>' : '') + '</span>' + close;
+  }).filter(Boolean).join('');
+  return cards ? '<div class="message-attachments" aria-label="消息附件">' + cards + '</div>' : '';
+}
+
+function renderMessages() {
+  const feed = document.getElementById('chatFeed');
+  feed.innerHTML = messages.map((message, messageIndex) => {
+    if (message.type === 'system') return `<div class="system-note"><span class="system-icon">${dragonIcon('mark', { className: 'dragon-system-icon' })}</span><span>${escapeHTML(message.text)}</span></div>`;
+    if (message.type === 'date') return `<div class="date-divider">${escapeHTML(message.text)}</div>`;
+    const previousMessage = messages[messageIndex - 1];
+    const isContinuation = isSameMessageGroup(previousMessage, message);
+    const member = getMember(message.member);
+    const tagHtml = (message.tags || []).map(([label, color]) => `<span class="tag ${color}">${escapeHTML(label)}</span>`).join('');
+    const actionHtml = (message.actions || []).map(action => `<button class="message-action" data-message-action="${escapeHTML(action)}">${escapeHTML(action)} ${dragonIcon('mark', { className: 'dragon-affordance' })}</button>`).join('');
+    const quoteHtml = message.quote ? `<div class="quote-card"><b>${escapeHTML(message.quote.title)}</b>${escapeHTML(message.quote.text)}</div>` : '';
+    const attachmentHtml = renderMessageAttachments(message.attachments || message.files || message.attachment);
+    const kind = message.kind || '进展';
+    const isOwner = message.member === 'owner';
+    const statusClass = member.presence === 'busy' ? 'busy' : member.presence === 'pending' ? 'pending' : '';
+    const claimClass = message.claimClass || 'unknown';
+    const source = message.sourceLabel || (message.source === 'live' ? 'LIVE EVENT' : message.source === 'snapshot' ? 'LIVE SNAPSHOT' : 'SIMULATED');
+    const evidenceRefs = sanitizeEvidenceRefs(message.evidenceRefs);
+    const evidenceHtml = evidenceRefs.length
+      ? evidenceRefs.slice(0, 2).map(ref => `<span class="evidence-chip">${escapeHTML(String(ref))}</span>`).join('') + (evidenceRefs.length > 2 ? `<span class="evidence-chip">+${evidenceRefs.length - 2} refs</span>` : '')
+      : '<span class="evidence-chip missing">evidence: none · UNVERIFIED</span>';
+    const status = message.status || 'UNVERIFIED';
+    const sourceTone = message.source === 'live' || message.source === 'snapshot' ? 'live' : message.source === 'local_pending' ? 'pending' : 'fixture';
+    const assemblyMeta = message.assemblyRevision || message.assembly_revision;
+    const capabilityMeta = message.capabilityRevision || message.capability_revision;
+    const auditHtml = `<div class="message-audit"><span class="audit-source ${sourceTone}">${escapeHTML(source)}</span><span class="audit-claim ${claimClass}">${escapeHTML(claimClass)}</span><span>${escapeHTML(message.taskId || 'task:unassigned')}</span><span>${escapeHTML(message.subproblemId || 'Q—')}</span><span title="${escapeHTML(message.targetRevision || '')}">${escapeHTML(compactRevision(message.targetRevision, 16))}</span>${assemblyMeta ? `<span class="audit-assembly" title="${escapeHTML(assemblyMeta)}">assembly ${escapeHTML(compactRevision(assemblyMeta, 13))}</span>` : ''}${capabilityMeta ? `<span class="audit-capability" title="${escapeHTML(capabilityMeta)}">cap ${escapeHTML(compactRevision(capabilityMeta, 13))}</span>` : ''}<span class="audit-status ${String(status).toLowerCase()}">${escapeHTML(status)}</span></div>`;
+    // Keep the evidence contract available without making every message read
+    // like a log line.  The summary is intentionally short; the full audit,
+    // tags, refs and actions remain in the native disclosure for keyboard and
+    // screen-reader users.
+    const displayName = isOwner ? '你' : member.name;
+    const roleText = isOwner ? '群主' : (message.modelProfile || member.shortModel || member.model || 'model unknown');
+    const metaTitle = isOwner ? '群主 · ' + (message.modelProfile || 'Owner') : member.title + ' · ' + roleText;
+    const articleClasses = ['message', isOwner ? 'owner-message' : '', isContinuation ? 'is-continuation' : '', 'agent-' + escapeHTML(message.member || 'unknown')].filter(Boolean).join(' ');
+    const showMeta = isContinuation ? 'false' : 'true';
+    const showAvatar = isContinuation ? 'false' : 'true';
+    const evidenceSummary = evidenceRefs.length ? `${evidenceRefs.length} refs` : 'no evidence';
+    const provenanceHtml = `<details class="message-provenance" data-provenance-status="${escapeHTML(String(status).toLowerCase())}"><summary><span class="provenance-summary"><span class="provenance-sigil" aria-hidden="true">卜</span><span>证据链</span><em>${escapeHTML(source)} · ${escapeHTML(status)} · ${escapeHTML(evidenceSummary)}</em></span><span class="provenance-toggle" aria-hidden="true">+</span></summary><div class="provenance-body">${auditHtml}<div class="message-tags">${tagHtml}${evidenceHtml}</div><div class="message-actions">${actionHtml}</div></div></details>`;
+    return `<article class="${articleClasses}" data-message-id="${escapeHTML(message.id || '')}" data-member="${escapeHTML(message.member || 'unknown')}" data-message-kind="${escapeHTML(kind)}" data-show-meta="${showMeta}" data-show-avatar="${showAvatar}">
+      <div class="avatar message-avatar ${member.color}" aria-hidden="${isContinuation ? 'true' : 'false'}" title="${escapeHTML(metaTitle)}">${dragonIcon(member.dragonAsset || dragonMemberAsset(member), { className: 'dragon-avatar' })}<span class="status-dot ${statusClass}"></span></div>
+      <div class="message-body"><div class="message-meta" title="${escapeHTML(metaTitle)}"><span class="message-name">${escapeHTML(displayName)}</span><span class="message-role">${escapeHTML(roleText)}</span><span class="message-time">${escapeHTML(message.time || '')}</span></div>
+      <div class="message-bubble"><p><span class="tag message-kind-tag ${kindClass[kind] || 'blue'}">${escapeHTML(kind)}</span>${message.text || ''}</p>${quoteHtml}${attachmentHtml}${provenanceHtml}</div></div></article>`;
+  }).join('');
+  // Font loading and responsive reflow can change the feed height a frame
+  // after the HTML is painted.  Align once now and once after layout so the
+  // latest Owner message is actually visible on a small screen, rather than
+  // leaving a clipped provenance row at the bottom.
+  const alignLatest = () => { feed.scrollTop = feed.scrollHeight; };
+  alignLatest();
+  if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(alignLatest);
+  window.setTimeout(alignLatest, 80);
+}
+
+function showToast(text) {
+  const toast = document.getElementById('toast');
+  const feed = document.querySelector('.chat-feed');
+  // On a narrow screen a notice gets a temporary reserved band above the
+  // composer.  Prepare the band first, re-align only when the reader was
+  // already near the end, then reveal the pill.  This prevents the first
+  // animation frame from sitting on top of the newest bubble.
+  const wasNearBottom = feed ? feed.scrollHeight - feed.scrollTop - feed.clientHeight < 48 : false;
+  const align = () => {
+    if (feed && wasNearBottom) feed.scrollTop = feed.scrollHeight;
+  };
+  window.clearTimeout(showToast.timer);
+  window.clearTimeout(showToast.revealTimer);
+  toast.textContent = text;
+  toast.classList.remove('show');
+  toast.classList.add('prepare');
+  align();
+  let revealed = false;
+  const reveal = () => {
+    if (revealed) return;
+    revealed = true;
+    window.clearTimeout(showToast.revealTimer);
+    align();
+    toast.classList.remove('prepare');
+    toast.classList.add('show');
+    if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(align);
+  };
+  const entranceMotion = [...document.querySelectorAll('.message, .topbar, .chat-panel')]
+    .some(node => typeof node.getAnimations === 'function' && node.getAnimations().some(animation => animation.playState === 'running'));
+  const revealDelay = entranceMotion ? 420 : 42;
+  // A bounded timer covers background-tab throttling without leaving a
+  // prepared toast stranded forever.  When the shell is still entering, the
+  // extra beat lets message-in motion finish before the pill becomes visible.
+  showToast.revealTimer = window.setTimeout(() => {
+    if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(reveal);
+    else reveal();
+  }, revealDelay);
+  showToast.timer = window.setTimeout(() => {
+    toast.classList.remove('show', 'prepare');
+    align();
+  }, 3200);
+}
+
+/*
+ * Local knowledge-base projection.
+ * The browser only receives bounded metadata/snippets and a citation ref. The
+ * original material directory stays on the local machine; opening a source is
+ * a deliberate second click and never turns a retrieved suggestion into a
+ * verified paper claim.
+ */
+let knowledgePendingRefs = [];
+
+function kbEndpoint(path = '') {
+  return LIVE_API ? `${LIVE_API}/api/projects/${LIVE_PROJECT}/knowledge${path}` : '';
+}
+
+function kbErrorMessage(payload, fallback = '知识库请求失败') {
+  const detail = payload?.detail;
+  if (typeof detail === 'string') return detail;
+  if (detail && typeof detail === 'object') return detail.message || detail.code || fallback;
+  return fallback;
+}
+
+function kbFormatBytes(value) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 0) return '—';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+}
+
+function kbFacetOptions(value) {
+  if (Array.isArray(value)) {
+    return value.map(item => {
+      if (item && typeof item === 'object') return { value: String(item.value ?? item.id ?? item.name ?? ''), label: String(item.label ?? item.name ?? item.value ?? item.id ?? ''), count: item.count };
+      return { value: String(item), label: String(item) };
+    }).filter(item => item.value);
+  }
+  if (value && typeof value === 'object') return Object.entries(value).map(([key, count]) => ({ value: key, label: key, count }));
+  return [];
+}
+
+function kbFillSelect(id, placeholder, values) {
+  const select = document.getElementById(id);
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = `<option value="">${escapeHTML(placeholder)}</option>${kbFacetOptions(values).map(item => `<option value="${escapeHTML(item.value)}">${escapeHTML(item.label)}${item.count !== undefined ? ` · ${escapeHTML(item.count)}` : ''}</option>`).join('')}`;
+  if (current && [...select.options].some(option => option.value === current)) select.value = current;
+}
+
+function setPanelDrawerOpen(open) {
+  const isOpen = Boolean(open);
+  document.body.classList.toggle('panel-drawer-open', isOpen);
+  const toggle = document.getElementById('panelToggleBtn');
+  if (toggle) toggle.setAttribute('aria-expanded', String(isOpen));
+  const sidebar = document.querySelector('.right-sidebar');
+  if (sidebar) sidebar.setAttribute('aria-hidden', String(!isOpen));
+  const backdrop = document.getElementById('panelBackdrop');
+  if (backdrop) backdrop.hidden = !isOpen;
+}
+
+function selectRightPanel(panel) {
+  document.querySelectorAll('.right-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.panel === panel));
+  const panels = { modeling: 'modelingPanel', tasks: 'tasksPanel', evidence: 'evidencePanel', knowledge: 'knowledgePanel', assembly: 'assemblyPanel' };
+  Object.entries(panels).forEach(([key, id]) => {
+    const node = document.getElementById(id);
+    if (node) node.hidden = key !== panel;
+  });
+  // Selecting any control surface is an explicit request to open the
+  // progressive-disclosure drawer.  CSS owns the animation/width; JS only
+  // exposes the state to assistive technology and the close controls.
+  if (panel) setPanelDrawerOpen(true);
+}
+
+/* The desktop shell mirrors the reference board: the task/workbench context
+ * is visible beside the conversation, while small screens retain a clean
+ * chat-first surface and open the workbench only on demand. */
+function initTemplateShell() {
+  renderMemberStrip();
+  const media = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 851px)') : null;
+  const syncViewport = () => {
+    const desktop = !media || media.matches;
+    if (desktop) {
+      if (!document.body.classList.contains('panel-drawer-open')) selectRightPanel('tasks');
+    } else {
+      setPanelDrawerOpen(false);
+    }
+  };
+  syncViewport();
+  if (media?.addEventListener) media.addEventListener('change', syncViewport);
+  else if (media?.addListener) media.addListener(syncViewport);
+}
+
+function renderKnowledgeSummary(summary) {
+  knowledgeState.summary = summary || null;
+  knowledgeState.indexRevision = summary?.index_revision || summary?.indexRevision || null;
+  const status = String(summary?.source_status || summary?.sourceStatus || 'UNAVAILABLE').toUpperCase();
+  const indexed = summary?.indexed_count ?? summary?.valid_count ?? summary?.file_count ?? summary?.files ?? summary?.document_count ?? 0;
+  const pending = summary?.pending_count ?? summary?.temporary_count ?? summary?.temp_count ?? 0;
+  const rootLabel = summary?.root_label || summary?.rootLabel || '本地资料包';
+  const statusLabel = document.getElementById('kbStatusLabel');
+  const statusMeta = document.getElementById('kbStatusMeta');
+  const dot = document.querySelector('.knowledge-status-card .knowledge-dot');
+  if (statusLabel) statusLabel.textContent = status === 'UNAVAILABLE' ? '资料库未配置' : (status === 'LOCAL_PENDING' ? `${rootLabel} · 同步中` : `${rootLabel} · 已建立索引`);
+  if (statusMeta) {
+    const scanned = summary?.last_scan_at || summary?.scanned_at || summary?.indexed_at;
+    const scanText = scanned ? `扫描快照 ${String(scanned).replace('T', ' ').slice(0, 19)}` : '尚未扫描';
+    const note = summary?.catalog_consistent === false ? '说明页数字与当前盘面不一致，以本次扫描为准。' : '原始文件只读；索引随本地同步快照更新。';
+    const extraction = summary?.extractability || {};
+    const rate = Number(extraction.extractability_rate);
+    const extractionText = Number.isFinite(rate) ? `可正文抽取约 ${(rate * 100).toFixed(1)}%` : '可正文抽取率待计算';
+    statusMeta.textContent = `${scanText} · ${note} · ${extractionText}`;
+  }
+  if (dot) dot.classList.toggle('pending', status === 'LOCAL_PENDING');
+  const stats = document.getElementById('kbStats');
+  if (stats) stats.innerHTML = `<div><b>${escapeHTML(indexed)}</b><span>可检索文件</span></div><div><b>${escapeHTML(pending)}</b><span>同步中</span></div><div><b>${escapeHTML(kbFormatBytes(summary?.indexed_bytes ?? summary?.bytes ?? summary?.total_bytes))}</b><span>索引范围</span></div>`;
+  const badgeText = indexed > 9999 ? `${Math.round(indexed / 1000)}k` : (indexed || '—');
+  ['kbTabBadge', 'knowledgeChannelBadge'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = String(badgeText); });
+  kbFillSelect('kbModuleFilter', '全部模块', summary?.facets?.modules || summary?.modules);
+  kbFillSelect('kbKindFilter', '全部类型', summary?.facets?.kinds || summary?.facets?.types || summary?.kinds || summary?.types);
+  kbFillSelect('kbYearFilter', '年份', summary?.facets?.years || summary?.years);
+  const card = document.querySelector('.knowledge-status-card');
+  if (card) card.dataset.status = status.toLowerCase();
+}
+
+function renderKnowledgeResults(payload) {
+  const root = document.getElementById('kbResults');
+  if (!root) return;
+  const results = payload?.results || payload?.items || [];
+  knowledgeState.results = results;
+  knowledgeState.indexRevision = payload?.index_revision || payload?.indexRevision || knowledgeState.indexRevision;
+  const meta = document.getElementById('kbResultMeta');
+  if (meta) {
+    const total = payload?.total_candidates ?? payload?.total ?? results.length;
+    const returned = payload?.returned_count ?? results.length;
+    const warning = Array.isArray(payload?.warnings) && payload.warnings.length ? ` · ${payload.warnings[0]}` : '';
+    const boundary = payload?.metadata_candidates != null ? ` · 候选 ${payload.metadata_candidates} / 正文检查 ${payload.body_examined ?? '—'}` : '';
+    const hitText = payload?.truncated ? `${returned}/${total} 个命中（受限扫描）` : `${total} 个命中`;
+    meta.textContent = `${hitText}${boundary}${knowledgeState.indexRevision ? ` · ${compactRevision(knowledgeState.indexRevision, 17)}` : ''}${warning}`;
+  }
+  if (!results.length) {
+    root.innerHTML = `<div class="kb-empty"><span>∅</span><strong>没有可安全引用的命中</strong><p>换一个题号、年份或方法词；扫描中的临时文件不会进入结果。</p></div>`;
+    return;
+  }
+  root.innerHTML = results.map(item => {
+    const docId = item.doc_id || item.docId || item.id;
+    if (!docId) return '';
+    const title = item.title || item.name || '未命名资料';
+    const path = item.path_rel_masked || item.path_rel || item.path || '相对路径未提供';
+    const kind = item.kind || item.content_class || 'other';
+    const module = item.module_label || item.module || '未分类';
+    const years = Array.isArray(item.years) ? item.years.join('、') : (item.year || '—');
+    const tags = Array.isArray(item.tags) ? item.tags.slice(0, 4) : [];
+    const excerpt = item.snippet || item.excerpt || (String(item.extract_status || '').toLowerCase() === 'ocr_required' ? '扫描型 PDF 尚未完成 OCR；可打开原文件人工核对。' : '仅有文件元数据，等待按需抽取。');
+    const status = String(item.source_status || item.sourceStatus || 'LOCAL_INDEXED').toUpperCase();
+    const citation = item.citation_ref || item.citationRef || `kbdoc:${docId}`;
+    const fileUrl = LIVE_API ? `${kbEndpoint(`/documents/${encodeURIComponent(docId)}/file`)}` : '';
+    const extraction = item.extract_status || item.extraction_status || 'metadata_only';
+    const hashStatus = item.hash_status || item.hashStatus || 'DEFERRED';
+    return `<article class="kb-result" data-kb-doc="${escapeHTML(docId)}"><div class="kb-result-head"><span class="kb-kind">${escapeHTML(kind)}</span><span class="kb-module">${escapeHTML(module)}</span><span class="kb-source ${status.toLowerCase()}">${escapeHTML(status)}</span></div><strong class="kb-result-title">${escapeHTML(title)}</strong><span class="kb-result-path">${escapeHTML(path)}</span><p class="kb-result-excerpt">${escapeHTML(excerpt)}</p><div class="kb-result-meta"><span>${escapeHTML(years)} · ${escapeHTML(kbFormatBytes(item.size_bytes ?? item.size))}</span><em>${escapeHTML(extraction)}</em><em>${escapeHTML(hashStatus)}</em>${tags.map(tag => `<em>${escapeHTML(tag)}</em>`).join('')}</div><div class="kb-result-actions"><button type="button" data-kb-action="view">查看片段</button><button type="button" data-kb-action="cite">引用到群聊</button>${fileUrl ? `<a href="${escapeHTML(fileUrl)}" target="_blank" rel="noreferrer">打开原文件 ↗</a>` : ''}</div><span class="kb-citation-ref">${escapeHTML(citation)}</span></article>`;
+  }).join('');
+}
+
+async function loadKnowledgeSummary(force = false) {
+  if (!LIVE_API) {
+    renderKnowledgeSummary({ source_status: 'UNAVAILABLE', indexed_count: 0, pending_count: 0, root_label: '本地资料包未连接' });
+    return null;
+  }
+  try {
+    const suffix = force ? '?refresh=true' : '';
+    const response = await fetch(`${kbEndpoint('/summary')}${suffix}`);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(kbErrorMessage(payload, 'KB_SUMMARY_ERROR'));
+    renderKnowledgeSummary(payload);
+    return payload;
+  } catch (error) {
+    renderKnowledgeSummary({ source_status: 'UNAVAILABLE', indexed_count: 0, pending_count: 0, root_label: '本地资料包不可用' });
+    showToast(`资料库状态读取失败（${error.message || 'unknown'}）`);
+    return null;
+  }
+}
+
+async function runKnowledgeSearch(queryOverride, announce = false) {
+  const input = document.getElementById('kbSearchInput');
+  const query = String(queryOverride ?? input?.value ?? '').trim();
+  if (input && queryOverride !== undefined) input.value = query;
+  if (!LIVE_API) { showToast('当前没有连接本地知识库服务'); return; }
+  const params = new URLSearchParams({ q: query, top_k: '12', with_preview: 'true' });
+  ['kbModuleFilter', 'kbKindFilter', 'kbYearFilter'].forEach(id => { const value = document.getElementById(id)?.value; if (value) params.set(id === 'kbModuleFilter' ? 'module' : id === 'kbKindFilter' ? 'kind' : 'year', value); });
+  const root = document.getElementById('kbResults');
+  if (root) root.innerHTML = '<div class="kb-loading"><span></span><span></span><span></span>正在从本地索引检索…</div>';
+  try {
+    const response = await fetch(`${kbEndpoint('/search')}?${params.toString()}`);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(kbErrorMessage(payload, 'KB_SEARCH_ERROR'));
+    knowledgeState.query = query;
+    renderKnowledgeResults(payload);
+    if (announce) {
+      const status = knowledgeState.summary?.source_status || 'LOCAL_INDEXED';
+      const returned = payload?.returned_count ?? (payload?.results || []).length;
+      const candidates = payload?.total_candidates ?? payload?.total ?? returned;
+      const warning = Array.isArray(payload?.warnings) && payload.warnings.length ? `；${payload.warnings[0]}` : '';
+      messages.push({ type: 'system', text: `知识库检索 · “${query}” · 返回 ${returned}/${candidates} · ${status} · ${compactRevision(payload?.index_revision, 18)}${warning}` });
+      renderMessages();
+    }
+  } catch (error) {
+    if (root) root.innerHTML = `<div class="kb-empty"><span>!</span><strong>检索暂不可用</strong><p>${escapeHTML(error.message || '请稍后重试')}</p></div>`;
+    showToast(`资料库检索失败（${error.message || 'unknown'}）`);
+  }
+}
+
+async function openKnowledgeDocument(docId, fallback) {
+  if (!LIVE_API || !docId) return;
+  try {
+    const response = await fetch(`${kbEndpoint(`/documents/${encodeURIComponent(docId)}`)}?include_preview=true`);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(kbErrorMessage(payload, 'KB_DOCUMENT_ERROR'));
+    const doc = payload.document || payload;
+    // The adapter currently returns a bounded preview string.  Accept the
+    // object-shaped variant as well so future chunk/page adapters can expose
+    // ``{text, page}`` without regressing the current modal.
+    const preview = (typeof doc.preview === 'string' ? doc.preview : doc.preview?.text) || doc.preview_text || doc.snippet || doc.excerpt || '当前文件没有可抽取的短文本；请打开原文件核对。';
+    const citation = doc.citation_ref || doc.citationRef || fallback?.citation_ref || `kbdoc:${docId}`;
+    const fileUrl = `${kbEndpoint(`/documents/${encodeURIComponent(docId)}/file`)}`;
+    const hashNote = doc.hash_status === 'DEFERRED_LARGE' ? `大文件哈希延后（${doc.hash_deferred_reason || '超过按需上限'}）` : `哈希状态：${doc.hash_status || 'DEFERRED'}`;
+    const pageNote = doc.preview_pages ? ` · 预览前 ${doc.preview_pages} 页${doc.page_count ? ` / 共 ${doc.page_count} 页` : ''}` : '';
+    showModal(`资料片段 · ${doc.title || fallback?.title || '未命名资料'}`, `<p><span class="tag teal">${escapeHTML(doc.source_status || 'LOCAL_INDEXED')}</span> <span class="tag violet">${escapeHTML(doc.kind || fallback?.kind || '资料')}</span> <span class="tag amber">${escapeHTML(doc.extract_status || doc.quality || 'metadata')}</span></p><p class="kb-modal-path">${escapeHTML(doc.path_rel_masked || doc.path_rel || fallback?.path_rel || '相对路径未提供')}</p><pre class="kb-preview">${escapeHTML(String(preview).slice(0, 8000))}</pre><p><span class="tag blue">引用：${escapeHTML(citation)}</span> <a href="${escapeHTML(fileUrl)}" target="_blank" rel="noreferrer">Owner 打开原文件 ↗</a></p><p class="kb-modal-note">${escapeHTML(hashNote)}${escapeHTML(pageNote)}。短片段仅用于检索与质疑；不自动写入论文，也不替代题面、页码和独立复核。</p>`);
+  } catch (error) {
+    showToast(`资料片段读取失败（${error.message || 'unknown'}）`);
+  }
+}
+
+function renderPendingKbCitations() {
+  const hint = document.getElementById('kbCitationHint');
+  if (!hint) return;
+  hint.hidden = knowledgePendingRefs.length === 0;
+  hint.textContent = knowledgePendingRefs.length ? `已挂 ${knowledgePendingRefs.length} 条资料引用` : '';
+}
+
+function citeKnowledgeItem(item) {
+  const docId = item?.doc_id || item?.docId || item?.id;
+  if (!docId) return;
+  const citation = item.citation_ref || item.citationRef || `kbdoc:${docId}`;
+  if (!knowledgePendingRefs.includes(citation)) knowledgePendingRefs.push(citation);
+  const input = document.getElementById('messageInput');
+  const title = item.title || item.name || '资料';
+  const prefix = input.value.trim() ? `${input.value.trim()}\n` : '';
+  input.value = `${prefix}@知识库 请核对「${title}」（${citation}），返回原文定位、适用边界与可能反例。`;
+  input.focus();
+  renderPendingKbCitations();
+  showToast(`已把 ${title} 挂到下一条群聊消息`);
+}
+
+function openKnowledgePanel() {
+  selectRightPanel('knowledge');
+  if (!knowledgeState.summary) loadKnowledgeSummary();
+}
+
+/*
+ * Capability studio projection.
+ * The catalog is deliberately separate from the document search results: a
+ * method card is a reusable hypothesis with an interface, not a copied paper
+ * conclusion.  The browser can compose and inspect a graph, while the server
+ * performs the authoritative typed-DAG check.
+ */
+function capabilityEndpoint(path = '') {
+  return LIVE_API ? `${LIVE_API}/api/projects/${LIVE_PROJECT}/capabilities${path}` : '';
+}
+
+function capabilityErrorMessage(payload, fallback = '能力目录请求失败') {
+  const detail = payload?.detail;
+  if (typeof detail === 'string') return detail;
+  if (detail && typeof detail === 'object') return detail.message || detail.code || fallback;
+  return fallback;
+}
+
+function capabilityBlocks() { return capabilityState.catalog?.workflow_blocks || []; }
+function capabilityMethods() { return capabilityState.catalog?.methods || []; }
+function capabilityPresets() { return capabilityState.catalog?.workflow_presets || []; }
+function capabilityArchetypes() { return capabilityState.catalog?.problem_archetypes || []; }
+function capabilityBlock(id) { return capabilityBlocks().find(item => item.id === id); }
+function capabilityMethod(id) { return capabilityMethods().find(item => item.id === id); }
+function capabilityPacks() { return capabilityState.catalog?.content_packs || capabilityContentPacks; }
+
+function renderCapabilitySource(catalog) {
+  const root = document.getElementById('capabilitySourceStrip');
+  if (!root) return;
+  const source = catalog?.source || {};
+  const status = String(source.source_status || 'UNAVAILABLE').toUpperCase();
+  const count = source.indexed_count ?? source.valid_count ?? 0;
+  const signals = source.asset_signals || {};
+  const rev = compactRevision(catalog?.capability_revision || source.index_revision, 17);
+  const pending = status === 'LOCAL_PENDING' || status === 'UNAVAILABLE';
+  root.classList.toggle('pending', pending);
+  root.innerHTML = `<span class="knowledge-dot ${pending ? 'pending' : ''}"></span><span>${escapeHTML(status)} · ${escapeHTML(count)} 个资料候选 · 论文线索 ${escapeHTML(signals.paper_candidates ?? '—')} · 能力 revision ${escapeHTML(rev)}</span>`;
+}
+
+function renderCapabilityCatalog(catalog) {
+  capabilityState.catalog = catalog || null;
+  capabilityState.revision = catalog?.capability_revision || catalog?.source?.index_revision || null;
+  renderCapabilitySource(catalog);
+  const badge = document.getElementById('capabilityBadge');
+  if (badge) badge.textContent = catalog?.methods?.length ? String(catalog.methods.length) : '—';
+  const archetypeSelect = document.getElementById('capabilityArchetypeSelect');
+  if (archetypeSelect) {
+    const current = archetypeSelect.value;
+    archetypeSelect.innerHTML = `<option value="">自动识别 / 先不限定</option>${capabilityArchetypes().map(item => `<option value="${escapeHTML(item.id)}">${escapeHTML(item.title)}</option>`).join('')}`;
+    if (current && [...archetypeSelect.options].some(option => option.value === current)) archetypeSelect.value = current;
+  }
+  const presetSelect = document.getElementById('capabilityPresetSelect');
+  if (presetSelect) {
+    const current = presetSelect.value;
+    presetSelect.innerHTML = capabilityPresets().map(item => `<option value="${escapeHTML(item.id)}">${escapeHTML(item.title)}</option>`).join('') || '<option value="">暂无标准模板</option>';
+    if (current && [...presetSelect.options].some(option => option.value === current)) presetSelect.value = current;
+  }
+  const presetRoot = document.getElementById('presetList');
+  if (presetRoot) {
+    const blocks = new Map(capabilityBlocks().map(item => [item.id, item]));
+    presetRoot.innerHTML = capabilityPresets().map(preset => {
+      const flow = (preset.block_ids || []).map(id => blocks.get(id)?.title || id).slice(0, 9);
+      return `<article class="preset-card"><div class="preset-card-head"><strong>${escapeHTML(preset.title)}</strong><em>${escapeHTML((preset.archetype_ids || []).length)} 类题型</em></div><p>${escapeHTML(preset.description)}</p><div class="preset-flow">${flow.map((name, index) => `${index ? '<i>›</i>' : ''}<span>${escapeHTML(name)}</span>`).join('')}</div></article>`;
+    }).join('') || '<div class="assembly-loading">能力模板尚未加载。</div>';
+  }
+  const blockRoot = document.getElementById('blockPalette');
+  if (blockRoot) {
+    blockRoot.innerHTML = capabilityBlocks().map(block => `<button type="button" class="assembly-item ${block.required ? 'required-item' : ''}" data-assembly-add-type="block" data-assembly-add-id="${escapeHTML(block.id)}" title="输入：${escapeHTML(Object.keys(block.input_ports || {}).join(', ') || '无')}；输出：${escapeHTML(Object.keys(block.output_ports || {}).join(', ') || '无')}"><strong>${escapeHTML(block.title)}${block.required ? ' · 必选' : ''}</strong><span>${escapeHTML(block.kind)} · ${escapeHTML(Object.keys(block.output_ports || {}).join(' · ') || '无输出')}</span>${block.evidence_output ? `<em>证据输出</em>` : ''}</button>`).join('') || '<div class="assembly-loading">没有可用工作块。</div>';
+  }
+  const methodRoot = document.getElementById('methodPalette');
+  if (methodRoot) {
+    methodRoot.innerHTML = capabilityMethods().map(method => `<button type="button" class="assembly-item" data-assembly-add-type="method" data-assembly-add-id="${escapeHTML(method.id)}" title="适用：${escapeHTML((method.applicability || []).join('；'))}；禁用：${escapeHTML((method.prohibitions || []).join('；'))}"><strong>${escapeHTML(method.title)}</strong><span>${escapeHTML(method.family)} · ${(method.validation || []).slice(0, 2).map(escapeHTML).join(' + ')}</span><em>候选卡 · ${escapeHTML(method.source_kind || 'curated/inferred')}</em></button>`).join('') || '<div class="assembly-loading">没有可用方法卡。</div>';
+  }
+  const packRoot = document.getElementById('contentPackPalette');
+  if (packRoot) {
+    const selectedPacks = new Set(capabilityState.assembly?.contentPackIds || []);
+    packRoot.innerHTML = capabilityPacks().map(pack => { const selected = selectedPacks.has(pack.id); const evidenceCount = (capabilityState.assembly?.contentPackEvidenceByPack?.[pack.id] || []).length; const evidenceNote = selected && evidenceCount ? ` · ${evidenceCount}条候选` : ''; return `<button type="button" class="content-pack ${selected ? 'selected' : ''}" data-content-pack="${escapeHTML(pack.id)}" aria-pressed="${selected ? 'true' : 'false'}" title="${selected ? '点击卸载；' : '点击挂载；'}检索：${escapeHTML(pack.query || '')}"><span>${escapeHTML(pack.title)}</span><em>${escapeHTML(pack.note)}</em><b>${selected ? `已挂载${evidenceNote} · 点击卸载` : '未挂载 · 点击挂载'}</b></button>`; }).join('') || '<div class="assembly-loading">内容包尚未加载。</div>';
+  }
+  renderAssemblyCanvas();
+}
+
+function setAssemblyMode(mode) {
+  capabilityState.mode = mode === 'free' ? 'free' : 'standard';
+  document.querySelectorAll('.assembly-mode').forEach(button => button.classList.toggle('active', button.dataset.assemblyMode === capabilityState.mode));
+  document.querySelectorAll('[data-assembly-view]').forEach(section => { section.hidden = section.dataset.assemblyView !== capabilityState.mode; });
+}
+
+function rebuildContentPackEvidence() {
+  const assembly = capabilityState.assembly;
+  const selected = new Set(assembly.contentPackIds || []);
+  const byPack = assembly.contentPackEvidenceByPack || {};
+  const currentSourceRevision = capabilityState.catalog?.source?.index_revision || null;
+  const refs = [];
+  const revisions = [];
+  selected.forEach(id => {
+    const entry = byPack[id];
+    if (!entry || !Array.isArray(entry.refs) || !entry.refs.length) return;
+    // Do not carry a resolver result across a refreshed KB snapshot.
+    if (currentSourceRevision && entry.indexRevision && entry.indexRevision !== currentSourceRevision) return;
+    refs.push(...entry.refs);
+    if (entry.indexRevision) revisions.push(entry.indexRevision);
+  });
+  assembly.contentPackEvidenceRefs = [...new Set(refs)].sort();
+  assembly.contentPackIndexRevision = revisions.length ? revisions[0] : null;
+  assembly.contentPackResolutionRevision = selected.size ? (selected.values().next().value && byPack[selected.values().next().value]?.resolutionRevision) || null : null;
+}
+
+async function resolveContentPackEvidence(pack) {
+  if (!LIVE_API || !pack?.id) return null;
+  const assembly = capabilityState.assembly;
+  const params = new URLSearchParams({ top_k: '4', with_preview: 'true' });
+  try {
+    const response = await fetch(`${capabilityEndpoint(`/content-packs/${encodeURIComponent(pack.id)}/resolve`)}?${params.toString()}`);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(capabilityErrorMessage(payload, 'CONTENT_PACK_RESOLVE_ERROR'));
+    if (assembly !== capabilityState.assembly || !(assembly.contentPackIds || []).includes(pack.id)) return payload;
+    assembly.contentPackEvidenceByPack = assembly.contentPackEvidenceByPack || {};
+    assembly.contentPackEvidenceByPack[pack.id] = {
+      refs: Array.isArray(payload.evidence_refs) ? [...payload.evidence_refs] : [],
+      indexRevision: payload.index_revision || null,
+      resolutionRevision: payload.resolution_revision || null,
+      coverage: payload.coverage || null,
+    };
+    rebuildContentPackEvidence();
+    assembly.revision = null;
+    assembly.validation = null;
+    assembly.diff = null;
+    assembly.methodBlockWarnings = [];
+    assemblyValidationEpoch += 1;
+    renderCapabilityCatalog(capabilityState.catalog);
+    renderAssemblyGate();
+    renderAssemblyDiff(null);
+    if (assembly.nodes.length) validateAssembly();
+    const count = assembly.contentPackEvidenceByPack[pack.id].refs.length;
+    showToast(`${pack.title} 已绑定 ${count} 条当前快照候选；页级定位仍需人工核对`);
+    return payload;
+  } catch (error) {
+    if (assembly === capabilityState.assembly && (assembly.contentPackIds || []).includes(pack.id)) showToast(`${pack.title} 证据解析失败：${error.message || 'unknown'}`);
+    return null;
+  }
+}
+
+function toggleContentPack(pack) {
+  const ids = new Set(capabilityState.assembly.contentPackIds || []);
+  if (ids.has(pack.id)) {
+    ids.delete(pack.id);
+    if (capabilityState.assembly.contentPackEvidenceByPack) delete capabilityState.assembly.contentPackEvidenceByPack[pack.id];
+    showToast(`已卸载内容包：${pack.title}`);
+  } else {
+    ids.add(pack.id);
+    showToast(`已挂载内容包：${pack.title}；检索结果仍需回到原文核验`);
+  }
+  capabilityState.assembly.contentPackIds = [...ids].sort();
+  capabilityState.assembly.revision = null;
+  capabilityState.assembly.validation = null;
+  capabilityState.assembly.diff = null;
+  capabilityState.assembly.methodBlockWarnings = [];
+  rebuildContentPackEvidence();
+  assemblyValidationEpoch += 1;
+  renderCapabilityCatalog(capabilityState.catalog);
+  renderAssemblyDiff(null);
+  if (capabilityState.assembly.nodes.length) validateAssembly();
+  if (ids.has(pack.id)) resolveContentPackEvidence(pack);
+}
+
+function selectedCapabilityArchetype() {
+  const id = document.getElementById('capabilityArchetypeSelect')?.value;
+  return capabilityArchetypes().find(item => item.id === id) || capabilityArchetypes()[0] || null;
+}
+
+function selectedCapabilityPreset() {
+  const id = document.getElementById('capabilityPresetSelect')?.value;
+  return capabilityPresets().find(item => item.id === id) || capabilityPresets()[0] || null;
+}
+
+function methodForArchetype(archetype) {
+  const id = archetype?.id || '';
+  const wanted = id === 'optimization' ? ['linear-programming', 'integer-programming'] : id === 'mechanism' ? ['runge-kutta-ode', 'finite-difference-pde'] : id === 'simulation' ? ['monte-carlo', 'discrete-event-simulation'] : id === 'policy-decision' ? ['nsga2-multiobjective', 'monte-carlo'] : ['linear-regression', 'logistic-regression'];
+  return wanted.map(id => capabilityMethod(id)).find(Boolean) || capabilityMethods()[0] || null;
+}
+
+function blockForMethod(method) {
+  const family = String(method?.family || '').toLowerCase();
+  if (family === 'optimization') return 'optimization';
+  if (family === 'mechanism') return 'mechanism-model';
+  if (family === 'simulation') return 'simulation';
+  if (family === 'validation') return 'sensitivity';
+  return 'baseline-model';
+}
+
+function makeAssemblyNode(blockId, index, methodId = null) {
+  const block = capabilityBlock(blockId);
+  return { node_id: `${blockId.replace(/[^A-Za-z0-9]+/g, '-')}-${index + 1}`, block_id: blockId, method_id: methodId, label: block?.title || blockId, config: {} };
+}
+
+function buildPresetAssembly() {
+  const preset = selectedCapabilityPreset();
+  const archetype = selectedCapabilityArchetype();
+  if (!preset) return;
+  let ids = [...(preset.block_ids || [])];
+  const archetypeId = archetype?.id || '';
+  // The catalog's standard preset is a superset.  Keep the visible chain
+  // focused on the selected problem family while retaining the mandatory
+  // baseline/validation/writing gates.
+  if (preset.id === 'standard-cumcm') {
+    const core = ['problem-decomposition', 'data-audit', 'parameter-contract', 'baseline-model', 'validation', 'critic-challenger', 'sensitivity', 'writing'];
+    const main = archetypeId === 'mechanism' ? ['scenario-contract', 'mechanism-model', 'simulation'] : archetypeId === 'simulation' ? ['scenario-contract', 'simulation'] : archetypeId === 'optimization' || archetypeId === 'policy-decision' ? ['optimization'] : [];
+    // The transparent baseline must precede any solver/simulation block: the
+    // latter consume a typed ``model`` port.  Keeping the order here makes the
+    // auto-link proposal valid for every archetype instead of silently
+    // producing a BLOCKED graph for optimisation/simulation starts.
+    ids = [...core.slice(0, 3), 'baseline-model', ...main, ...core.slice(4)];
+    if (archetypeId === 'mechanism' || archetypeId === 'simulation' || archetypeId === 'policy-decision') ids.push('defense');
+  }
+  const method = methodForArchetype(archetype);
+  const mainBlock = method ? blockForMethod(method) : null;
+  const seen = new Set();
+  const nodes = [];
+  ids.forEach(id => {
+    if (seen.has(id) || !capabilityBlock(id)) return;
+    seen.add(id);
+    const attach = id === mainBlock ? method?.id : null;
+    nodes.push(makeAssemblyNode(id, nodes.length, attach));
+  });
+  const defaultPacks = capabilityPacks().map(pack => pack.id);
+  capabilityState.assembly = { nodes, edges: autoLinkAssembly(nodes), presetId: preset.id, archetypeId: archetype?.id || null, validation: null, revision: null, diff: null, previousNodes: [], previousEdges: [], committedRevision: null, innovationCard: null, previousInnovationCard: null, contentPackIds: defaultPacks, previousContentPackIds: [], contentPackEvidenceRefs: [], contentPackEvidenceByPack: {}, contentPackIndexRevision: null, contentPackResolutionRevision: null, methodBlockWarnings: [] };
+  assemblyValidationEpoch += 1;
+  renderAssemblyCanvas();
+  renderInnovationSummary();
+  renderCapabilityCatalog(capabilityState.catalog);
+  setAssemblyMode('free');
+  showToast(`已载入「${preset.title}」；现在可以替换或追加方法卡`);
+  validateAssembly();
+}
+
+function autoLinkAssembly(nodes) {
+  const edges = [];
+  const seen = new Set();
+  const blockMap = new Map(capabilityBlocks().map(item => [item.id, item]));
+  nodes.forEach((targetNode, targetIndex) => {
+    const target = blockMap.get(targetNode.block_id);
+    if (!target) return;
+    const incoming = new Set();
+    Object.entries(target.input_ports || {}).forEach(([targetPort, targetType]) => {
+      // Search nearest prior provider first.  One output may feed multiple
+      // consumers; this is a mapping proposal, not an execution plan.
+      for (let sourceIndex = targetIndex - 1; sourceIndex >= 0; sourceIndex -= 1) {
+        const sourceNode = nodes[sourceIndex];
+        const source = blockMap.get(sourceNode.block_id);
+        const candidate = Object.entries(source?.output_ports || {}).find(([port, type]) => type === targetType && !seen.has(`${sourceNode.node_id}:${port}->${targetNode.node_id}:${targetPort}`));
+        if (!candidate) continue;
+        const [sourcePort] = candidate;
+        const key = `${sourceNode.node_id}:${sourcePort}->${targetNode.node_id}:${targetPort}`;
+        if (!seen.has(key)) { edges.push({ source: sourceNode.node_id, source_port: sourcePort, target: targetNode.node_id, target_port: targetPort }); seen.add(key); incoming.add(targetPort); }
+        break;
+      }
+    });
+  });
+  return edges;
+}
+
+function renderAssemblyCanvas() {
+  const root = document.getElementById('assemblyCanvas');
+  const count = document.getElementById('assemblyCount');
+  const nodes = capabilityState.assembly?.nodes || [];
+  if (count) count.textContent = `${nodes.length} 个节点`;
+  const sendButton = document.getElementById('sendAssemblyBtn');
+  if (sendButton) {
+    sendButton.disabled = nodes.length === 0;
+    sendButton.setAttribute('aria-disabled', nodes.length === 0 ? 'true' : 'false');
+    sendButton.title = nodes.length === 0 ? '先加入工作块或方法卡' : '提交结构审查并同步到群聊';
+  }
+  if (!root) return;
+  if (!nodes.length) {
+    root.innerHTML = `<div class="assembly-empty"><span>${dragonIcon('mark', { className: 'dragon-affordance' })}</span><strong>从左侧加入第一个节点</strong><p>建议顺序：题面 → 数据/机制 → baseline → 方法 → 验证 → claim。</p></div>`;
+    return;
+  }
+  root.innerHTML = nodes.map((node, index) => {
+    const method = node.method_id ? capabilityMethod(node.method_id) : null;
+    const block = capabilityBlock(node.block_id);
+    const subtitle = method ? `${method.title} · ${method.family}` : `${block?.kind || 'block'} · ${Object.keys(block?.output_ports || {}).join(' + ') || '待定义输出'}`;
+    return `<div class="assembly-node" data-assembly-node-index="${index}"><span class="assembly-node-index">${index + 1}</span><button type="button" class="assembly-node-copy" data-assembly-node-view="${index}"><strong>${escapeHTML(node.label || block?.title || node.block_id)}</strong><span>${escapeHTML(subtitle)}</span></button><button type="button" class="assembly-node-remove" data-assembly-node-remove="${index}" aria-label="移除节点">${dragonIcon('mark', { className: 'dragon-affordance' })}</button></div>`;
+  }).join('');
+}
+
+function addAssemblyItem(type, id) {
+  let blockId = id;
+  let methodId = null;
+  if (type === 'method') {
+    const method = capabilityMethod(id);
+    if (!method) return;
+    methodId = method.id;
+    blockId = blockForMethod(method);
+  }
+  if (!capabilityBlock(blockId)) { showToast('这个能力卡暂时没有兼容的工作块'); return; }
+  const nodes = capabilityState.assembly.nodes || [];
+  const node = makeAssemblyNode(blockId, nodes.length, methodId);
+  node.label = methodId ? `${capabilityMethod(methodId)?.title || id}` : node.label;
+  nodes.push(node);
+  capabilityState.assembly.edges = autoLinkAssembly(nodes);
+  capabilityState.assembly.validation = null;
+  capabilityState.assembly.revision = null;
+  capabilityState.assembly.diff = null;
+  capabilityState.assembly.methodBlockWarnings = [];
+  assemblyValidationEpoch += 1;
+  renderAssemblyCanvas();
+  renderAssemblyGate();
+  renderAssemblyDiff(null);
+  renderInnovationSummary();
+}
+
+function removeAssemblyNode(index) {
+  const nodes = capabilityState.assembly.nodes || [];
+  if (!nodes[index]) return;
+  nodes.splice(index, 1);
+  nodes.forEach((node, i) => { node.node_id = `${node.block_id.replace(/[^A-Za-z0-9]+/g, '-')}-${i + 1}`; });
+  capabilityState.assembly.edges = autoLinkAssembly(nodes);
+  capabilityState.assembly.validation = null;
+  capabilityState.assembly.revision = null;
+  capabilityState.assembly.diff = null;
+  capabilityState.assembly.methodBlockWarnings = [];
+  assemblyValidationEpoch += 1;
+  renderAssemblyCanvas();
+  renderAssemblyGate();
+  renderAssemblyDiff(null);
+  renderInnovationSummary();
+}
+
+function renderAssemblyGate(payload = null, local = false) {
+  const root = document.getElementById('assemblyGate');
+  if (!root) return;
+  const validation = payload?.validation || capabilityState.assembly.validation;
+  if (!validation) { root.className = 'assembly-gate neutral'; root.innerHTML = `<span class="gate-icon">${dragonIcon('mark', { className: 'dragon-gate-icon' })}</span><div><strong>尚未检查链路</strong><p>当前图谱发生了变化；重新检查后才会生成新的 assembly revision、差异和适配提示。</p></div>`; renderAssemblyDiff(null); return; }
+  const valid = validation.valid === true;
+  const errors = validation.errors || [];
+  const cls = valid ? 'pass' : (errors.length > 2 ? 'blocked' : 'warn');
+  const missing = validation.missing_required_blocks || validation.hard_gate?.missing || [];
+  const warnings = payload?.method_block_warnings || capabilityState.assembly.methodBlockWarnings || [];
+  const title = valid ? '结构可审 · 尚不等于数值已验证' : `需要修复 ${errors.length} 个结构门`;
+  const detail = valid ? `拓扑 ${validation.node_count || 0} 节点 / ${validation.edge_count || 0} 条边${local ? ' · 本地预览' : ''}${missing.length ? ` · 缺必选 ${missing.length}` : ''}${warnings.length ? ` · ${warnings.length} 个方法适配提示` : ''}` : errors.slice(0, 3).join('；');
+  root.className = `assembly-gate ${cls}`;
+  const warningText = warnings.slice(0, 3).map(item => `${item.method_id || '方法'} → 建议 ${item.suggested_block || '兼容工作块'}`).join('；');
+  root.innerHTML = `<span class="gate-icon">${dragonIcon('mark', { className: 'dragon-gate-icon' })}</span><div><strong>${escapeHTML(title)}</strong><p>${escapeHTML(detail)}</p>${missing.length ? `<small>必选：${escapeHTML(missing.join(' · '))}</small>` : ''}${warnings.length ? `<small class="assembly-warning">适配提示：${escapeHTML(warningText)}${warnings.length > 3 ? '；…' : ''}（不自动改写你的选择）</small>` : ''}</div>`;
+  renderAssemblyDiff(payload?.diff || capabilityState.assembly.diff);
+}
+
+function renderAssemblyDiff(diff) {
+  const root = document.getElementById('assemblyDiff');
+  if (!root) return;
+  if (!diff) { root.hidden = true; root.innerHTML = ''; return; }
+  const added = (diff.added_nodes || []).length;
+  const removed = (diff.removed_nodes || []).length;
+  const changed = (diff.changed_nodes || []).length;
+  const edgeDelta = (diff.added_edges || []).length + (diff.removed_edges || []).length;
+  const missing = diff.missing_required_blocks || [];
+  root.hidden = false;
+  root.className = `assembly-diff ${missing.length ? 'blocked' : 'ready'}`;
+  const innovationChanged = Boolean(diff.innovation_changed);
+  const innovationGateState = diff.innovation_gate || innovationGate(capabilityState.assembly.innovationCard);
+  const novelty = innovationChanged ? `创新卡${innovationGateState?.ready ? '已具备审查字段' : '仍是草稿'}` : '创新卡未变化';
+  const packAdded = diff.content_pack_added || [];
+  const packRemoved = diff.content_pack_removed || [];
+  const packText = packAdded.length || packRemoved.length ? `内容包：+${packAdded.length} / −${packRemoved.length}` : '内容包未变化';
+  const evidenceCount = (capabilityState.assembly.contentPackEvidenceRefs || []).length;
+  const evidenceText = evidenceCount ? `已绑定 ${evidenceCount} 条候选来源` : '尚未绑定内容包来源';
+  root.innerHTML = `<div class="assembly-diff-head"><strong>装配差异 · ${diff.changed ? '有变化' : '无变化'}</strong><span>${missing.length ? `缺 ${missing.length} 个必选块` : '硬门齐全'}</span></div><div class="assembly-diff-stats"><span><b>+${added}</b> 新增</span><span><b>−${removed}</b> 移除</span><span><b>${changed}</b> 修改</span><span><b>${edgeDelta}</b> 条边变化</span><span><b>${innovationChanged ? '是' : '否'}</b> ${escapeHTML(novelty)}</span></div>${missing.length ? `<p>先补齐：${escapeHTML(missing.join(' · '))}</p>` : `<p>这是结构差异，不是模型效果差异；${escapeHTML(packText)}；${escapeHTML(evidenceText)}；发送群聊前仍需提交审查。</p>`}`;
+}
+
+function innovationGate(card) {
+  const fields = ['baseline', 'difference', 'necessity', 'boundary', 'validation'];
+  const missing = fields.filter(field => !String(card?.[field] || '').trim());
+  return { present: Boolean(card), ready: Boolean(card) && missing.length === 0, status: card && missing.length === 0 ? 'READY_FOR_REVIEW' : 'DRAFT_UNVERIFIED', missing, claim_class: 'hypothesis' };
+}
+
+function renderInnovationSummary() {
+  const root = document.getElementById('innovationSummary');
+  if (!root) return;
+  const card = capabilityState.assembly?.innovationCard;
+  if (!card) {
+    root.hidden = true;
+    root.innerHTML = '';
+    return;
+  }
+  const gate = innovationGate(card);
+  root.hidden = false;
+  root.className = `innovation-summary ${gate.ready ? 'ready' : 'draft'}`;
+  const preview = String(card.difference || card.necessity || '').slice(0, 120);
+  root.innerHTML = `<div><strong>创新差异卡</strong><span>${gate.ready ? 'READY_FOR_REVIEW · 仍需独立验证' : 'DRAFT_UNVERIFIED · 字段未齐'}</span></div><p>${escapeHTML(preview || '尚未填写差异')}</p>${gate.missing.length ? `<small>待补：${escapeHTML(gate.missing.join(' · '))}</small>` : '<small>已绑定小问：' + escapeHTML(card.subproblem_id || window.selectedSubproblem || 'Q2') + ' · claim_class=hypothesis</small>'}`;
+}
+
+function localAssemblyValidation() {
+  const nodes = capabilityState.assembly.nodes || [];
+  const errors = [];
+  const blockIds = nodes.map(node => node.block_id);
+  const required = ['problem-decomposition', 'baseline-model', 'validation', 'writing'];
+  required.forEach(id => { if (!blockIds.includes(id)) errors.push(`required_block_missing:${id}`); });
+  if (!nodes.some(node => node.block_id === 'validation')) errors.push('required_validation_node_missing');
+  const paperIndex = blockIds.indexOf('writing');
+  const validationIndex = blockIds.indexOf('validation');
+  if (paperIndex >= 0 && validationIndex < 0) errors.push('evidence_chain_missing:validation_to_writing');
+  if (paperIndex >= 0 && validationIndex > paperIndex) errors.push('evidence_chain_order_invalid');
+  return { valid: errors.length === 0, errors, topological_order: nodes.map(node => node.node_id), node_count: nodes.length, edge_count: capabilityState.assembly.edges.length, missing_required_blocks: required.filter(id => !blockIds.includes(id)), required_block_ids: required, hard_gate: { ready: errors.length === 0, missing: required.filter(id => !blockIds.includes(id)) } };
+}
+
+async function validateAssembly() {
+  const assembly = capabilityState.assembly;
+  const epoch = ++assemblyValidationEpoch;
+  if (!assembly.nodes.length) { renderAssemblyGate(); return null; }
+  if (!LIVE_API) { assembly.validation = localAssemblyValidation(); assembly.diff = localAssemblyDiff(); renderAssemblyGate(null, true); return assembly.validation; }
+  if (!capabilityState.revision) { showToast('能力目录尚未同步，暂不能检查链路'); return null; }
+  try {
+    const response = await fetch(`${capabilityEndpoint('/compose')}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nodes: assembly.nodes, edges: assembly.edges, previous_nodes: assembly.previousNodes || [], previous_edges: assembly.previousEdges || [], innovation_card: assembly.innovationCard || undefined, previous_innovation_card: assembly.previousInnovationCard || undefined, content_pack_ids: assembly.contentPackIds || [], previous_content_pack_ids: assembly.previousContentPackIds || [], content_pack_evidence_refs: assembly.contentPackEvidenceRefs || [], content_pack_index_revision: assembly.contentPackIndexRevision || undefined, content_pack_resolution_revision: assembly.contentPackResolutionRevision || undefined, preset_id: assembly.presetId, archetype_id: assembly.archetypeId, scope: [window.selectedSubproblem || 'Q2'], base_revision: capabilityState.revision, idempotency_key: `assembly-${Date.now()}` }) });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(capabilityErrorMessage(payload, 'CAPABILITY_COMPOSE_ERROR'));
+    if (epoch !== assemblyValidationEpoch || assembly !== capabilityState.assembly) return null;
+    assembly.validation = payload.validation || null;
+    assembly.revision = payload.assembly_revision || null;
+    assembly.diff = payload.diff || null;
+    assembly.methodBlockWarnings = Array.isArray(payload.method_block_warnings) ? JSON.parse(JSON.stringify(payload.method_block_warnings)) : [];
+    assembly.contentPackIds = Array.isArray(payload.content_pack_ids) ? [...payload.content_pack_ids] : (assembly.contentPackIds || []);
+    assembly.contentPackEvidenceRefs = Array.isArray(payload.content_pack_evidence_refs) ? [...payload.content_pack_evidence_refs] : (assembly.contentPackEvidenceRefs || []);
+    assembly.contentPackIndexRevision = payload.content_pack_index_revision || assembly.contentPackIndexRevision || null;
+    assembly.contentPackResolutionRevision = payload.content_pack_resolution_revision || assembly.contentPackResolutionRevision || null;
+    renderAssemblyGate(payload);
+    return payload;
+  } catch (error) {
+    if (epoch !== assemblyValidationEpoch || assembly !== capabilityState.assembly) return null;
+    assembly.validation = { valid: false, errors: [error.message || 'CAPABILITY_COMPOSE_ERROR'], node_count: assembly.nodes.length, edge_count: assembly.edges.length };
+    assembly.diff = null;
+    assembly.methodBlockWarnings = [];
+    renderAssemblyGate();
+    showToast(`链路检查失败（${error.message || 'unknown'}）`);
+    return null;
+  }
+}
+
+function localAssemblyDiff() {
+  const before = new Map((capabilityState.assembly.previousNodes || []).map(node => [node.node_id, JSON.stringify(node)]));
+  const after = new Map((capabilityState.assembly.nodes || []).map(node => [node.node_id, JSON.stringify(node)]));
+  const added = [...after.keys()].filter(id => !before.has(id));
+  const removed = [...before.keys()].filter(id => !after.has(id));
+  const changed = [...after.keys()].filter(id => before.has(id) && before.get(id) !== after.get(id));
+  const missing = ['problem-decomposition', 'baseline-model', 'validation', 'writing'].filter(id => !(capabilityState.assembly.nodes || []).some(node => node.block_id === id));
+  const beforeInnovation = JSON.stringify(capabilityState.assembly.previousInnovationCard || null);
+  const afterInnovation = JSON.stringify(capabilityState.assembly.innovationCard || null);
+  const beforePacks = new Set(capabilityState.assembly.previousContentPackIds || []);
+  const afterPacks = new Set(capabilityState.assembly.contentPackIds || []);
+  const packAdded = [...afterPacks].filter(id => !beforePacks.has(id)).sort();
+  const packRemoved = [...beforePacks].filter(id => !afterPacks.has(id)).sort();
+  return { schema_version: 'assembly-diff/v1', changed: Boolean(added.length || removed.length || changed.length || beforeInnovation !== afterInnovation || packAdded.length || packRemoved.length), added_nodes: added.map(id => capabilityState.assembly.nodes.find(node => node.node_id === id)), removed_nodes: removed.map(id => capabilityState.assembly.previousNodes.find(node => node.node_id === id)), changed_nodes: changed.map(id => ({ node_id: id })), added_edges: [], removed_edges: [], missing_required_blocks: missing, innovation_changed: beforeInnovation !== afterInnovation, innovation_gate: innovationGate(capabilityState.assembly.innovationCard), content_pack_added: packAdded, content_pack_removed: packRemoved, content_pack_changed: Boolean(packAdded.length || packRemoved.length), content_pack_ids: [...afterPacks].sort(), status: missing.length ? 'BLOCKED' : 'READY_FOR_REVIEW', claim_class: 'derived' };
+}
+
+async function commitAssembly(action = 'SUBMIT_REVIEW') {
+  const assembly = capabilityState.assembly;
+  if (!LIVE_API) {
+    assembly.committedRevision = assembly.revision || 'fixture:assembly-draft';
+    assembly.previousNodes = JSON.parse(JSON.stringify(assembly.nodes || []));
+    assembly.previousEdges = JSON.parse(JSON.stringify(assembly.edges || []));
+    showToast('已保存演示装配；未写入事实源');
+    return true;
+  }
+  if (!assembly.revision || !capabilityState.revision || !liveRevision) {
+    showToast('装配或事件源 revision 尚未齐全');
+    return false;
+  }
+  try {
+    const response = await fetch(`${capabilityEndpoint('/commit')}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: 'owner', nodes: assembly.nodes, edges: assembly.edges, innovation_card: assembly.innovationCard || undefined, previous_innovation_card: assembly.previousInnovationCard || undefined, content_pack_ids: assembly.contentPackIds || [], previous_content_pack_ids: assembly.previousContentPackIds || [], content_pack_evidence_refs: assembly.contentPackEvidenceRefs || [], content_pack_index_revision: assembly.contentPackIndexRevision || undefined, content_pack_resolution_revision: assembly.contentPackResolutionRevision || undefined, preset_id: assembly.presetId, archetype_id: assembly.archetypeId, scope: [window.selectedSubproblem || 'Q2'], assembly_revision: assembly.revision, capability_revision: capabilityState.revision, source_revision: runtimeContext.inputRevision && String(runtimeContext.inputRevision).startsWith('kb:') ? runtimeContext.inputRevision : undefined, base_revision: liveRevision, previous_assembly_revision: assembly.committedRevision || undefined, action, idempotency_key: `assembly-commit-${Date.now()}` }) });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(capabilityErrorMessage(payload, 'ASSEMBLY_COMMIT_ERROR'));
+    const committed = payload.assembly || {};
+    assembly.committedRevision = committed.assembly_revision || assembly.revision;
+    assembly.previousNodes = JSON.parse(JSON.stringify(assembly.nodes || []));
+    assembly.previousEdges = JSON.parse(JSON.stringify(assembly.edges || []));
+    assembly.contentPackEvidenceRefs = Array.isArray(committed.content_pack_evidence_refs) ? [...committed.content_pack_evidence_refs] : (assembly.contentPackEvidenceRefs || []);
+    assembly.contentPackIndexRevision = committed.content_pack_index_revision || assembly.contentPackIndexRevision || null;
+    assembly.contentPackResolutionRevision = committed.content_pack_resolution_revision || assembly.contentPackResolutionRevision || null;
+    assembly.innovationCard = committed.innovation_card ? JSON.parse(JSON.stringify(committed.innovation_card)) : assembly.innovationCard;
+    assembly.previousInnovationCard = assembly.innovationCard ? JSON.parse(JSON.stringify(assembly.innovationCard)) : null;
+    assembly.previousContentPackIds = [...(assembly.contentPackIds || [])];
+    renderInnovationSummary();
+    liveRevision = payload.revision || liveRevision;
+    setRuntimeContext({ controlRevision: liveRevision });
+    if (payload.event) ingestLiveEvent(payload.event, LIVE_API);
+    showToast(action === 'SUBMIT_REVIEW' ? '装配已提交独立审查，并同步到事件流' : '装配草稿已保存到事件源');
+    return true;
+  } catch (error) {
+    showToast(`装配未同步（${error.message || 'unknown'}）`);
+    return false;
+  }
+}
+
+function applyProblemContractDraft(contract) {
+  capabilityState.problemContract = contract;
+  const rows = Array.isArray(contract?.subproblems) ? contract.subproblems : [];
+  if (!rows.length) return;
+  const mapped = rows.map((row, index) => {
+    const excerpt = row.prompt_excerpt?.value || row.prompt_excerpt || '题面片段待复核';
+    const verbs = row.delivery_verbs?.value || row.deliverable_verbs?.value || [];
+    const variables = row.variables?.value || [];
+    return {
+      id: String(row.id || `Q${index + 1}`), title: `待确认小问 ${String(row.id || `Q${index + 1}`)}`, prompt: String(excerpt), deliverable: Array.isArray(verbs) && verbs.length ? verbs.join('、') : '交付物待 Scope-Lock 确认', state: 'blocked', stateLabel: 'DRAFT · 待核验', coverage: '0/6 可核对', risk: '单位、语义与来源尚未核验', focus: 'scope', sourceStatus: 'draft_unverified', promptRefs: (contract.source_refs || []).map(ref => ({ ref, claimClass: 'observed' })), variables: Array.isArray(variables) ? variables.filter(item => typeof item === 'string') : [], claimClass: 'observed', evidenceRefs: contract.source_refs || [],
+    };
+  });
+  subproblems.splice(0, subproblems.length, ...mapped);
+  window.selectedSubproblem = mapped[0].id;
+  renderModelingOverview();
+}
+
+async function draftProblemContract() {
+  const input = document.getElementById('problemDraftInput');
+  const text = input?.value?.trim();
+  if (!text) { showToast('先粘贴一段题面'); return; }
+  if (!LIVE_API) { showToast('演示模式未连接抽取服务；请打开 ?live=1'); return; }
+  const button = document.getElementById('draftProblemContractBtn');
+  if (button) { button.disabled = true; button.textContent = '抽取中…'; }
+  try {
+    const response = await fetch(`${capabilityEndpoint('/problem-contract')}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, source_refs: [] }) });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(capabilityErrorMessage(payload, 'PROBLEM_CONTRACT_ERROR'));
+    applyProblemContractDraft(payload);
+    const result = document.getElementById('problemContractResult');
+    const suggestions = (payload.archetype_cue_suggestions || []).filter(item => item.score > 0).slice(0, 3).map(item => item.id).join(' · ') || '暂无明显 cue';
+    if (result) { result.hidden = false; result.innerHTML = `<strong>${escapeHTML(payload.subproblems?.length || 0)} 个动态小问 · ${escapeHTML(payload.status || 'DRAFT_UNVERIFIED')}</strong><span>题型线索：${escapeHTML(suggestions)}</span><small>revision ${escapeHTML(compactRevision(payload.revision, 18))} · 所有字段仍需人工核验</small>`; }
+    const state = document.getElementById('problemContractState'); if (state) state.textContent = `${payload.status || 'DRAFT_UNVERIFIED'} · ${payload.subproblems?.length || 0} 个小问`;
+    const meta = document.getElementById('problemContractMeta'); if (meta) meta.textContent = '已生成 lexical draft；Scope-Lock 需补页码、单位、硬约束和事实核对';
+    showToast(`已生成 ${payload.subproblems?.length || 0} 个小问草稿`);
+  } catch (error) { showToast(`题面契约失败（${error.message || 'unknown'}）`); }
+  finally { if (button) { button.disabled = false; button.textContent = '生成契约草稿'; } }
+}
+
+async function loadCapabilityCatalog(force = false) {
+  if (!LIVE_API) {
+    renderCapabilitySource({ source: { source_status: 'UNAVAILABLE', indexed_count: 0 }, methods: [], workflow_blocks: [], workflow_presets: [], problem_archetypes: [] });
+    return null;
+  }
+  capabilityState.loading = true;
+  try {
+    const response = await fetch(`${capabilityEndpoint('/catalog')}${force ? '?refresh=true' : ''}`);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(capabilityErrorMessage(payload, 'CAPABILITY_CATALOG_ERROR'));
+    renderCapabilityCatalog(payload);
+    return payload;
+  } catch (error) {
+    renderCapabilitySource({ source: { source_status: 'UNAVAILABLE', indexed_count: 0 } });
+    showToast(`能力目录读取失败（${error.message || 'unknown'}）`);
+    return null;
+  } finally { capabilityState.loading = false; }
+}
+
+function capabilityNodeModal(index) {
+  const node = capabilityState.assembly.nodes[index];
+  if (!node) return;
+  const block = capabilityBlock(node.block_id) || {};
+  const method = node.method_id ? capabilityMethod(node.method_id) : null;
+  const source = method || block;
+  const rows = [
+    ['节点', node.label || node.block_id],
+    ['输入 → 输出', `${Object.keys(block.input_ports || {}).join(' · ') || '无'} → ${Object.keys(block.output_ports || {}).join(' · ') || '无'}`],
+    ['适用条件', (method?.applicability || ['由题面契约决定']).join('；')],
+    ['禁用条件', (method?.prohibitions || ['接口/来源未核验时不得推进']).join('；')],
+    ['假设', (method?.assumptions || ['需绑定当前题面与数据']).join('；')],
+    ['验证族', (method?.validation || ['结构检查 + 独立 clean-run']).join('；')],
+    ['回退', (method?.fallback || ['退回透明 baseline 或 BLOCKED']).join('；')],
+    ['来源层', method ? `${method.source_kind || 'curated/inferred'} · ${ (method.evidence_refs || []).join('、') }` : 'workflow block · playbook contract'],
+  ];
+  showModal(`能力卡 · ${source.title || node.block_id}`, `<p>这是可插拔候选，不是自动选模结论。任何字段进入论文前都要回到题面、参数来源和验证门。</p><div class="trace-modal-list">${rows.map(row => `<div class="trace-modal-row"><b>${escapeHTML(row[0])}</b><span>${escapeHTML(row[1])}</span></div>`).join('')}</div><p><span class="tag amber">${escapeHTML(capabilityState.assembly.validation?.valid ? '结构可审' : '待检查')}</span> <span class="tag violet">${escapeHTML(capabilityState.revision || 'UNVERIFIED')}</span></p>`);
+}
+
+function saveInnovationCard() {
+  const fields = ['baseline', 'difference', 'necessity', 'boundary', 'validation'];
+  const card = { subproblem_id: window.selectedSubproblem || 'Q2', claim_class: 'hypothesis' };
+  fields.forEach(field => {
+    const input = document.querySelector(`[data-innovation-field="${field}"]`);
+    const value = String(input?.value || '').trim();
+    if (value) card[field] = value.slice(0, 2000);
+  });
+  if (!fields.some(field => card[field])) {
+    capabilityState.assembly.innovationCard = null;
+    showToast('创新卡为空，已保持未创建状态');
+  } else {
+    capabilityState.assembly.innovationCard = card;
+    const gate = innovationGate(card);
+    showToast(gate.ready ? '创新差异卡已保存为待审草稿' : `创新卡已保存；还缺 ${gate.missing.length} 个审查字段`);
+  }
+  capabilityState.assembly.revision = null;
+  capabilityState.assembly.validation = null;
+  capabilityState.assembly.diff = null;
+  capabilityState.assembly.methodBlockWarnings = [];
+  assemblyValidationEpoch += 1;
+  renderAssemblyGate();
+  renderAssemblyDiff(null);
+  renderInnovationSummary();
+  closeModal();
+  if (capabilityState.assembly.nodes.length) validateAssembly();
+}
+
+function innovationModal() {
+  const card = capabilityState.assembly.innovationCard || {};
+  const value = field => escapeHTML(card[field] || '');
+  showModal('创新差异卡 · 不鼓励模型堆叠', `<p>把创新写成可审计的差异，而不是“用了更复杂的模型”。完成后可将这张卡作为群主讨论草稿，并随装配 revision 留痕。</p><div class="innovation-form"><label>基线<textarea data-innovation-field="baseline" placeholder="当前最透明、可复现的 baseline…">${value('baseline')}</textarea></label><label>差异<textarea data-innovation-field="difference" placeholder="新增了什么机制、数据、约束或验证？">${value('difference')}</textarea></label><label>必要性<textarea data-innovation-field="necessity" placeholder="它解决题面中的哪一条困难？">${value('necessity')}</textarea></label><label>代价与边界<textarea data-innovation-field="boundary" placeholder="复杂度、数据需求、禁用条件和失败回退…">${value('boundary')}</textarea></label><label>可运行验证<textarea data-innovation-field="validation" placeholder="具体的 clean-run、对照、阈值或复现实验…">${value('validation')}</textarea></label></div><div class="assembly-note"><span>审查门</span><p>创新候选必须连到一个小问、一个 baseline、一个可运行验证和一个边界说明；未齐字段保持 DRAFT_UNVERIFIED，不进入论文结论。</p></div><p><button type="button" id="saveInnovationBtn" class="approve-button">保存为讨论草稿 →</button></p>`);
+  document.getElementById('saveInnovationBtn')?.addEventListener('click', saveInnovationCard);
+}
+
+function openAssemblyPanel() {
+  selectRightPanel('assembly');
+  setAssemblyMode(capabilityState.mode);
+  if (!capabilityState.catalog) loadCapabilityCatalog();
+}
+
+async function sendAssemblyToChat() {
+  const nodes = capabilityState.assembly.nodes || [];
+  if (!nodes.length) { showToast('先加入至少一个工作块或方法卡'); return; }
+  // Recompute even when the prior graph was valid: selected subproblem,
+  // catalog revision, and the diff baseline are part of the assembly hash.
+  const checked = await validateAssembly();
+  const valid = checked?.validation?.valid ?? capabilityState.assembly.validation?.valid;
+  if (!valid) { showToast('链路仍有阻断；修复后才能同步到群聊'); return; }
+  const names = nodes.map(node => node.label || node.block_id).slice(0, 8).join(' → ');
+  const assemblyRevision = capabilityState.assembly.revision || 'fixture:assembly-draft';
+  const novelty = innovationGate(capabilityState.assembly.innovationCard);
+  const noveltyText = novelty.present ? `创新差异卡=${novelty.ready ? '字段齐全·待审' : '草稿·缺 ' + novelty.missing.join('/')}` : '创新差异卡=未创建';
+  const packNames = (capabilityState.assembly.contentPackIds || []).map(id => capabilityPacks().find(pack => pack.id === id)?.title || id).slice(0, 5);
+  const packText = packNames.length ? `内容包=${packNames.join('、')}` : '内容包=未挂载';
+  const text = `能力装配已提交讨论：${names}${nodes.length > 8 ? ' → …' : ''}。结构门已通过，数值/证据仍待独立验证；${noveltyText}；${packText}。assembly=${assemblyRevision}`;
+  const metadata = { assemblyRevision, capabilityRevision: capabilityState.revision || null, innovationStatus: novelty.status };
+  if (LIVE_API) {
+    if (!liveRevision) { showToast('事件源 revision 尚未同步，暂不能发群聊'); return; }
+    const committed = await commitAssembly('SUBMIT_REVIEW');
+    if (!committed) return;
+    await postLiveMessage(text, 'full', [], metadata);
+  } else {
+    addOwnerMessage(text, [], metadata);
+    showToast('已加入演示群聊（SIMULATED；未写入事实源）');
+  }
+}
+
+function showModal(title, body) {
+  document.getElementById('modalBody').innerHTML = `<h2 id="modalTitle">${escapeHTML(title)}</h2>${body}`;
+  document.getElementById('modalBackdrop').hidden = false;
+}
+
+function closeModal() { document.getElementById('modalBackdrop').hidden = true; }
+
+function memberModal(member) {
+  showModal(member.name, `<p>${escapeHTML(member.title)}</p><div class="modal-grid"><div class="stat-box"><strong>当前模型</strong><span>${escapeHTML(member.model)}</span></div><div class="stat-box"><strong>当前任务</strong><span>${escapeHTML(member.task || '未分配')}</span></div><div class="stat-box"><strong>权限边界</strong><span>只读题面与批准工件；写入专属目录</span></div><div class="stat-box"><strong>状态</strong><span>${escapeHTML(member.state || '在线')} · lease 还剩 18 分钟</span></div></div><h3>角色验收</h3><ul><li>每个主张必须标注 observed / derived / hypothesis。</li><li>不得修改其他 Agent 的写集，也不能自行改变验收条件。</li><li>失败或数据不足时发送 BLOCKED，而不是补造事实。</li></ul>`);
+}
+
+function taskModal(task) {
+  const stateText = { verified: 'VERIFIED · 可进入集成', accepted: 'ACCEPTED · 已获 Owner 范围批准', released: 'RELEASED · 已通过发布门', active: 'IN_PROGRESS · 进行中', review: 'READY_FOR_REVIEW · 待独立复核', produced: 'PRODUCED · 不等于 VERIFIED', wait: 'QUEUED · 等待依赖 / 审批', blocked: 'BLOCKED · 有关键风险' }[task.state] || task.status || task.state;
+  showModal(`${task.id} · ${task.title}`, `<p>任务负责人：<strong>${escapeHTML(task.owner)}</strong> · <span class="tag ${task.state === 'blocked' ? 'rose' : 'amber'}">${escapeHTML(stateText)}</span></p><div class="modal-grid"><div class="stat-box"><strong>输入 revision</strong><span>${escapeHTML(runtimeContext.inputRevision || 'UNVERIFIED')}</span></div><div class="stat-box"><strong>控制 revision</strong><span>${escapeHTML(runtimeContext.controlRevision || 'UNVERIFIED')}</span></div><div class="stat-box"><strong>写集</strong><span>artifacts/${escapeHTML(task.id)}/*</span></div><div class="stat-box"><strong>验收</strong><span>命令、证据、独立复核；${escapeHTML(task.subproblemId || '共享节点')}</span></div><div class="stat-box"><strong>来源</strong><span>${escapeHTML(runtimeContext.sourceLabel || 'UNVERIFIED')}</span></div><div class="stat-box"><strong>下一步</strong><span>${escapeHTML(task.meta)}</span></div></div><h3>群主可执行动作</h3><p><button class="approve-button" onclick="window.showToast('DEMO_ONLY：已生成催办草稿，未写入服务端'); window.closeModal()">生成催办草稿 →</button> <button class="decision-more" onclick="window.showToast('DEMO_ONLY：已生成只读审查快照'); window.closeModal()">生成审查快照</button></p>`);
+}
+
+function evidenceModal(name) {
+  const item = evidence.find(entry => entry.title === name) || { status: 'UNVERIFIED', source: 'unknown', meta: '没有 artifact manifest' };
+  const rawStatus = item.status || 'UNVERIFIED';
+  const status = item.source === 'fixture' && ['VERIFIED', 'ACCEPTED', 'RELEASED'].includes(rawStatus)
+    ? 'PRODUCED'
+    : (['VERIFIED', 'ACCEPTED', 'RELEASED'].includes(rawStatus) && !item.manifestLinked ? 'UNVERIFIED' : rawStatus);
+  const safeRevision = runtimeContext.inputRevision || 'UNVERIFIED';
+  showModal(name, `<p>只读证据预览。状态由 artifact manifest 决定；当前 ${escapeHTML(contextModeLabel())}，没有 manifest 的条目不会被渲染为 VERIFIED。</p><pre>protocol_version: agent-collab/v1\nartifact: ${escapeHTML(name)}\nsource: ${escapeHTML(item.source || 'unknown')}\nrevision: ${escapeHTML(safeRevision)}\nstatus: ${escapeHTML(status)}\nmanifest_linked: ${item.manifestLinked === true ? 'true' : 'false'}\nprovenance: ${status === 'VERIFIED' || status === 'ACCEPTED' ? 'manifest-linked' : 'not-yet-verified'}\nclaim_refs: ${(item.claimRefs || []).join(', ') || 'none'}\nsource_note: ${escapeHTML(item.meta || 'unknown')}</pre><p><span class="tag ${status === 'BLOCKED' || status === 'UNVERIFIED' ? 'rose' : 'amber'}">${escapeHTML(status)}</span> <span class="tag blue">${escapeHTML(item.source === 'fixture' ? 'SIMULATED fixture' : 'LIVE artifact')}</span></p>`);
+}
+
+function addOwnerMessage(text, evidenceRefs = [], metadata = {}) {
+  messages.push(normalizeProvenance({ id: `owner-${Date.now()}`, member: 'owner', time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }), kind: '群主', text: escapeHTML(text), tags: [['Owner 指令', 'blue']], status: 'PRODUCED', claimClass: 'hypothesis', taskId: 'G9', subproblemId: window.selectedSubproblem || 'Q2', modelProfile: 'Human Owner', targetRevision: runtimeContext.controlRevision, evidenceRefs, ...metadata }, 'fixture'));
+  renderMessages();
+}
+
+function timeFromTimestamp(timestamp) {
+  if (!timestamp) return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  const match = String(timestamp).match(/T(\d{2}:\d{2})/);
+  return match ? match[1] : String(timestamp).slice(0, 5);
+}
+
+function memberForActor(actorId) {
+  if (actorId === 'owner' || actorId === 'user') return 'owner';
+  if (members.some(member => member.id === actorId)) return actorId;
+  if (String(actorId).includes('critic')) return 'critic';
+  if (String(actorId).includes('data')) return 'data';
+  if (String(actorId).includes('routeA') || String(actorId).includes('model-a')) return 'routeA';
+  if (String(actorId).includes('routeB') || String(actorId).includes('model-b')) return 'routeB';
+  if (String(actorId).includes('validator')) return 'validator';
+  if (String(actorId).includes('antigravity') || String(actorId).includes('challenger')) return 'critic';
+  return 'scope';
+}
+
+function eventKind(type) {
+  return ({ MESSAGE: '群聊', TASK_DISPATCHED: '派发', TASK_CLAIMED: '进展', TASK_RESULT: '回执', TASK_HEARTBEAT: '心跳', TASK_HANDOFF: '交接', REVIEW: '审查', CRITIQUE: '质疑', FINDING_CLOSED: '修复', APPROVAL: '审批', RELAY: '外部协作', RELAY_ACK: '外部 ACK', RERUN_REQUESTED: '复跑', ASSEMBLY_UPDATED: '装配' })[type] || '事件';
+}
+
+function eventText(payload) {
+  if (!payload) return '';
+  if (payload.text) return payload.text;
+  if (payload.summary) return payload.summary;
+  if (payload.assembly_revision) return `能力装配 ${String(payload.assembly_revision).slice(0, 22)}… 已更新，等待独立审查。`;
+  if (payload.objective) return `已派发：${payload.objective}`;
+  if (payload.task_id) return `任务 ${payload.task_id} 状态已更新。`;
+  return '事件已写入事实源，等待对应工件回执。';
+}
+
+function simulateAgentReply(text, mode) {
+  const typing = document.getElementById('typingLine');
+  const typingText = document.getElementById('typingText');
+  typingText.textContent = mode === 'solo' ? 'Model-A 正在处理单 Agent 请求…' : 'Coordinator 正在分派并等待 Agent 回执…';
+  typing.hidden = false;
+  window.setTimeout(() => {
+    typing.hidden = true;
+    const lower = text.toLowerCase();
+    const reply = lower.includes('反例') || text.includes('质疑')
+      ? { member: 'critic', kind: '质疑', text: '收到。我会把问题拆成最小可复现反例，并在当前 revision 上补一条审查记录；在证据齐全前不会给出 accept。', tags: [['CRITIQUE', 'rose'], ['等待证据', 'amber']] }
+      : lower.includes('数据')
+        ? { member: 'data', kind: '进展', text: '已领取数据审计任务。我会先返回编码、缺失、重复、泄漏和清洗前后计数，再请求群主批准任何样本变换。', tags: [['DATA-AUDIT', 'teal'], ['需要审批', 'amber']] }
+        : { member: 'scope', kind: '回执', text: 'Coordinator 已记录你的指令，并为相关节点生成了任务包。下一条更新会附 task_id、input revision、验收命令和预计回执时间。', tags: [['ACK', 'blue'], ['agent-collab/v1', 'violet']] };
+    messages.push(normalizeProvenance({ id: `reply-${Date.now()}`, time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }), status: reply.member === 'critic' ? 'READY_FOR_REVIEW' : 'PRODUCED', claimClass: reply.member === 'critic' ? 'hypothesis' : 'derived', taskId: defaultTaskByMember[reply.member] || 'unassigned', subproblemId: defaultQuestionByMember[reply.member] || window.selectedSubproblem || 'Q2', modelProfile: getMember(reply.member).shortModel, targetRevision: runtimeContext.controlRevision, evidenceRefs: [], ...reply }, 'fixture'));
+    renderMessages();
+    showToast('已收到 Agent 回执；右侧任务面板已同步');
+  }, 1050);
+}
+
+async function postLiveMessage(text, mode, evidenceRefs = [], metadata = {}) {
+  const endpoint = `${LIVE_API}/api/projects/${LIVE_PROJECT}/messages`;
+  const selected = subproblems.find(item => item.id === (window.selectedSubproblem || 'Q2')) || subproblems[1];
+  try {
+    const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, mode, sender_id: 'owner', channel: 'main', claim_class: 'hypothesis', task_id: 'G9', subproblem_id: selected.id, evidence_refs: evidenceRefs, target_revision: runtimeContext.inputRevision, base_revision: liveRevision, assembly_revision: metadata.assemblyRevision || metadata.assembly_revision || undefined, capability_revision: metadata.capabilityRevision || metadata.capability_revision || undefined, idempotency_key: `ui-${Date.now()}` }) });
+    const payload = await response.json();
+    if (!response.ok) {
+      const code = typeof payload.detail === 'object' ? payload.detail.code : payload.detail;
+      throw new Error(code || 'API_ERROR');
+    }
+    liveRevision = payload.revision;
+    setRuntimeContext({ controlRevision: payload.revision });
+    ingestLiveEvent(payload.event, LIVE_API);
+    knowledgePendingRefs = knowledgePendingRefs.filter(ref => !evidenceRefs.includes(ref));
+    renderPendingKbCitations();
+    showToast('已写入事件源，等待真实 Coordinator 回执');
+    return true;
+  } catch (error) {
+    if (error.message === 'STALE_REVISION') {
+      try {
+        const refreshed = await fetch(`${LIVE_API}/api/projects/${LIVE_PROJECT}/snapshot`).then(response => response.json());
+        applyLiveSnapshot(refreshed);
+        showToast('事件源版本已变化；已刷新快照，请确认后重发');
+      } catch (_) {
+        showToast('事件源版本已变化；快照刷新失败，请稍后重试');
+      }
+    } else {
+      addLocalPendingMessage(text, evidenceRefs);
+      showToast(`实时写入失败（${error.message}）；已标记为 LOCAL_PENDING，不生成伪造回执`);
+    }
+    return false;
+  }
+}
+
+function addLocalPendingMessage(text, evidenceRefs = []) {
+  messages.push({ id: `local-${Date.now()}`, member: 'owner', time: timeFromTimestamp(), kind: '待同步', text: escapeHTML(text), tags: [['LOCAL_PENDING', 'amber'], ['未写入事实源', 'rose']], source: 'local_pending', sourceLabel: 'LOCAL_PENDING', status: 'UNVERIFIED', claimClass: 'hypothesis', taskId: 'unassigned', subproblemId: window.selectedSubproblem || 'Q2', modelProfile: 'Human Owner', targetRevision: runtimeContext.controlRevision, evidenceRefs: sanitizeEvidenceRefs(evidenceRefs) });
+  renderMessages();
+}
+
+function appendLiveEvent(payload) {
+  if (!payload || !payload.event_id || seenLiveEvents.has(payload.event_id)) return;
+  seenLiveEvents.add(payload.event_id);
+  const eventSeq = Number(payload.seq || 0);
+  const advancesCursor = eventSeq >= liveSeq;
+  liveSeq = Math.max(liveSeq, eventSeq);
+  // REST replay and WebSocket delivery may interleave.  Never let an older
+  // replayed event move the CAS revision behind the newest applied event.
+  if (payload.revision && advancesCursor) liveRevision = payload.revision;
+  const body = payload.payload || {};
+  projectLiveControl(payload);
+  const member = memberForActor(payload.actor_id);
+  const kind = payload.actor_id === 'owner' ? '群主' : eventKind(payload.type);
+  messages.push(normalizeProvenance({
+    id: payload.event_id,
+    member,
+    time: timeFromTimestamp(payload.timestamp),
+    kind,
+    text: escapeHTML(eventText(body)),
+    tags: [['LIVE EVENT', 'teal'], [payload.event_id, 'blue']],
+    status: body.status || body.provenance_status || payload.status || payload.provenance_status,
+    claimClass: body.claim_class || body.claimClass,
+    taskId: payload.task_id || body.task_id || 'unassigned',
+    subproblemId: body.subproblem_id || body.subproblemId || '—',
+    modelProfile: (payload.sender && payload.sender.model) || body.model_profile || getMember(member).shortModel,
+    targetRevision: payload.revision || payload.base_revision || runtimeContext.controlRevision,
+    evidenceRefs: body.evidence_refs || body.artifact_refs || [],
+    assemblyRevision: body.assembly_revision || body.assemblyRevision,
+    capabilityRevision: body.capability_revision || body.capabilityRevision,
+    eventSeq,
+    eventHash: payload.event_hash || '',
+  }, 'live'));
+  renderMessages();
+}
+
+function consumeContiguousEvent(payload) {
+  if (!payload || !payload.event_id) return;
+  const eventSeq = Number(payload.seq || 0);
+  if (seenSnapshotMessages.has(payload.event_id)) {
+    // The message projection was already rendered by HTTP snapshot.  It is
+    // still a consumed event for sequencing purposes; otherwise a later
+    // control event would remain buffered forever behind an invisible message.
+    seenSnapshotMessages.delete(payload.event_id);
+    seenLiveEvents.add(payload.event_id);
+    liveSeq = Math.max(liveSeq, eventSeq);
+    if (payload.revision) liveRevision = payload.revision;
+    return;
+  }
+  appendLiveEvent(payload);
+}
+
+function ingestLiveEvent(payload, httpBase = LIVE_API, requestReplay = true) {
+  if (!payload || !payload.event_id) return;
+  if (seenLiveEvents.has(payload.event_id)) return;
+  const eventSeq = Number(payload.seq || 0);
+  // Legacy/non-sequenced messages can still be rendered, but every v1 event
+  // with a sequence number is buffered until all earlier events are present.
+  if (!Number.isFinite(eventSeq) || eventSeq <= 0) {
+    appendLiveEvent(payload);
+    return;
+  }
+  if (eventSeq <= liveSeq) {
+    seenLiveEvents.add(payload.event_id);
+    return;
+  }
+  pendingLiveEvents.set(eventSeq, payload);
+  let next = liveSeq + 1;
+  while (pendingLiveEvents.has(next)) {
+    const contiguous = pendingLiveEvents.get(next);
+    pendingLiveEvents.delete(next);
+    consumeContiguousEvent(contiguous);
+    next += 1;
+  }
+  if (requestReplay && eventSeq > liveSeq + 1 && httpBase) {
+    replayLiveEvents(httpBase).catch(() => showToast('事件序号存在缺口；补发失败，仍保留待同步状态'));
+  }
+}
+
+function normalizeLiveSubproblem(record, index) {
+  const promptRefs = Array.isArray(record.prompt_refs || record.promptRefs) ? (record.prompt_refs || record.promptRefs).filter(ref => ref && typeof ref === 'object') : [];
+  const sourceStatus = String(record.source_status || record.sourceStatus || (promptRefs.length ? 'verified' : 'unavailable')).toLowerCase();
+  const blocked = !promptRefs.length || ['image_only', 'unavailable', 'blocked'].includes(sourceStatus);
+  return {
+    ...(subproblems[index] || {}),
+    ...record,
+    id: String(record.id || record.subproblem_id || `Q${index + 1}`),
+    prompt: String(record.prompt || record.title || '题面句待解析'),
+    promptRefs,
+    sourceStatus,
+    state: blocked ? 'blocked' : (record.state || 'ready'),
+    stateLabel: blocked ? 'BLOCKED · 题面来源不足' : (record.state_label || record.stateLabel || '待复核'),
+    coverage: record.coverage || (blocked ? '0/6 可核对' : '待计算'),
+    risk: record.risk || (blocked ? 'prompt_refs 未满足' : '待审查'),
+  };
+}
+
+function mergeLiveModeling(snapshot) {
+  const modeling = snapshot.modeling || snapshot.problem_contract || {};
+  const sourceStatusValue = String(modeling.source_status || modeling.sourceStatus || '').toLowerCase();
+  const sourceUnavailable = ['unavailable', 'image_only', 'blocked'].includes(sourceStatusValue);
+  if (modeling.source_status || modeling.sourceStatus) {
+    const sourceStatus = sourceStatusValue;
+    const suppliedQuestions = modeling.subproblems || modeling.questions;
+    if (['unavailable', 'image_only', 'blocked'].includes(sourceStatus) && (!Array.isArray(suppliedQuestions) || suppliedQuestions.length === 0)) {
+      subproblems.forEach(item => {
+        item.sourceStatus = sourceStatus;
+        item.promptRefs = [];
+        item.state = 'blocked';
+        item.stateLabel = `BLOCKED · ${sourceStatus}`;
+        item.coverage = '0/6 可核对';
+        item.risk = '真实 problem_contract 未提供';
+      });
+      routeSpecs.forEach(route => {
+        route.status = 'UNVERIFIED';
+        route.warning = 'live 快照未提供 route_spec；仅保留界面骨架';
+      });
+      modelChain.forEach(node => { if (node.id !== 'prompt') node.state = 'blocked'; });
+    }
+  }
+  const incomingQuestions = modeling.subproblems || modeling.questions;
+  if (Array.isArray(incomingQuestions)) {
+    incomingQuestions.slice(0, 12).forEach((record, index) => {
+      if (!record || typeof record !== 'object') return;
+      const normalized = normalizeLiveSubproblem(record, index);
+      const existingIndex = subproblems.findIndex(item => item.id === normalized.id);
+      if (existingIndex >= 0) subproblems[existingIndex] = normalized;
+      else subproblems.push(normalized);
+    });
+  }
+  if (Array.isArray(modeling.variables)) {
+    modeling.variables.slice(0, 100).forEach(record => {
+      if (!record || typeof record !== 'object') return;
+      const id = String(record.id || record.symbol || 'unknown');
+      const existing = variableRegistry.find(item => item.id === id);
+      const normalized = { ...record, id, evidenceRefs: sanitizeEvidenceRefs(record.evidence_refs || record.evidenceRefs), sourceStatus: record.source_status || record.sourceStatus || 'UNVERIFIED' };
+      if (existing) Object.assign(existing, normalized);
+      else variableRegistry.push(normalized);
+    });
+  }
+  const incomingEdges = modeling.model_edges || modeling.modelEdges;
+  // An unavailable live contract is an explicit absence of source data, not
+  // an instruction to erase the visible audit skeleton. Preserve fixture
+  // edges/plans/gates so the user can still see exactly what is blocked.
+  if (Array.isArray(incomingEdges) && (incomingEdges.length || !sourceUnavailable)) {
+    modelEdges.splice(0, modelEdges.length, ...incomingEdges.filter(edge => edge && typeof edge === 'object').slice(0, 100).map(edge => ({ ...edge, status: edge.status || 'UNVERIFIED' })));
+  }
+  if (Array.isArray(modeling.routes)) {
+    modeling.routes.slice(0, 8).forEach(record => {
+      if (!record || typeof record !== 'object') return;
+      const existing = routeSpecs.find(route => route.id === record.id);
+      if (existing) Object.assign(existing, record);
+      else routeSpecs.push(record);
+    });
+  }
+  const incomingPlans = modeling.validation_plans || modeling.validationPlans;
+  if (Array.isArray(incomingPlans) && (incomingPlans.length || !sourceUnavailable)) validationPlans.splice(0, validationPlans.length, ...incomingPlans.filter(plan => plan && typeof plan === 'object'));
+  if (Array.isArray(modeling.gates) && (modeling.gates.length || !sourceUnavailable)) {
+    gateMatrix.splice(0, gateMatrix.length, ...modeling.gates.filter(gate => gate && typeof gate === 'object').map(gate => ({ ...gate, status: gate.status || 'blocked', statusLabel: gate.status_label || gate.statusLabel || 'UNVERIFIED' })));
+  }
+}
+
+function applyLiveSnapshot(snapshot) {
+  if (!snapshot) return;
+  mergeLiveModeling(snapshot);
+  liveRevision = snapshot.revision || liveRevision;
+  const snapshotContext = snapshot.context || {};
+  setRuntimeContext({
+    projectId: snapshotContext.project_id || snapshot.project_id || runtimeContext.projectId,
+    runId: snapshotContext.run_id || snapshot.run_id || runtimeContext.runId,
+    mode: 'live',
+    sourceStatus: snapshotContext.source_status || 'local_event_store',
+    sourceLabel: 'LIVE · 本地事件源',
+    inputRevision: snapshotContext.input_revision || snapshot.input_revision || runtimeContext.inputRevision,
+    worktreeRevision: snapshotContext.worktree_revision || snapshot.worktree_revision || snapshotContext.input_revision || runtimeContext.worktreeRevision,
+    controlRevision: snapshotContext.control_revision || snapshot.revision || runtimeContext.controlRevision,
+  });
+  // The snapshot projection contains only the latest messages (not every
+  // control event), so its next_seq is a server hint, not an acknowledged
+  // event cursor.  Advancing liveSeq here would skip TASK/REVIEW/APPROVAL
+  // events that happened while the browser was disconnected.  The WebSocket
+  // handshake below replays from the last locally applied sequence instead.
+  (snapshot.messages || []).forEach(record => {
+    const id = record.message_id || record.event_ref;
+    if (!id || seenSnapshotMessages.has(id) || seenLiveEvents.has(id)) return;
+    seenSnapshotMessages.add(id);
+    const member = memberForActor(record.sender_id);
+    messages.push(normalizeProvenance({ id, member, time: timeFromTimestamp(record.timestamp), kind: record.sender_id === 'owner' ? '群主' : '群聊', text: escapeHTML(record.text || ''), tags: [['SNAPSHOT', 'teal'], [record.channel || 'main', 'blue']], status: record.status, claimClass: record.claim_class, taskId: record.task_id || 'unassigned', subproblemId: record.subproblem_id || '—', modelProfile: record.model_profile || getMember(member).shortModel, targetRevision: record.target_revision || snapshot.revision, evidenceRefs: record.evidence_refs || [], assemblyRevision: record.assembly_revision, capabilityRevision: record.capability_revision }, 'snapshot'));
+  });
+  mergeSnapshotTasks(snapshot.tasks);
+  projectLiveSnapshotCollections(snapshot);
+  renderMessages();
+}
+
+async function replayLiveEvents(httpBase, afterSeq = liveSeq) {
+  if (replayPromise) return replayPromise;
+  replayPromise = (async () => {
+    let cursor = Math.max(0, Number(afterSeq) || 0);
+    for (let page = 0; page < 20; page += 1) {
+      const response = await fetch(`${httpBase}/api/projects/${LIVE_PROJECT}/events?after_seq=${cursor}&limit=500`);
+      if (!response.ok) throw new Error('EVENT_REPLAY_UNAVAILABLE');
+      const payload = await response.json();
+      const pageEvents = payload.events || [];
+      pageEvents.forEach(event => ingestLiveEvent(event, httpBase, false));
+      if (!payload.has_more || !pageEvents.length) break;
+      const nextCursor = Number(payload.next_after_seq || pageEvents[pageEvents.length - 1].seq || cursor);
+      if (nextCursor <= cursor) break;
+      cursor = nextCursor;
+    }
+  })().finally(() => { replayPromise = null; });
+  return replayPromise;
+}
+
+function scheduleLiveReconnect(httpBase) {
+  if (liveReconnectTimer || !LIVE_API) return;
+  liveReconnectTimer = window.setTimeout(() => {
+    liveReconnectTimer = null;
+    connectLiveTransport(httpBase);
+  }, 2200);
+}
+
+function connectLiveTransport(baseOverride) {
+  if (!LIVE_API) return;
+  const httpBase = baseOverride || LIVE_API || window.location.origin;
+  fetch(`${httpBase}/api/projects/${LIVE_PROJECT}/snapshot`).then(response => {
+    if (!response.ok) throw new Error('SNAPSHOT_UNAVAILABLE');
+    return response.json();
+  }).then(snapshot => {
+    applyLiveSnapshot(snapshot);
+    const demo = document.querySelector('.demo-pill');
+    if (demo) demo.textContent = 'LIVE · 本地事件源';
+    liveConnected = true;
+    showToast(`已连接事件源 · revision ${(liveRevision || '').slice(0, 19)}…`);
+    const wsUrl = httpBase.replace(/^http/, 'ws') + `/ws/projects/${LIVE_PROJECT}`;
+    liveSocket = new WebSocket(wsUrl);
+    liveSocket.addEventListener('open', () => { liveConnected = true; });
+    liveSocket.addEventListener('message', event => {
+      let payload;
+      try { payload = JSON.parse(event.data); } catch (_) { showToast('收到无法解析的事件；已忽略并保留审计边界'); return; }
+      if (payload.type === 'snapshot') {
+        // Keep the locally acknowledged cursor and backfill the gap between
+        // the HTTP snapshot and this WebSocket handshake.  Do not jump to
+        // after_seq before replaying, otherwise non-message events disappear.
+        replayLiveEvents(httpBase, liveSeq).catch(() => showToast('事件补发失败；下次重连将继续尝试'));
+        return;
+      }
+      if (payload.type === 'MESSAGE' || payload.type === 'message') ingestLiveEvent(payload, httpBase);
+      else if (payload.event_id) ingestLiveEvent(payload, httpBase);
+    });
+    liveSocket.addEventListener('close', () => { liveConnected = false; showToast('事件源连接已断开；恢复后按 seq 补发'); scheduleLiveReconnect(httpBase); });
+    liveSocket.addEventListener('error', () => { liveConnected = false; });
+  }).catch(() => { liveConnected = false; restoreFixtureModeling(); setRuntimeContext({ ...DEMO_CONTEXT, mode: 'simulated', sourceStatus: 'fixture', sourceLabel: 'SIMULATED · fixture' }); showToast('未找到实时 API；当前使用 SIMULATED 演示事件流'); scheduleLiveReconnect(httpBase); });
+}
+
+function parseKnowledgeCommand(text) {
+  const match = String(text || '').match(/^@知识库(?:\s+|[:：])(.+)$/i);
+  return match ? match[1].trim() : '';
+}
+
+function sendMessage() {
+  const input = document.getElementById('messageInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const mode = document.getElementById('composerMode').value;
+  const evidenceRefs = [...knowledgePendingRefs];
+  // A bare @知识库 command is a local retrieval action.  Once a result has
+  // been cited, the pending kbdoc ref makes the same text a normal auditable
+  // group message instead of silently swallowing the owner's challenge.
+  const knowledgeQuery = evidenceRefs.length === 0 ? parseKnowledgeCommand(text) : '';
+  if (knowledgeQuery) {
+    input.value = '';
+    input.style.height = 'auto';
+    openKnowledgePanel();
+    runKnowledgeSearch(knowledgeQuery, true);
+    showToast(`已调用本地知识库：${knowledgeQuery.slice(0, 36)}${knowledgeQuery.length > 36 ? '…' : ''}`);
+    return;
+  }
+  if (LIVE_API) {
+    if (!liveRevision) {
+      showToast('正在同步事件源；请等 revision 出现后再发送');
+      return;
+    }
+    input.value = '';
+    input.style.height = 'auto';
+    postLiveMessage(text, mode, evidenceRefs);
+  } else {
+    input.value = '';
+    input.style.height = 'auto';
+    knowledgePendingRefs = [];
+    renderPendingKbCitations();
+    addOwnerMessage(text, evidenceRefs);
+    simulateAgentReply(text, mode);
+  }
+}
+
+function modelTraceModal() {
+  const selected = subproblems.find(item => item.id === (window.selectedSubproblem || 'Q2')) || subproblems[1];
+  const rows = [
+    ['1 · 题面覆盖', selected.prompt, '原题句 / 页码 / source_status'],
+    ['2 · 数学化', '变量、状态、参数、目标、约束、边界条件', '符号 + 单位 + 粒度 + provenance'],
+    ['3 · 假设', 'observed / derived / hypothesis 分层', '适用域 / 禁用条件 / 可识别性'],
+    ['4 · 路线', 'baseline → primary → fallback', '接口字段、算法、复杂度、失败模式'],
+    ['5 · 验证', '按题型选择互补检查', 'clean-run、退出码、结果 hash'],
+    ['6 · 论文', '只引用 VERIFIED / ACCEPTED claim', '指标定义、限制、外部有效性'],
+  ];
+  const variableRows = (selected.variables || []).map(id => variableRegistry.find(item => item.id === id)).filter(Boolean).map(item => `<div class="trace-modal-row"><b>${escapeHTML(item.symbol)} · ${escapeHTML(item.role)}</b><span>${escapeHTML(item.unit)} · ${escapeHTML(item.domain)}</span><em>${escapeHTML(item.sourceStatus)} · ${escapeHTML(item.provenance)}</em></div>`).join('');
+  const edgeRows = modelEdges.map(edge => `<div class="trace-modal-row"><b>${escapeHTML(edge.from)} → ${escapeHTML(edge.to)}</b><span>${escapeHTML(edge.field)} · ${escapeHTML(edge.unit)} · ${escapeHTML(edge.granularity)}</span><em>${escapeHTML(edge.status)} · ${escapeHTML(edge.provenance)}</em></div>`).join('');
+  showModal(`完整建模链 · ${selected.id}`, `<p>这是当前 <strong>${escapeHTML(selected.title)}</strong> 的只读追踪视图。演示实体不是实际赛题结论；缺来源时必须保持 BLOCKED/UNVERIFIED。</p><div class="trace-modal-list">${rows.map(row => `<div class="trace-modal-row"><b>${escapeHTML(row[0])}</b><span>${escapeHTML(row[1])}</span><em>${escapeHTML(row[2])}</em></div>`).join('')}</div><h3>变量登记（结构化）</h3><div class="trace-modal-list">${variableRows || '<div class="trace-modal-row"><b>UNVERIFIED</b><span>尚无变量登记</span><em>等待 problem_contract</em></div>'}</div><h3>链边接口审计</h3><div class="trace-modal-list">${edgeRows}</div><h3>硬门</h3><ul><li>模型链长度不加分；接口单位、粒度和来源必须对齐。</li><li>预测、优化、仿真/物理、机制题使用不同验证族，至少两类互补检查。</li><li>开放 P0/P1、缺 hash 或未获 Owner approval 时，不得进入 ACCEPTED / RELEASED。</li></ul>`);
+}
+
+function chainNodeModal(nodeId) {
+  const node = modelChain.find(item => item.id === nodeId);
+  if (!node) return;
+  const relatedEdges = modelEdges.filter(edge => edge.from === nodeId || edge.to === nodeId);
+  const edgeHtml = relatedEdges.length ? relatedEdges.map(edge => `<div class="trace-modal-row"><b>${escapeHTML(edge.from)} → ${escapeHTML(edge.to)}</b><span>${escapeHTML(edge.field || 'field UNVERIFIED')} · ${escapeHTML(edge.unit || 'unit UNVERIFIED')} · ${escapeHTML(edge.granularity || '粒度 UNVERIFIED')}</span><em>${escapeHTML(edge.status || 'UNVERIFIED')} · ${escapeHTML(edge.provenance || 'provenance UNVERIFIED')}</em></div>`).join('') : '<div class="trace-modal-row"><b>UNVERIFIED</b><span>没有已登记的链边</span><em>等待 artifact manifest</em></div>';
+  showModal(`建模链节点 · ${node.label}`, `<p>${escapeHTML(node.detail)}。节点状态：<span class="tag ${node.state === 'blocked' ? 'rose' : 'amber'}">${escapeHTML(node.state.toUpperCase())}</span></p><h3>相邻接口</h3><div class="trace-modal-list">${edgeHtml}</div><p><span class="tag amber">${escapeHTML(contextModeLabel())}</span> 缺失题面或 provenance 时只读，不推进状态。</p>`);
+}
+
+function routeCompareModal() {
+  const rows = [['题型', routeSpecs[0].problemType, routeSpecs[1].problemType], ['目标', routeSpecs[0].objective, routeSpecs[1].objective], ['Baseline', routeSpecs[0].baseline, routeSpecs[1].baseline], ['输入 → 输出', routeSpecs[0].interfaces?.inputs?.join(' · ') + ' → ' + routeSpecs[0].interfaces?.outputs?.join(' · '), routeSpecs[1].interfaces?.inputs?.join(' · ') + ' → ' + routeSpecs[1].interfaces?.outputs?.join(' · ')], ['单位/粒度', routeSpecs[0].units + ' · ' + (routeSpecs[0].interfaces?.granularity || 'UNVERIFIED'), routeSpecs[1].units + ' · ' + (routeSpecs[1].interfaces?.granularity || 'UNVERIFIED')], ['参数 provenance', routeSpecs[0].interfaces?.provenance || routeSpecs[0].provenance, routeSpecs[1].interfaces?.provenance || routeSpecs[1].provenance], ['适用/禁用', routeSpecs[0].applicability + '；' + routeSpecs[0].interfaces?.disabledWhen, routeSpecs[1].applicability + '；' + routeSpecs[1].interfaces?.disabledWhen], ['验证检查', routeSpecs[0].validationChecks?.map(check => check.kind).join(' + '), routeSpecs[1].validationChecks?.map(check => check.kind).join(' + ')]];
+  showModal('路线对照 · 证据字段', `<p>路线排序只提供决策支持，不按模型数量或标题数量加分。每一项验证必须有 scope、threshold、exit_code=0 和结果 hash 才能进入候选审批。</p><div class="route-modal-table"><div class="route-modal-head"><span>字段</span><b>路线 A</b><b>路线 B</b></div>${rows.map(row => `<div class="route-modal-row"><span>${escapeHTML(row[0])}</span><b>${escapeHTML(row[1] || 'UNVERIFIED')}</b><b>${escapeHTML(row[2] || 'UNVERIFIED')}</b></div>`).join('')}</div><p><span class="tag amber">当前：${escapeHTML(contextModeLabel())}</span> <span class="tag rose">P1 未关闭不可审批</span></p>`);
+}
+
+function exemplarStudyModal() {
+  showModal('2016—2025 范文基线 · 设计依据', `<p>本工作台使用一个有边界的公开样本：2016—2025 年高教社杯/CUMCM 本科组公开展示与二次文字镜像，共 13 条来源记录。它是组委会展示/公开归档的便利样本，不代表全部获奖论文，也不用于推断“某个标题必然得分”。</p><div class="exemplar-grid"><div><b>观察到的稳定结构</b><ul><li>逐小问覆盖与交付物映射</li><li>问题分析、假设与符号独立呈现</li><li>baseline → 主路线 → 决策的模型链</li><li>算法入口、流程、参数来源可复算</li><li>基线比较、扰动/回测/收敛等验证</li><li>指标、图表、优缺点和推广边界</li></ul></div><div><b>被挑战后的硬门</b><ul><li>结构共现 ≠ 评分因果，标题不计完成</li><li>模型链必须逐边对齐单位、粒度和 provenance</li><li>验证按题型分层，至少两类互补检查</li><li>数字必须带分母、范围、基线、不确定性</li><li>缺件或 image-only 未复核 → BLOCKED</li><li>未 VERIFIED/ACCEPTED 的 claim 不进论文</li></ul></div></div><h3>可复核来源</h3><p class="source-links"><a href="https://dxs.moe.gov.cn/zx/hd/sxjm/sxjmlw/qkt_sxjm_lw_lwzs.shtml" target="_blank" rel="noreferrer">官方 2016—2025 论文展示索引</a><br><a href="https://www.mcm.edu.cn/html_cn/node/b1f48689659f0660e80a2d6279d7b37d.html" target="_blank" rel="noreferrer">全国评阅工作与评审标准说明</a><br><a href="https://dxs.moe.gov.cn/zx/a/hd_sxjm_sxjmlw_2018qgdxssxjmjslwzs_2018btlw/240206/1699831.shtml" target="_blank" rel="noreferrer">2018 B203：模型链与 12 组检验示例</a></p><p><span class="tag violet">observed：结构来自来源页/镜像</span> <span class="tag amber">inferred：设计启发</span> <span class="tag rose">hypothesis：需真实题回放验证</span></p>`);
+}
+
+function bindEvents() {
+  document.querySelectorAll('.channel-item').forEach(channel => channel.addEventListener('click', () => {
+    document.querySelectorAll('.channel-item').forEach(item => item.classList.remove('active'));
+    channel.classList.add('active');
+    const title = document.querySelector('.chat-title-wrap h2');
+    const subtitle = document.querySelector('.chat-title-wrap span');
+    title.textContent = channel.dataset.channel;
+    subtitle.textContent = channel.dataset.channel === '总控' || channel.dataset.channel === '主议事群' ? '所有关键结论都必须留下证据' : `频道摘要 · ${channel.dataset.channel} 的任务与证据`;
+    if (channel.dataset.openKnowledge === 'true') openKnowledgePanel();
+    showToast(`已切换到 #${channel.dataset.channel}`);
+  }));
+  document.querySelectorAll('[data-dag-task]').forEach(node => node.addEventListener('click', () => {
+    const targetId = node.dataset.dagTask;
+    const target = tasks.find(item => item.id === targetId) || tasks.find(item => item.id === 'G6-A');
+    taskModal(target);
+  }));
+  document.getElementById('sendBtn').addEventListener('click', sendMessage);
+  document.getElementById('messageInput').addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); }
+  });
+  document.getElementById('messageInput').addEventListener('input', event => { event.target.style.height = 'auto'; event.target.style.height = `${Math.min(event.target.scrollHeight, 110)}px`; });
+  document.getElementById('memberList').addEventListener('click', event => { const button = event.target.closest('[data-member]'); if (button) memberModal(getMember(button.dataset.member)); });
+  const memberStrip = document.getElementById('memberStrip');
+  if (memberStrip) memberStrip.addEventListener('click', event => { const button = event.target.closest('[data-member]'); if (button) memberModal(getMember(button.dataset.member)); });
+  document.getElementById('taskList').addEventListener('click', event => { const button = event.target.closest('[data-task]'); if (button) taskModal(tasks.find(item => item.id === button.dataset.task)); });
+  document.getElementById('evidenceList').addEventListener('click', event => { const row = event.target.closest('[data-evidence]'); if (row) evidenceModal(row.dataset.evidence); });
+  document.getElementById('subproblemStrip').addEventListener('click', event => {
+    const card = event.target.closest('[data-subproblem]');
+    if (!card) return;
+    window.selectedSubproblem = card.dataset.subproblem;
+    renderModelingOverview();
+    showToast(`已聚焦 ${card.dataset.subproblem}；聊天与路线详情保持只读投影`);
+  });
+  document.getElementById('modelChainStrip').addEventListener('click', event => {
+    const node = event.target.closest('[data-chain-node]');
+    if (node) chainNodeModal(node.dataset.chainNode);
+  });
+  document.getElementById('modelTraceBtn').addEventListener('click', modelTraceModal);
+  document.getElementById('exemplarBtn').addEventListener('click', exemplarStudyModal);
+  document.getElementById('routeCompareBtn').addEventListener('click', routeCompareModal);
+  document.getElementById('knowledgeBtn').addEventListener('click', openKnowledgePanel);
+  document.getElementById('assemblyBtn').addEventListener('click', openAssemblyPanel);
+  const panelToggle = document.getElementById('panelToggleBtn');
+  if (panelToggle) panelToggle.addEventListener('click', () => {
+    const willOpen = !document.body.classList.contains('panel-drawer-open');
+    if (willOpen) {
+      const activePanel = document.querySelector('.right-tab.active')?.dataset.panel || 'modeling';
+      selectRightPanel(activePanel);
+    } else {
+      setPanelDrawerOpen(false);
+    }
+  });
+  const panelClose = document.getElementById('panelCloseBtn');
+  if (panelClose) panelClose.addEventListener('click', () => setPanelDrawerOpen(false));
+  const panelBackdrop = document.getElementById('panelBackdrop');
+  if (panelBackdrop) panelBackdrop.addEventListener('click', () => setPanelDrawerOpen(false));
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && document.body.classList.contains('panel-drawer-open')) setPanelDrawerOpen(false);
+  });
+  document.getElementById('decisionList').addEventListener('click', event => {
+    const action = event.target.closest('[data-action]'); if (!action) return;
+    const card = action.closest('[data-decision]');
+    if (action.dataset.action === 'approve') { card.style.opacity = '.45'; action.textContent = '已批准'; action.disabled = true; showToast(`已记录 Owner 审批：${card.querySelector('h4').textContent}`); }
+    else showModal('审批所需证据', `<p>${escapeHTML(card.querySelector('p').textContent)}</p><pre>approval_required: true\nowner: user\ncritical_findings: 3\nexternal_transfer: pending\nnext_gate: independent_review</pre>`);
+  });
+  document.querySelectorAll('.right-tab').forEach(tab => tab.addEventListener('click', () => {
+    selectRightPanel(tab.dataset.panel);
+    if (tab.dataset.panel === 'knowledge' && !knowledgeState.summary) loadKnowledgeSummary();
+    if (tab.dataset.panel === 'assembly' && !capabilityState.catalog) loadCapabilityCatalog();
+  }));
+  document.querySelectorAll('.assembly-mode').forEach(button => button.addEventListener('click', () => setAssemblyMode(button.dataset.assemblyMode)));
+  document.getElementById('capabilityRefreshBtn').addEventListener('click', async () => { await loadCapabilityCatalog(true); showToast('能力目录已按最新资料快照刷新'); });
+  document.getElementById('applyPresetBtn').addEventListener('click', buildPresetAssembly);
+  document.getElementById('capabilityPresetSelect').addEventListener('change', () => { capabilityState.assembly.presetId = document.getElementById('capabilityPresetSelect').value || null; });
+  document.getElementById('capabilityArchetypeSelect').addEventListener('change', () => { capabilityState.assembly.archetypeId = document.getElementById('capabilityArchetypeSelect').value || null; });
+  document.getElementById('blockPalette').addEventListener('click', event => { const button = event.target.closest('[data-assembly-add-type]'); if (button) addAssemblyItem(button.dataset.assemblyAddType, button.dataset.assemblyAddId); });
+  document.getElementById('methodPalette').addEventListener('click', event => { const button = event.target.closest('[data-assembly-add-type]'); if (button) addAssemblyItem(button.dataset.assemblyAddType, button.dataset.assemblyAddId); });
+  document.getElementById('contentPackPalette').addEventListener('click', event => { const button = event.target.closest('[data-content-pack]'); const pack = capabilityPacks().find(item => item.id === button?.dataset.contentPack); if (pack) { toggleContentPack(pack); openKnowledgePanel(); runKnowledgeSearch(pack.query, true); } });
+  document.getElementById('assemblyCanvas').addEventListener('click', event => { const remove = event.target.closest('[data-assembly-node-remove]'); if (remove) { removeAssemblyNode(Number(remove.dataset.assemblyNodeRemove)); return; } const view = event.target.closest('[data-assembly-node-view]'); if (view) capabilityNodeModal(Number(view.dataset.assemblyNodeView)); });
+  document.getElementById('clearAssemblyBtn').addEventListener('click', () => { assemblyValidationEpoch += 1; capabilityState.assembly = { nodes: [], edges: [], presetId: null, archetypeId: null, validation: null, revision: null, diff: null, previousNodes: [], previousEdges: [], committedRevision: null, innovationCard: null, previousInnovationCard: null, contentPackIds: [], previousContentPackIds: [], contentPackEvidenceRefs: [], contentPackEvidenceByPack: {}, contentPackIndexRevision: null, contentPackResolutionRevision: null, methodBlockWarnings: [] }; renderAssemblyCanvas(); renderAssemblyGate(); renderAssemblyDiff(null); renderInnovationSummary(); renderCapabilityCatalog(capabilityState.catalog); showToast('已清空自由装配草稿'); });
+  document.getElementById('validateAssemblyBtn').addEventListener('click', validateAssembly);
+  document.getElementById('innovationBtn').addEventListener('click', innovationModal);
+  document.getElementById('sendAssemblyBtn').addEventListener('click', sendAssemblyToChat);
+  document.getElementById('draftProblemContractBtn').addEventListener('click', draftProblemContract);
+  document.querySelectorAll('.toolbar-button').forEach(button => button.addEventListener('click', () => {
+    document.querySelectorAll('.toolbar-button').forEach(item => item.classList.remove('active')); button.classList.add('active');
+    if (button.dataset.view === 'events') showModal('事件流 · append-only', '<p>事件流是协作事实源，群聊只是它的可读投影。</p><pre>14:31  EVIDENCE  validator  target=route_B  exit_code=0\n14:32  TASK      owner      G7=hold  reason=P1-open\n14:32  APPROVAL  owner      merge=false\n14:33  RELAY     antigravity status=PENDING_RELAY</pre>');
+    if (button.dataset.view === 'threads') showToast('线程视图已准备：4 个未闭合讨论');
+  }));
+  document.getElementById('pauseBtn').addEventListener('click', event => { const button = event.currentTarget; button.classList.toggle('paused'); const paused = button.classList.contains('paused'); button.querySelector('span:last-child').textContent = paused ? '继续协作' : '暂停协作'; showToast(paused ? '已暂停新任务派发，现有 Agent 保留只读心跳' : '已恢复任务派发'); });
+  document.getElementById('newTaskBtn').addEventListener('click', () => showModal('新建协作任务', '<p>群主定义目标后，Coordinator 会自动生成 task envelope。</p><textarea style="width:100%;min-height:90px;padding:10px;border:1px solid #e2e8f0;border-radius:8px" placeholder="描述一个有明确边界的子任务…"></textarea><p><button class="approve-button" onclick="window.showToast(\'已加入任务草稿，等待 Coordinator 拆解\'); window.closeModal()">创建任务 →</button></p>'));
+  document.getElementById('approveAllBtn').addEventListener('click', () => showModal('群主审批队列', '<p>当前有 3 项需要你决定。审批不会自动发布或提交外部平台。</p><ul><li>路线 B 是否成为主线（P1 外推风险未闭合）</li><li>参数先验范围是否进入模型</li><li>是否向 Antigravity 发送冻结快照</li></ul><p><span class="tag amber">外部动作需要再次确认</span></p>'));
+  document.getElementById('protocolBtn').addEventListener('click', () => showModal('agent-collab/v1', '<p>所有 Agent 使用统一 task/result/review/relay envelope；版本、哈希、身份、能力和证据必须可追溯。</p><pre>submit → poll → fetch_output → send_followup → cancel</pre>'));
+  document.getElementById('settingsBtn').addEventListener('click', () => showModal('群组设置', '<h3>默认门禁</h3><ul><li>Coordinator：当前 Codex 根任务</li><li>最大 Agent：8 · 最大并行：4 · 深度：1</li><li>敏感数据：默认禁止外传</li><li>P0/P1 未关闭：禁止 ACCEPTED / RELEASED</li></ul>'));
+  document.getElementById('inviteBtn').addEventListener('click', () => showModal('邀请协作成员', '<p>选择能力而不是盲目增加模型：</p><div class="modal-grid"><div class="stat-box"><strong>视觉 / OCR</strong><span>读取扫描题面、表格、公式</span></div><div class="stat-box"><strong>领域专家</strong><span>按题型临时启用</span></div><div class="stat-box"><strong>独立挑战</strong><span>不同供应商 / 不同上下文</span></div><div class="stat-box"><strong>发布审计</strong><span>清洁环境重跑与提交检查</span></div></div>'));
+  document.getElementById('notificationBtn').addEventListener('click', () => showToast('3 条通知：P1 质疑、数据审计进展、外部 relay 等待授权'));
+  document.getElementById('ownerMenuBtn').addEventListener('click', () => memberModal(getMember('owner')));
+  const openSearch = () => showModal('搜索群聊与证据', '<input autofocus style="width:100%;padding:11px;border:1px solid #e2e8f0;border-radius:8px" placeholder="搜索 claim、task_id、文件名或 Agent…"><p>支持：claim:C-17 · task:G7 · status:P1 · agent:Critic</p>');
+  document.getElementById('searchBtn').addEventListener('click', openSearch);
+  const globalSearch = document.getElementById('globalSearchBtn');
+  if (globalSearch) globalSearch.addEventListener('click', openSearch);
+  document.addEventListener('keydown', event => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); openSearch(); }
+  });
+  document.getElementById('attachBtn').addEventListener('click', openKnowledgePanel);
+  document.getElementById('mentionBtn').addEventListener('click', () => { const input = document.getElementById('messageInput'); input.value += '@'; input.focus(); });
+  document.getElementById('kbRefreshBtn').addEventListener('click', async () => { await loadKnowledgeSummary(true); await runKnowledgeSearch(document.getElementById('kbSearchInput')?.value || ''); showToast('已刷新本地资料索引快照'); });
+  document.getElementById('kbSearchForm').addEventListener('submit', event => { event.preventDefault(); runKnowledgeSearch(); });
+  document.querySelectorAll('[data-kb-query]').forEach(button => button.addEventListener('click', () => runKnowledgeSearch(button.dataset.kbQuery || '')));
+  ['kbModuleFilter', 'kbKindFilter', 'kbYearFilter'].forEach(id => document.getElementById(id).addEventListener('change', () => runKnowledgeSearch()));
+  document.getElementById('kbResults').addEventListener('click', event => {
+    const action = event.target.closest('[data-kb-action]');
+    const card = event.target.closest('[data-kb-doc]');
+    if (!action || !card) return;
+    const item = knowledgeState.results.find(row => String(row.doc_id || row.docId || row.id) === card.dataset.kbDoc);
+    if (!item) return;
+    if (action.dataset.kbAction === 'view') openKnowledgeDocument(card.dataset.kbDoc, item);
+    if (action.dataset.kbAction === 'cite') citeKnowledgeItem(item);
+  });
+  document.getElementById('modalClose').addEventListener('click', closeModal); document.getElementById('modalBackdrop').addEventListener('click', event => { if (event.target.id === 'modalBackdrop') closeModal(); });
+
+  document.querySelectorAll('.nav-rail-item').forEach(item => item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-rail-item').forEach(node => node.classList.remove('active'));
+    item.classList.add('active');
+    const label = item.querySelector('span:last-child')?.textContent?.trim();
+    if (label === '任务') selectRightPanel('tasks');
+    else if (label === '资料') openKnowledgePanel();
+    else if (label === '工作台') selectRightPanel('modeling');
+    else if (label === '设置') showModal('群组设置', '<h3>默认门禁</h3><ul><li>Coordinator：当前 Codex 根任务</li><li>最大 Agent：8 · 最大并行：4 · 深度：1</li><li>敏感数据：默认禁止外传</li><li>P0/P1 未关闭：禁止 ACCEPTED / RELEASED</li></ul>');
+    else if (label === '总览') selectRightPanel('tasks');
+    else showToast('已回到主议事群');
+  }));
+}
+
+window.showToast = showToast; window.closeModal = closeModal;
+window.selectedSubproblem = 'Q2';
+initDragonMotion();
+renderRuntimeContext(); renderMembers(); renderTasks(); renderDecisions(); renderEvidence(); renderModelingOverview(); renderMessages(); renderPendingKbCitations(); bindEvents(); initTemplateShell(); connectLiveTransport();
+if (LIVE_API) loadKnowledgeSummary();
+if (LIVE_API) loadCapabilityCatalog();
+if (LIVE_API_BLOCKED) showToast('已阻止未列入 allowlist 的实时 API；当前保持 SIMULATED 演示');

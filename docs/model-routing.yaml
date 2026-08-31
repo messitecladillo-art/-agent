@@ -1,0 +1,140 @@
+# Capability-first model registry. Replace model ids after a calibration run;
+# never bind business logic directly to a vendor name.
+protocol_version: agent-collab/v1
+registry_version: 0.1
+defaults:
+  temperature: 0.1
+  max_depth: 1
+  external_network: false
+  secret_access: false
+# Public task envelopes may use the descriptive names on the left.  The
+# ModelGateway expands them into the canonical primitives on the right before
+# matching a profile; adapters must not invent their own synonyms silently.
+capability_aliases:
+  long_context_reasoning: [long_context, reasoning]
+  document_reasoning: [long_context, reasoning]
+  code_execution: [code]
+  table_formula_extraction: [table_formula]
+  independent_modeling: [independent_review, reasoning]
+  tool_orchestration: [planning]
+  conflict_adjudication: [planning, reasoning]
+  citation_tracking: [reasoning]
+  multimodal_optional: []
+  counterexample: [independent_review, reasoning]
+  chinese_technical_writing: [writing]
+  structure_following: [writing]
+  citation_safe: [writing]
+profiles:
+  router:
+    capability: [triage, short_context, structured_output]
+    candidate_models:
+      - provider: openai
+        model: gpt-5.4-mini
+        effort: low
+      - provider: any
+        model: small-fast
+        effort: low
+    roles: [resource_manager, context_curator]
+  coordinator:
+    capability: [long_context_reasoning, planning, tool_orchestration, conflict_adjudication]
+    candidate_models:
+      - provider: openai/codex
+        model: gpt-5.6-sol
+        effort: high
+      - provider: openai/codex
+        model: gpt-5.6-sol
+        effort: xhigh
+    roles: [coordinator, integrator]
+    required: true
+  scope_rule:
+    capability: [document_reasoning, citation_tracking, multimodal_optional]
+    candidate_models:
+      - provider: claude
+        model: opus
+      - provider: antigravity
+        model: gemini-multimodal
+      - provider: openai
+        model: gpt-5.6-terra
+        effort: high
+    roles: [scope_lock, rule_integrity, problem_analyst]
+  vision_ocr:
+    capability: [vision, pdf, table_formula_extraction]
+    candidate_models:
+      - provider: antigravity
+        model: gemini-multimodal
+      - provider: any
+        model: vision-frontier
+    roles: [vision_ocr]
+  data_code:
+    capability: [code_execution, local_files, python, testing]
+    candidate_models:
+      - provider: qoder
+        model: tool-code-profile
+      - provider: openai/codex
+        model: gpt-5.6-terra
+        effort: high
+      - provider: claude
+        model: code-profile
+    roles: [data_auditor, algorithm_engineer, solver]
+    sandbox: required
+  independent_reasoner:
+    capability: [independent_modeling, counterexample, long_context_reasoning]
+    candidate_models:
+      - provider: claude
+        model: opus
+      - provider: antigravity
+        model: gemini-frontier
+      - provider: any
+        model: independent-frontier
+    roles: [model_b, challenger, critic]
+    context_isolation: required
+  validation:
+    capability: [code_execution, statistics, reproducibility, read_only]
+    candidate_models:
+      - provider: openai/codex
+        model: gpt-5.5
+        effort: high
+      - provider: qoder
+        model: tool-code-profile
+      - provider: any
+        model: independent-validation
+    roles: [validation_auditor, release_auditor]
+    clean_snapshot: required
+  writer:
+    capability: [chinese_technical_writing, structure_following, citation_safe]
+    candidate_models:
+      - provider: claude
+        model: sonnet
+      - provider: openai/codex
+        model: gpt-5.6-terra
+        effort: medium
+      - provider: any
+        model: chinese-technical-writer
+    roles: [paper_judge, defense_coach]
+    input_filter: verified_claims_only
+
+routing_rules:
+  - risk: R0
+    use: router
+    examples: [heartbeat, dedup, formatting, short_summary]
+  - risk: R1
+    use: [vision_ocr, scope_rule]
+    require: [source_hash, page_or_cell_reference]
+  - risk: R2
+    use: [coordinator, independent_reasoner]
+    require: [two_independent_routes, baseline, fallback]
+  - risk: R3
+    use: [data_code, validation]
+    require: [sandbox, seed, command_log, exit_code]
+  - risk: R4
+    use: [validation, independent_reasoner, scope_rule]
+    require: [clean_snapshot, evidence_coverage, finding_closure]
+  - risk: R5
+    use: [coordinator, owner]
+    require: [explicit_owner_approval]
+    forbid: [autonomous_publish, autonomous_delete, autonomous_external_send]
+
+budget_policy:
+  allocation: {intake: 0.10, routes: 0.25, implementation: 0.35, validation: 0.20, paper_release: 0.10}
+  over_budget_order: [compress_context, lower_cost_same_capability, reduce_noncritical_parallelism, pause_extension]
+  never_skip: [independent_critic, validation, release_audit, critical_tests]

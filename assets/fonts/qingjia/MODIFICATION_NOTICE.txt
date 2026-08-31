@@ -1,0 +1,28 @@
+PROMINENT MODIFICATION NOTICE
+=============================
+
+Modified font family name:
+  QingJia Oracle Display / 青甲骨刻体
+
+Original font:
+  AR PL KaitiM GB
+  Copyright (C) 1999 Arphic Technology Co., Ltd.
+
+Modification date:
+  2026-09-01
+
+Changes:
+  1. Glyph images were rasterized from the original outlines for the covered character set.
+  2. Stroke skeletons were algorithmically extracted.
+  3. Skeletons were expanded with angular diamond-shaped kernels.
+  4. Small deterministic carving incisions and directional offsets were added.
+  5. Resulting contours were polygonized and normalized to a 1000 UPM em square.
+  6. Family names and metadata were changed.
+  7. Ten original QingJia-themed private-use symbols were added at U+E000–U+E009.
+  8. A new build system was created using fontTools.
+
+Distribution:
+  The modified font source and generated font are distributed under the
+  ARPHIC PUBLIC LICENSE. The complete license is included in the licenses folder.
+
+NO WARRANTY.

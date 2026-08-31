@@ -1,0 +1,24 @@
+{
+  "glyph_count": 7562,
+  "base_char_count": 7552,
+  "icon_count": 10,
+  "missing_outline_count": 0,
+  "elapsed_seconds": 77.48,
+  "source_file_bytes": 5088544,
+  "patched_manual_glyphs": [
+    "U+002E",
+    "U+2010",
+    "U+2011",
+    "U+2013",
+    "U+2015",
+    "U+20AC",
+    "U+2237",
+    "U+25BC",
+    "U+25BD",
+    "U+2713",
+    "U+2714",
+    "U+2726",
+    "U+2727",
+    "U+30FB"
+  ]
+}

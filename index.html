@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f8f7f2" />
+    <title>青甲 Agent · 多 Agent 群聊式数学建模</title>
+    <link rel="stylesheet" href="styles.css?v=20260901-oracle-glass-qingjia-tactile-v13.5.3" />
+  </head>
+  <body data-design="oracle-glass">
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <div class="brand-mark brand-motion" data-dragon-motion="idle" data-motion-loop="false" aria-hidden="true">
+            <video class="brand-motion-video" muted playsinline autoplay preload="metadata" poster="assets/ip/xiao-qinglong-idle-v3-poster.png">
+              <source src="assets/ip/xiao-qinglong-idle-v3.mp4" type="video/mp4" />
+            </video>
+            <img class="brand-motion-poster" src="assets/ip/xiao-qinglong-face-v3.png" alt="" aria-hidden="true" />
+          </div>
+          <div>
+            <p class="eyebrow">QINGJIA ORACLE AGENT</p>
+            <h1 class="qingjia-display">青甲 Agent</h1>
+          </div>
+        </div>
+
+        <div class="contest-context" id="runtimeContext" data-project-id="HGC-MF-2026-001" data-run-id="RUN-MF-2026-0831">
+          <div class="context-title"><span class="live-dot"></span> 第十六届高教社杯 · A题（演示题面）</div>
+          <div class="context-meta"><span id="contextClock">第 1 天 · 14:32</span><span class="divider-dot">·</span><span>FULL 协作</span><span class="context-pill">草稿阶段</span><span class="context-pill demo-pill" id="sourcePill">SIMULATED · fixture</span></div>
+          <div class="context-revision" id="contextRevision">输入 fixture:2016-2025… · 控制 fixture:run-bootstrap…</div>
+        </div>
+
+        <div class="template-title-block" aria-label="多 Agent 群聊式数学建模">
+          <p>小青龙协作室 · MODELING ROOM</p>
+          <h2 class="qingjia-display">多 Agent 群聊式数学建模</h2>
+          <span>社交群聊 · 多智能体协作 · 可验证工作流</span>
+        </div>
+
+        <button class="global-search" id="globalSearchBtn" type="button" aria-label="搜索题面、任务、证据和消息">
+          <span class="global-search-glyph" aria-hidden="true">⌕</span>
+          <span>搜索题面、任务、证据、消息</span>
+          <kbd>Ctrl K</kbd>
+        </button>
+
+        <div class="top-actions">
+          <button class="icon-button" id="notificationBtn" aria-label="通知" title="通知"><img class="dragon-ui-icon" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /><span class="notification-badge">3</span></button>
+          <button class="pause-button" id="pauseBtn"><img class="dragon-ui-icon" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /><span>暂停协作</span></button>
+          <button class="owner-avatar" id="ownerMenuBtn" aria-label="群主菜单"><img src="assets/ip/xiao-qinglong-face-v3.png" alt="" /><span class="sr-only">群主菜单</span><span class="online-ring"></span></button>
+        </div>
+      </header>
+
+      <main class="workspace-grid">
+        <aside class="sidebar left-sidebar" aria-label="群成员">
+          <nav class="nav-rail" aria-label="主导航">
+            <button class="nav-rail-item" type="button" title="总览"><span class="nav-rail-glyph">甲</span><span>总览</span></button>
+            <button class="nav-rail-item active" type="button" title="群聊"><span class="nav-rail-glyph">卜</span><span>群聊</span></button>
+            <button class="nav-rail-item" type="button" title="任务"><span class="nav-rail-glyph">事</span><span>任务</span></button>
+            <button class="nav-rail-item" type="button" title="资料库"><span class="nav-rail-glyph">卷</span><span>资料</span></button>
+            <button class="nav-rail-item" type="button" title="工作台"><span class="nav-rail-glyph">模</span><span>工作台</span></button>
+            <button class="nav-rail-item" type="button" title="设置"><span class="nav-rail-glyph">印</span><span>设置</span></button>
+          </nav>
+
+          <div class="sidebar-main">
+          <div class="conversation-tabs" role="tablist" aria-label="会话筛选">
+            <button type="button" class="conversation-tab active">全部</button>
+            <button type="button" class="conversation-tab">群组</button>
+            <button type="button" class="conversation-tab">私聊</button>
+            <button type="button" class="conversation-tab">@我</button>
+          </div>
+          <div class="conversation-section-head"><span>最近会话</span><button type="button" class="conversation-more" title="会话管理">···</button></div>
+          <div class="conversation-list" aria-label="最近会话">
+            <button type="button" class="channel-item conversation-item active" data-channel="主议事群">
+              <span class="conversation-avatar">卜</span><span class="conversation-copy"><strong>全国大学生数学建模协作群</strong><small>Critic：发现 P1，等待 Model-B 回应</small></span><span class="conversation-meta"><time>14:32</time><em>3</em></span>
+            </button>
+            <button type="button" class="channel-item conversation-item" data-channel="题面与数据">
+              <span class="conversation-avatar">题</span><span class="conversation-copy"><strong>题面与数据</strong><small>Data-Auditor：疑似目标泄漏</small></span><span class="conversation-meta"><time>14:21</time><em>2</em></span>
+            </button>
+            <button type="button" class="channel-item conversation-item" data-channel="建模方案">
+              <span class="conversation-avatar">模</span><span class="conversation-copy"><strong>建模方案讨论组</strong><small>Model-B：路线已提交</small></span><span class="conversation-meta"><time>14:24</time><em>4</em></span>
+            </button>
+            <button type="button" class="channel-item conversation-item" data-channel="验证与质疑">
+              <span class="conversation-avatar">证</span><span class="conversation-copy"><strong>验证与质疑</strong><small>Validator：baseline 已复跑</small></span><span class="conversation-meta"><time>14:31</time><em>3</em></span>
+            </button>
+          </div>
+
+          <div class="sidebar-heading">
+            <div>
+              <p class="section-kicker">协作群</p>
+              <h2>建模攻坚组 <span class="member-count">8</span></h2>
+            </div>
+            <button class="small-icon-button" id="inviteBtn" title="邀请群员" aria-label="邀请群员"><img class="dragon-ui-icon" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></button>
+          </div>
+
+          <div class="owner-card">
+            <div class="avatar owner-color"><img src="assets/ip/xiao-qinglong-face-v3.png" alt="" /><span class="sr-only">群主</span><span class="status-dot"></span></div>
+            <div class="member-copy"><strong>你 · 群主</strong><span>裁决 / 发布 / 授权</span></div>
+            <span class="role-label owner-label">OWNER</span>
+          </div>
+
+          <div class="channel-heading"><span>频道</span><button class="channel-settings" title="频道管理" aria-label="频道管理"><img class="dragon-ui-icon" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></button></div>
+          <nav class="channel-list" aria-label="协作频道">
+            <button class="channel-item active" data-channel="主议事群"><img class="channel-icon" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /><strong>总控</strong><em>3</em></button>
+            <button class="channel-item" data-channel="题面与数据"><img class="channel-icon" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /><strong>题面与数据</strong><em>2</em></button>
+            <button class="channel-item" data-channel="建模方案"><img class="channel-icon" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /><strong>建模方案</strong><em>4</em></button>
+            <button class="channel-item" data-channel="算法与仿真"><img class="channel-icon" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /><strong>算法与仿真</strong><em>1</em></button>
+            <button class="channel-item" data-channel="验证与质疑"><img class="channel-icon" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /><strong>验证与质疑</strong><em>3</em></button>
+            <button class="channel-item" data-channel="论文与答辩"><img class="channel-icon" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /><strong>论文与答辩</strong><em></em></button>
+            <button class="channel-item knowledge-channel" data-channel="资料库" data-open-knowledge="true"><img class="channel-icon" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /><strong>资料库</strong><em id="knowledgeChannelBadge">—</em></button>
+          </nav>
+
+          <div class="member-group-label"><span>核心 Agent</span><span class="online-summary">5 在线 · 1 待 relay</span></div>
+          <div id="memberList" class="member-list"></div>
+
+          <div class="member-group-label external-label"><span>外部协作</span><span class="pending-count">待接入</span></div>
+          <div class="external-member">
+            <div class="avatar antigravity-color"><img src="assets/ip/xiao-qinglong-face-v3.png" alt="" /><span class="sr-only">外部审查</span><span class="status-dot pending"></span></div>
+            <div class="member-copy"><strong>Antigravity · 外部审查</strong><span>relay 尚未验证</span></div>
+            <span class="relay-state">PENDING</span>
+          </div>
+
+          <div class="sidebar-footer">
+            <button class="footer-link" id="protocolBtn"><img class="dragon-ui-icon" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /> 协作协议 agent-collab/v1</button>
+            <button class="footer-link" id="settingsBtn"><img class="dragon-ui-icon" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /> 群组设置</button>
+          </div>
+          </div>
+        </aside>
+
+        <section class="chat-panel" aria-label="群聊主区">
+          <div class="chat-toolbar">
+            <div class="chat-title-wrap">
+              <div class="hash-icon"><img src="assets/ip/xiao-qinglong-face-v3.png" alt="" /></div>
+              <div><h2>主议事群</h2><span>所有关键结论都必须留下证据</span></div>
+            </div>
+            <div class="chat-toolbar-actions">
+              <button class="toolbar-button active" data-view="chat">群聊</button>
+              <button class="toolbar-button" data-view="threads">线程 <span class="toolbar-count">4</span></button>
+              <button class="toolbar-button" data-view="events">事件流</button>
+              <button class="toolbar-button panel-toggle" id="panelToggleBtn" aria-expanded="false">控制面板</button>
+              <button class="search-button" id="searchBtn" aria-label="搜索消息"><img src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></button>
+            </div>
+          </div>
+
+          <div class="member-strip" id="memberStrip" aria-label="群成员快捷栏"></div>
+
+          <div class="stage-strip">
+            <div class="stage-track"><span class="stage-progress"></span></div>
+            <div class="stage-labels"><span class="done">① 读题</span><span class="active">② 建模争论</span><span>③ 验证</span><span>④ 成稿</span><span>⑤ 答辩</span></div>
+          </div>
+
+          <section class="modeling-overview" aria-label="题面到论文的建模链">
+            <div class="modeling-hero">
+              <div class="hero-copy">
+                <p class="hero-kicker">小青龙工作台 / OWNER CONTROL</p>
+                <h2 class="qingjia-display">把题面变成可验证的模型</h2>
+                <p class="hero-subtitle">从原题句到论文 claim，每一步都留下可复核的接口与证据。</p>
+              </div>
+              <div class="hero-side">
+                <div class="hero-status"><span class="hero-status-dot"></span><strong id="heroSourceStatus">题面待导入</strong><span>Owner 控制</span></div>
+                <div class="hero-empty-note"><span>当前阻断</span><b id="heroEmptyNote">导入 PDF → 抽取变量 → 审批路线</b></div>
+                <div class="hero-contract-line" aria-label="路线与验证摘要"><span>路线</span><b>baseline → 主线 → fallback</b><i>·</i><span>验证</span><b>互补检查 · clean-run / hash</b></div>
+            <div class="overview-actions"><button class="text-button" id="knowledgeBtn">资料库 <span class="hero-action-dot"></span></button><button class="text-button" id="assemblyBtn">能力装配 <span class="hero-action-dot violet-dot"></span></button><button class="text-button" id="exemplarBtn">范文基线</button><button class="text-button" id="modelTraceBtn">完整建模链</button></div>
+              </div>
+            </div>
+            <div class="modeling-metrics" id="modelingMetrics"></div>
+            <div class="subproblem-strip" id="subproblemStrip" aria-label="小问覆盖追踪"></div>
+            <div class="model-chain-strip" id="modelChainStrip" aria-label="当前小问模型链"></div>
+            <div class="variable-strip" id="variableStrip" aria-label="变量与量纲登记"></div>
+          </section>
+
+          <div class="chat-feed" id="chatFeed" aria-live="polite"></div>
+          <div class="typing-line" id="typingLine" hidden><span class="typing-dots"><i></i><i></i><i></i></span><span id="typingText">Agent 正在组织回应…</span></div>
+
+          <div class="composer-wrap">
+            <div class="composer-tools">
+              <button class="composer-tool" id="attachBtn" title="附加材料" aria-label="附加材料"><img src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></button>
+              <button class="composer-tool mention-tool" id="mentionBtn" title="提及 Agent" aria-label="提及 Agent"><img src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></button>
+              <span class="composer-hint">输入 / 可调用动作 · @知识库 检索 · Shift + Enter 换行</span>
+              <span class="kb-citation-hint" id="kbCitationHint" hidden></span>
+              <div class="composer-mode"><span class="mode-dot"></span><select id="composerMode" aria-label="响应模式"><option value="full">FULL 协作</option><option value="lite">LITE 审查</option><option value="solo">SOLO 单 Agent</option></select></div>
+            </div>
+            <div class="composer-row">
+              <textarea id="messageInput" rows="1" placeholder="向群里发消息；输入 @知识库 + 关键词可直接检索…" aria-label="发送消息"></textarea>
+              <button class="send-button" id="sendBtn" aria-label="发送"><img src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></button>
+            </div>
+          </div>
+        </section>
+
+        <aside class="sidebar right-sidebar" aria-label="建模控制、任务与证据">
+          <div class="right-tabs"><div class="right-tabs-label">工作台</div><button class="right-tab active" data-panel="modeling">建模控制</button><button class="right-tab" data-panel="tasks">任务面板</button><button class="right-tab" data-panel="evidence">证据账本 <span class="tab-badge">7</span></button><button class="right-tab" data-panel="knowledge">资料库 <span class="tab-badge" id="kbTabBadge">—</span></button><button class="right-tab" data-panel="assembly">能力装配 <span class="tab-badge" id="capabilityBadge">—</span></button><button class="panel-close" id="panelCloseBtn" aria-label="收起控制面板"><img src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></button></div>
+
+          <div class="right-content" id="modelingPanel">
+            <div class="focus-card" id="focusCard"></div>
+            <div class="panel-section"><div class="panel-section-head"><h3>路线对照 · 必填字段</h3><button class="text-button" id="routeCompareBtn">展开对照</button></div><div id="routeCompare" class="route-compare"></div></div>
+            <div class="panel-section"><div class="panel-section-head"><h3>评审门矩阵</h3><span class="critical-label" id="gateCriticalLabel">2 项阻断</span></div><div id="gateMatrix" class="gate-matrix"></div></div>
+          </div>
+
+          <div class="right-content" id="tasksPanel" hidden>
+            <div class="run-card">
+              <div class="run-card-head"><span class="run-status"><i></i> RUNNING · 演示快照</span><span class="run-id" id="runIdLabel">RUN-MF-2026-0831</span></div>
+              <h3>把 A 题变成可检验的决策模型</h3>
+              <div class="revision-stack"><span>input <b id="inputRevisionLabel">fixture:2016-2025…</b></span><span>worktree <b id="worktreeRevisionLabel">fixture:modeling…</b></span><span>control <b id="controlRevisionLabel">fixture:run-bootstrap…</b></span></div>
+              <div class="run-metrics"><div><strong id="completedMetric">8/14</strong><span>节点完成</span></div><div><strong>02:18:44</strong><span>运行时长</span></div><div><strong>3</strong><span>待裁决</span></div></div>
+            </div>
+
+            <div class="panel-section"><div class="panel-section-head"><h3>任务 DAG</h3><button class="text-button" id="newTaskBtn">+ 新任务</button></div>
+              <div class="dag-map" aria-label="任务依赖图">
+                <svg viewBox="0 0 300 122" role="img" aria-label="从读题到验证的任务依赖关系"><path class="dag-edge" d="M39 26 H93 M39 96 H93 M111 26 C135 26 135 61 157 61 M111 96 C135 96 135 61 157 61 M175 61 H226 M244 61 H280"/><path class="dag-edge dotted" d="M39 26 C75 10 110 10 157 61"/></svg>
+                <button class="dag-node node-g1" data-dag-task="G1"><b>G1</b><span>读题</span></button>
+                <button class="dag-node node-g3" data-dag-task="G3"><b>G3</b><span>数据</span></button>
+                <button class="dag-node node-g5" data-dag-task="G5"><b>G5</b><span>数学化</span></button>
+                <button class="dag-node node-g6" data-dag-task="G6-A"><b>G6</b><span>路线</span></button>
+                <button class="dag-node node-g7" data-dag-task="G7"><b>G7</b><span>质疑</span></button>
+                <button class="dag-node node-g9" data-dag-task="G9"><b>G9</b><span>审批</span></button>
+              </div>
+              <div id="taskList" class="task-list"></div></div>
+
+            <div class="panel-section debate-section"><div class="panel-section-head"><h3>待你裁决</h3><span class="critical-label">3 项</span></div><div id="decisionList" class="decision-list"></div></div>
+          </div>
+
+          <div class="right-content" id="evidencePanel" hidden>
+            <div class="evidence-summary"><span class="evidence-ring">72%</span><div><strong>证据覆盖率 · 演示投影</strong><p>关键主张 13 / 18 有引用；未等同于 VERIFIED</p></div></div>
+            <div id="evidenceList" class="evidence-list"></div>
+          </div>
+
+          <div class="right-content knowledge-content" id="knowledgePanel" hidden>
+            <div class="knowledge-card knowledge-status-card">
+              <div class="knowledge-status-head"><div class="knowledge-status-title"><span class="knowledge-dot"></span><div><span class="knowledge-kicker">LOCAL KNOWLEDGE BASE</span><strong id="kbStatusLabel">正在探测本地资料</strong></div></div><button class="text-button" id="kbRefreshBtn">重扫</button></div>
+              <p id="kbStatusMeta">原始文件只读；索引随本地同步快照更新。</p>
+              <div class="kb-stats" id="kbStats"><div><b>—</b><span>可检索文件</span></div><div><b>—</b><span>同步中</span></div><div><b>—</b><span>索引大小</span></div></div>
+            </div>
+            <div class="knowledge-card kb-search-card">
+              <form id="kbSearchForm" class="kb-search-form">
+                <div class="kb-search-row"><input id="kbSearchInput" type="search" autocomplete="off" placeholder="搜题目、年份、模型、模板…" aria-label="搜索本地数学建模资料"/><button type="submit" id="kbSearchBtn">检索</button></div>
+                <div class="kb-filter-row"><select id="kbModuleFilter" aria-label="资料模块"><option value="">全部模块</option></select><select id="kbKindFilter" aria-label="资料类型"><option value="">全部类型</option></select><select id="kbYearFilter" aria-label="年份"><option value="">年份</option></select></div>
+              </form>
+              <div class="kb-suggestions" aria-label="快捷检索"><button type="button" data-kb-query="2016 2024 国赛 优秀论文">近十年范文</button><button type="button" data-kb-query="官方评阅标准">评阅口径</button><button type="button" data-kb-query="论文模板 写作规范">论文模板</button><button type="button" data-kb-query="遗传算法 线性规划">方法与代码</button></div>
+            </div>
+            <div class="kb-results-head"><strong>检索结果</strong><span id="kbResultMeta">输入关键词后调用</span></div>
+            <div id="kbResults" class="kb-results"><div class="kb-empty"><span class="dragon-empty-icon"><img src="assets/ip/xiao-qinglong-face-v3.png" alt="" /></span><strong>让 Agent 从资料包找证据</strong><p>先选“近十年范文”或输入题目/模型关键词。</p></div></div>
+            <div class="kb-disclaimer"><span class="dragon-note-icon"><img src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></span><p>资料建议只作为候选证据。范文、扫描件和模板不会自动变成当前题目的结论；引用前仍需题面、变量、验证与 Owner 审批。</p></div>
+          </div>
+
+          <div class="right-content assembly-content" id="assemblyPanel" hidden>
+            <div class="assembly-hero">
+              <div><span class="assembly-kicker">CAPABILITY STUDIO</span><h3>把资料变成可组合能力</h3><p>标准链守住竞赛底线，自由链允许你按题型拼出自己的方法路线。</p></div>
+              <span class="assembly-orbit" aria-hidden="true"><img src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></span>
+            </div>
+            <div class="assembly-mode-switch" role="tablist" aria-label="工作流模式"><button type="button" class="assembly-mode active" data-assembly-mode="standard">标准流程</button><button type="button" class="assembly-mode" data-assembly-mode="free">自由装配</button></div>
+            <div class="capability-source-strip" id="capabilitySourceStrip"><span class="knowledge-dot pending"></span><span>能力目录正在读取资料快照…</span></div>
+
+            <section class="problem-contract-card" aria-label="动态题面契约">
+              <div class="problem-contract-head"><div><span class="section-kicker">OPEN CONTRACT</span><h4>从任意题面生成小问草稿</h4></div><span class="contract-state" id="problemContractState">DRAFT · 未核验</span></div>
+              <p>不固定 A/B/C 或 Q1–Q4；先把题面中的编号、交付动词、变量、约束和验证提示提成可编辑草稿。</p>
+              <textarea id="problemDraftInput" rows="3" placeholder="粘贴题面或某一段小问… 例如：问题一：根据附件预测需求；问题二：在容量约束下优化方案。"></textarea>
+              <div class="problem-contract-actions"><button type="button" class="mini-action primary" id="draftProblemContractBtn">生成契约草稿</button><span id="problemContractMeta">来源、单位与语义仍需 Scope-Lock/Owner 核对</span></div>
+              <div id="problemContractResult" class="problem-contract-result" hidden></div>
+            </section>
+
+            <section class="assembly-section" data-assembly-view="standard">
+              <div class="assembly-section-head"><div><span class="section-kicker">SAFE START</span><h4>先选题型，再载入底线流程</h4></div><button type="button" class="text-button" id="capabilityRefreshBtn">刷新能力</button></div>
+              <div class="assembly-select-grid"><label>题型起点<select id="capabilityArchetypeSelect" aria-label="题型起点"></select></label><label>标准模板<select id="capabilityPresetSelect" aria-label="标准工作流模板"></select></label></div>
+              <button type="button" class="assembly-primary-action" id="applyPresetBtn"><span>载入标准链</span><img class="dragon-affordance" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></button>
+              <div class="preset-list" id="presetList"></div>
+              <div class="assembly-note"><span>底线</span><p>任何路线都必须保留题面锁定、baseline、独立质疑、至少两类互补验证、证据绑定和 Owner 审批。</p></div>
+            </section>
+
+            <section class="assembly-section" data-assembly-view="free" hidden>
+              <div class="assembly-section-head"><div><span class="section-kicker">COMPOSE</span><h4>拖出你的模型链</h4></div><span class="assembly-count" id="assemblyCount">0 个节点</span></div>
+              <div class="assembly-toolbar"><button type="button" class="mini-action" id="clearAssemblyBtn">清空</button><button type="button" class="mini-action primary" id="validateAssemblyBtn">检查链路</button></div>
+              <div class="assembly-lanes"><div class="assembly-lane"><div class="lane-title"><span>工作块</span><em>必选/可插拔</em></div><div id="blockPalette" class="assembly-palette"><div class="assembly-loading">等待能力目录…</div></div></div><div class="assembly-lane"><div class="lane-title"><span>方法卡</span><em>适用性优先</em></div><div id="methodPalette" class="assembly-palette"><div class="assembly-loading">等待能力目录…</div></div></div></div>
+              <div class="content-pack-row"><div class="lane-title"><span>内容包</span><em>从资料库取证</em></div><div id="contentPackPalette" class="content-pack-palette"></div></div>
+              <div class="assembly-chain-head"><span>当前链 · 点击节点查看卡片</span><div class="assembly-chain-actions"><button type="button" class="text-button" id="innovationBtn">创新差异卡</button><button type="button" class="text-button" id="sendAssemblyBtn">发到群聊</button></div></div>
+              <div id="assemblyCanvas" class="assembly-canvas"><div class="assembly-empty"><span><img class="dragon-affordance" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></span><strong>从左侧加入第一个节点</strong><p>建议顺序：题面 → 数据/机制 → baseline → 方法 → 验证 → claim。</p></div></div>
+              <div id="assemblyGate" class="assembly-gate neutral"><span class="gate-icon"><img class="dragon-gate-icon" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></span><div><strong>尚未检查链路</strong><p>检查后会显示端口、环路、必需验证与证据门。</p></div></div>
+              <div id="assemblyDiff" class="assembly-diff" hidden></div>
+              <div id="innovationSummary" class="innovation-summary" hidden></div>
+            </section>
+            <div class="assembly-disclaimer"><span>!</span><p>能力卡是从本地资料目录/抽样正文归纳的候选知识，不是对所有范文或模型正确性的认证；进入论文前仍需题面、参数来源、独立复现与群主审批。</p></div>
+          </div>
+
+            <div class="approval-bar"><div><span class="approval-lock"><img src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /></span><span>群主审批门</span></div><button id="approveAllBtn" class="approve-button">查看审批队列</button></div>
+        </aside>
+      </main>
+      <button class="panel-backdrop" id="panelBackdrop" aria-label="关闭控制面板" hidden></button>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="modal-backdrop" id="modalBackdrop" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><button class="modal-close" id="modalClose" aria-label="关闭">×</button><div id="modalBody"></div></div></div>
+    <script src="app.js?v=20260901-oracle-glass-qingjia-tactile-v13.5.3"></script>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+services:
+  web-api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      # The local API is intentionally unauthenticated in this MVP; keep the
+      # development service off the LAN until OIDC/RBAC is configured.
+      - "127.0.0.1:8787:8787"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8787
+      COLLAB_STATE_FILE: /app/runtime/collab-state.json
+    volumes:
+      - ./runtime:/app/runtime
+    restart: unless-stopped
