@@ -8,6 +8,7 @@
 | ID | 任务 | 负责人 | 分支 | 备注 |
 |---|---|---|---|---|
 | T-01 | 创建 GitHub 私有仓库并绑定远端 | 人 | — | 完成后运行 `git remote add origin <url> && git push -u origin main` |
+| T-10 | 在夸克网盘恢复 13 个未完成下载 | 人 | — | 清单见 `notes/materials-index.md` §1，重点：美赛题解析第 3–7 辑 |
 
 ## 待认领
 
@@ -19,6 +20,7 @@
 | T-05 | 用 Antigravity 打开本目录 | 中 | 工作区正常，能读取 AGENTS.md |
 | T-07 | 按 `notes/exemplary-paper-breakdown.md` §3 建立算法模板库 | 高 | 评价/优化/预测/分类/机理/仿真每类至少 1 个可运行模板，放入 `models/` |
 | T-08 | 确定论文模板与图表规范 | 中 | 国赛 LaTeX / 美赛 COMAP 模板进 `paper/`，图表规范进 `viz/` |
+| T-11 | 将核心资料导入 QMind 知识库 | 中 | 官方评阅标准 + 论文规范模板文档入库，可用自然语言检索到 |
 
 ## 待审
 
@@ -30,6 +32,7 @@
 |---|---|---|
 | T-00 | 初始化项目骨架与团队守则 | 2026-08-31 |
 | T-06 | 拆解近十年模范论文并总结（产物：`notes/exemplary-paper-breakdown.md`） | 2026-08-31 |
+| T-09 | 盘点桌面资料包并建索引（产物：`notes/materials-index.md`） | 2026-08-31 |
 
 ---
 
