@@ -17,6 +17,8 @@
 | T-03 | 跑通独立评审脚本 | 高 | `python scripts/agents/review.py README.md` 生成评审报告到 `notes/reviews/` |
 | T-04 | 在 Codex 中绑定 GitHub 仓库 | 高 | 能从 Codex 对该仓库派发云端任务 |
 | T-05 | 用 Antigravity 打开本目录 | 中 | 工作区正常，能读取 AGENTS.md |
+| T-07 | 按 `notes/exemplary-paper-breakdown.md` §3 建立算法模板库 | 高 | 评价/优化/预测/分类/机理/仿真每类至少 1 个可运行模板，放入 `models/` |
+| T-08 | 确定论文模板与图表规范 | 中 | 国赛 LaTeX / 美赛 COMAP 模板进 `paper/`，图表规范进 `viz/` |
 
 ## 待审
 
@@ -27,6 +29,7 @@
 | ID | 任务 | 完成日期 |
 |---|---|---|
 | T-00 | 初始化项目骨架与团队守则 | 2026-08-31 |
+| T-06 | 拆解近十年模范论文并总结（产物：`notes/exemplary-paper-breakdown.md`） | 2026-08-31 |
 
 ---
 
