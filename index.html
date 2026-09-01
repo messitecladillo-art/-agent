@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f8f7f2" />
     <title>青甲 Agent · 多 Agent 群聊式数学建模</title>
     <link rel="icon" type="image/png" href="assets/ip/xiao-qinglong-mark-v1.png" />
-    <link rel="stylesheet" href="styles.css?v=20260901-oracle-glass-qingjia-tactile-v14.2.14" />
+    <link rel="stylesheet" href="styles.css?v=20260901-oracle-glass-qingjia-tactile-v14.2.16" />
   </head>
   <body data-design="oracle-glass">
     <div class="app-shell">
@@ -159,7 +159,7 @@
                 <div class="hero-status"><span class="hero-status-dot"></span><strong id="heroSourceStatus">题面待导入</strong><span>Owner 控制</span></div>
                 <div class="hero-empty-note"><span>当前阻断</span><b id="heroEmptyNote">导入 PDF → 抽取变量 → 审批路线</b></div>
                 <div class="hero-contract-line" aria-label="路线与验证摘要"><span>路线</span><b>baseline → 主线 → fallback</b><i>·</i><span>验证</span><b>互补检查 · clean-run / hash</b></div>
-            <div class="overview-actions"><button class="text-button" id="knowledgeBtn">资料库 <span class="hero-action-dot"></span></button><button class="text-button" id="assemblyBtn">能力装配 <span class="hero-action-dot violet-dot"></span></button><button class="text-button" id="exemplarBtn">范文基线</button><button class="text-button" id="modelTraceBtn">完整建模链</button></div>
+            <div class="overview-actions"><button class="text-button" id="knowledgeBtn">资料库 <span class="hero-action-dot"></span></button><button class="text-button" id="assemblyBtn">工作流拼图 <span class="hero-action-dot violet-dot"></span></button><button class="text-button" id="exemplarBtn">范文基线</button><button class="text-button" id="modelTraceBtn">完整建模链</button></div>
               </div>
             </div>
             <div class="modeling-metrics" id="modelingMetrics"></div>
@@ -291,8 +291,72 @@
       <button class="panel-backdrop" id="panelBackdrop" aria-label="关闭控制面板" hidden></button>
     </div>
 
+    <!-- Full workflow studio: the default chat remains quiet; this layer is
+         opened on demand so a complete puzzle composition has room to breathe. -->
+    <div class="puzzle-studio-backdrop" id="puzzleStudio" hidden>
+      <section class="puzzle-studio" role="dialog" aria-modal="true" aria-labelledby="puzzleStudioTitle">
+        <header class="puzzle-studio-head">
+          <div class="puzzle-studio-brand">
+            <span class="puzzle-studio-mark"><img src="assets/ip/xiao-qinglong-mark-v1.png" alt="" aria-hidden="true" /></span>
+            <div>
+              <span class="puzzle-kicker">QINGJIA WORKFLOW · PUZZLE LAB</span>
+              <h2 id="puzzleStudioTitle">把建模过程，拼成一条可验证的路</h2>
+              <p>固定方案守住竞赛底线，DIY 让每一块都能被替换、质疑与复跑。</p>
+            </div>
+          </div>
+          <img class="puzzle-guide-image" src="assets/workflow/qinglong-puzzle-guide-v1.png" alt="小青龙抱着两块玉色拼图" />
+          <button type="button" class="puzzle-studio-close" id="puzzleStudioClose" aria-label="关闭工作流拼图">×</button>
+        </header>
+
+        <div class="puzzle-studio-toolbar">
+          <div class="puzzle-mode-switch" role="tablist" aria-label="工作流模式">
+            <button type="button" id="puzzleModePreset" class="puzzle-mode active" data-puzzle-mode="preset" role="tab" aria-selected="true">固定方案 <small>先稳后快</small></button>
+            <button type="button" id="puzzleModeDiy" class="puzzle-mode" data-puzzle-mode="diy" role="tab" aria-selected="false">DIY 拼图 <small>自由装配</small></button>
+          </div>
+          <div class="puzzle-toolbar-meta"><span id="puzzleRevision">能力目录 · 等待同步</span><button type="button" id="puzzleRefreshCatalog" class="puzzle-quiet-action">刷新目录</button></div>
+        </div>
+
+        <div id="puzzleStaleNotice" class="puzzle-stale-notice" hidden>
+          <span class="puzzle-notice-dot"></span><span>保存的拼图草稿来自旧能力目录，继续前请确认方法卡是否仍适用。</span><button type="button" id="puzzleRestoreDraft">按当前目录尝试恢复</button>
+        </div>
+
+        <section id="puzzlePresetView" class="puzzle-view" role="tabpanel" aria-labelledby="puzzleModePreset">
+          <div class="puzzle-view-intro">
+            <div><span class="puzzle-section-kicker">01 · SAFE START</span><h3>选择一条已经验过结构的路线</h3><p>点击卡片只做预览；按下“应用”后才会改变当前装配。</p></div>
+            <label class="puzzle-archetype-field">题型起点<select id="puzzleArchetypeSelect" aria-label="拼图工作流题型起点"></select></label>
+          </div>
+          <div id="puzzlePresetCards" class="puzzle-preset-grid" aria-label="固定工作流方案"></div>
+          <div class="puzzle-preview-shell">
+            <div class="puzzle-preview-head"><div><span class="puzzle-section-kicker">ROUTE PREVIEW</span><strong id="puzzlePresetPreviewTitle">先选择一张方案卡</strong></div><span id="puzzlePresetPreviewMeta">—</span></div>
+            <div id="puzzlePresetPreview" class="puzzle-preview-rail" aria-live="polite"></div>
+          </div>
+          <div class="puzzle-apply-row"><button type="button" id="puzzleApplyPreset" class="puzzle-primary-action">应用方案并进入 DIY <span>→</span></button><span>应用后仍可逐块替换方法；结构门会在右侧实时提示。</span></div>
+        </section>
+
+        <section id="puzzleDiyView" class="puzzle-view" role="tabpanel" aria-labelledby="puzzleModeDiy" hidden>
+          <div class="puzzle-diy-layout">
+            <aside class="puzzle-palette-column" aria-label="可插入的建模步骤">
+              <div class="puzzle-column-head"><div><span class="puzzle-section-kicker">02 · PIECES</span><h3>拼图块库</h3></div><span>点击插入</span></div>
+              <p class="puzzle-column-note">每一块代表一个可交付步骤；必选块会带硬门标记。</p>
+              <div id="puzzleBlockPalette" class="puzzle-block-palette"></div>
+            </aside>
+            <main class="puzzle-canvas-column" aria-label="当前 DIY 拼图链">
+              <div class="puzzle-column-head"><div><span class="puzzle-section-kicker">03 · COMPOSE</span><h3>当前拼图链</h3></div><span id="puzzleRailCount">0 块</span></div>
+              <div id="puzzleRail" class="puzzle-rail" aria-live="polite"></div>
+              <div id="puzzleGate" class="puzzle-gate neutral" aria-live="polite"><span class="puzzle-gate-icon">◌</span><div><strong>等待检查</strong><p>拼好顺序后检查端口、硬门与证据链。</p></div></div>
+              <div class="puzzle-canvas-actions"><button type="button" id="puzzleValidate" class="puzzle-secondary-action">检查链路</button><button type="button" id="puzzleSend" class="puzzle-primary-action" disabled>发到群聊 <span>↗</span></button></div>
+            </main>
+            <aside id="puzzleMethodDrawer" class="puzzle-method-column" aria-label="当前拼图块的方法卡"></aside>
+          </div>
+        </section>
+
+        <footer class="puzzle-studio-foot"><span><i class="puzzle-foot-dot"></i> 结构检查 ≠ 数学结论</span><span>方法卡仅是候选假设 · 进入论文前仍需题面、参数、独立复现与群主审批</span></footer>
+      </section>
+    </div>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <div class="modal-backdrop" id="modalBackdrop" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><button class="modal-close" id="modalClose" aria-label="关闭">×</button><div id="modalBody"></div></div></div>
-    <script src="app.js?v=20260901-oracle-glass-qingjia-tactile-v14.2.14"></script>
+    <script src="app.js?v=20260901-oracle-glass-qingjia-tactile-v14.2.16"></script>
+    <script src="workflow-puzzle.js?v=20260901-puzzle-lab-v1.20"></script>
   </body>
 </html>

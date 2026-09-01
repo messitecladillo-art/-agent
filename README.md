@@ -34,6 +34,7 @@ python -m http.server 4173
 - v13.5 触感收束：聊天背景纹理限制在边缘纸面，右侧普通任务行退为安静的半透明清单，仅当前运行卡保留浮层重量；手机 Toast 在淡入前预留安全带，避免遮挡最后一条消息或输入区。具体验收见 [`docs/ui-system.md`](docs/ui-system.md) §11。
 - v10 青甲骨刻体：接入用户提供的 QingJia Oracle Display Regular（WOFF2/TTF），仅用于品牌、首屏标题和短印记；保留 ARPHIC 许可证、修改声明与可重建源数据，并按参考板式加入玉石 seal、淡青描边和圆角工作卡层级。
 - v11 QQ/微信式群聊信息流：消息行改为全列布局，Agent 从左侧进入、群主从右侧进入；同一成员两分钟内的连续消息自动收拢头像/元数据，系统通知居中，引用置顶，附件保留安全链接与证据状态，移动端保持无横向溢出。
+- v17 工作流拼图工作台：右侧“工作流拼图”进入按需全屏装配层，支持“固定方案预览 → 应用 → DIY 拼图”双模式；拼图块可插入、移动、移除、替换方法卡，方法卡带适用/禁用/假设/验证/fallback 与 `compatible_block_kinds`，并以 ImageGen 小青龙引导图和六切片图谱做语义索引。实时目录首次加载期间保留可编辑 fixture，升级到 live 时保护草稿和当前焦点；编辑后旧审查状态立即失效，固定方案预览与应用使用同一份块清单。详见 [`docs/workflow-puzzle-studio.md`](docs/workflow-puzzle-studio.md)。
 
 模型岗位、盲测题集、录用阈值和三种规模配置见 [`docs/model-calibration.md`](docs/model-calibration.md)。
 

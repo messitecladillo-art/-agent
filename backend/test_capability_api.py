@@ -36,6 +36,23 @@ def test_catalog_exposes_source_boundary_and_playbook_cards(monkeypatch):
     assert body["capability_revision"].startswith("cap:")
 
 
+def test_catalog_exposes_typed_method_choices_for_all_puzzle_kinds(monkeypatch):
+    c = client(monkeypatch)
+    body = c.get(f"/api/projects/{api.PROJECT_ID}/capabilities/catalog").json()
+    methods = body["methods"]
+    kinds = {kind for method in methods for kind in method.get("compatible_block_kinds", [])}
+    workflow_kinds = {block["kind"] for block in body["workflow_blocks"]}
+    assert workflow_kinds <= kinds
+    required_fields = {
+        "applicability", "prohibitions", "assumptions", "inputs", "outputs",
+        "validation", "fallback", "evidence_refs", "compatible_block_kinds",
+    }
+    assert all(required_fields <= set(method) for method in methods)
+    # Spot-check the categories that were previously absent from the catalog.
+    families = {method["family"] for method in methods}
+    assert {"problem", "data", "contract", "review", "writing", "defense"} <= families
+
+
 def test_suggest_is_transparent_and_fail_closed(monkeypatch):
     response = client(monkeypatch).get(f"/api/projects/{api.PROJECT_ID}/capabilities/suggest", params={"q": "带约束的调度优化", "limit": 4})
     assert response.status_code == 200

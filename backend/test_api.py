@@ -113,7 +113,16 @@ def test_static_server_does_not_expose_checkout_or_control_files(client, path):
 def test_static_server_keeps_allowlisted_ui_assets_available(client):
     assert client.get("/index.html").status_code == 200
     assert client.get("/styles.css").status_code == 200
+    assert client.get("/workflow-puzzle.js").status_code == 200
     assert client.get("/assets/ip/xiao-qinglong-mark-v1.png").status_code == 200
+    assert client.get("/assets/workflow/qinglong-puzzle-guide-v1.png").status_code == 200
+    assert client.get("/assets/workflow/qinglong-puzzle-atlas-v1.png").status_code == 200
+
+
+def test_static_server_keeps_non_allowlisted_root_files_private(client):
+    # This file exists in the checkout, but it is not a browser asset.  The
+    # root catch-all must continue to return 404 after adding the puzzle module.
+    assert client.get("/docker-compose.yml").status_code == 404
 
 
 def test_idempotency_key_cannot_change_request(client):

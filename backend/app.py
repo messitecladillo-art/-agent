@@ -1453,7 +1453,17 @@ app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:4173", "http
 # checkout into a source browser (especially for .git, .collab, .env, runtime
 # journals, backend code, or user-provided material).  Dynamic knowledge files
 # continue to go through the doc-id fenced route above.
-STATIC_ROOT_FILES = {"index.html", "styles.css", "app.js", "favicon.ico", "manifest.webmanifest"}
+# Keep each root-level browser entry explicit.  The puzzle studio is loaded as
+# a separate module so the default chat shell can stay lightweight, but it is
+# still a public UI asset rather than a checkout/source-browser route.
+STATIC_ROOT_FILES = {
+    "index.html",
+    "styles.css",
+    "app.js",
+    "workflow-puzzle.js",
+    "favicon.ico",
+    "manifest.webmanifest",
+}
 STATIC_ROOT_DIRS = {"assets"}
 STATIC_SENSITIVE_PART = re.compile(
     r"(?:^|[._-])(secret|secrets|credential|credentials|password|passwd|token|api[_-]?key|private[_-]?key)(?:[._-]|$)",

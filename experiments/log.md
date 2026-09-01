@@ -65,3 +65,15 @@
 - 配置/数据：参考 PDF `C:\Users\zyy20\Downloads\数学建模校赛第五版.pdf`，41 页 A4，SHA-256 `6e330b3520ce57b4fa9de3674e3dead4eef7bcf0fcc20ad08af1264f3ba48eae`；只提交抽象规则、结构化契约、审计脚本和正反例夹具。
 - 结果：新增 `skills/math-modeling-mathematical-writing/`（L0–L6 工作流、推导/版式指南、三类注册表、LaTeX/契约审计、前向回归）；Skill 校验、脚本编译、夹具、后端 `134 passed`、Node 语法和 backend compileall 均通过；workspace catalog 检索到入口文件；MiKTeX XeLaTeX 对 good fixture 双遍编译成功，`pdfinfo`/PNG 视觉抽查通过（仅为夹具，不代表正式论文渲染门）。
 - 结论/下一步：本 Skill 以 `READY_FOR_REVIEW` 结构状态交付；它不替代独立数学正确性、官方格式锁定、数据审计和人工渲染 QA。
+
+### 2026-09-01 · T-18 · 固定方案与 DIY 工作流拼图
+- 目的：把数学建模求解过程做成“固定可选工作流 + 自主拼图装配”，并将小青龙视觉资产用于步骤识别，而不让生成图承载数学事实。
+- 配置/数据：前端 `workflow-puzzle.js` v1.17；后端能力目录 `capability-catalog/v1`；ImageGen 资产 `assets/workflow/qinglong-puzzle-guide-v1.png`、`qinglong-puzzle-atlas-v1.png`；方法卡 54 张、工作流块 13 个、固定方案 3 条。
+- 结果：静态演示回归通过（固定方案预览/应用、DIY 插入/移动/替换/移除、方法抽屉、硬门提示）；实时目录回归显示 `catalog=live`、服务端 revision、problem/data/writing/defense 等步骤各有多张类型匹配卡；实时目录首次读取期间 fixture 可编辑，升级后保留草稿和选中块；浏览器错误/警告为 0。`python -m pytest backend -q --basetemp .pytest-tmp-final`：138 passed；默认临时目录另有 1 个既有 WinError 5 环境错误，已用仓库内 basetemp 重跑排除。
+- 结论/下一步：拼图层达到结构可审交付；“结构可审”不等于数学结论已验证。继续保留 Owner 审批、题面锁定、参数来源、独立复算和最终论文排版门。
+
+### 2026-09-01 · T-18.1 · 拼图层竞态与缓存版本收口
+- 目的：关闭“检查返回旧快照覆盖新插入块”和静态资源缓存旧版本的发布风险。
+- 配置/数据：前端版本 `v14.2.16` / `workflow-puzzle.js v1.20`；固定路线应用携带预览的完整 `block_ids`；编辑后清空旧 validation，显式检查前发送按钮保持禁用；LIVE bridge 空/失败响应不再回退为本地成功；live URL 缺少宿主桥时直接阻断写操作；异常/重复固定块清单拒绝静默应用；目录 revision 变化会清空旧绿灯，草稿恢复拒绝被 canonical 适配器静默截短的结果。
+- 结果：实时浏览器回归显示固定方案预览 13 块、应用后 13 块；检查中立即插入后 15 块在 0/0.9/3.1 秒均保持，门禁持续“等待检查当前链路”；再次检查后结构可审、发送按钮启用；浏览器日志 0；HTTP 根页、拼图脚本、两张 ImageGen PNG 均 200，越权 PNG 404；后端 `138 passed`。
+- 结论/下一步：本次拼图工作流可作为当前仓库的结构交付；仍需真实题面、参数来源、独立复算和 Owner 审批后才可进入论文/群聊结论。

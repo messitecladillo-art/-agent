@@ -55,6 +55,11 @@ let capabilityState = {
   assembly: { nodes: [], edges: [], presetId: null, archetypeId: null, validation: null, revision: null, diff: null, previousNodes: [], previousEdges: [], committedRevision: null, innovationCard: null, previousInnovationCard: null, contentPackIds: [], previousContentPackIds: [], contentPackEvidenceRefs: [], contentPackEvidenceByPack: {}, contentPackIndexRevision: null, contentPackResolutionRevision: null, methodBlockWarnings: [] },
   problemContract: null,
 };
+// Share one in-flight catalogue request across the compact legacy panel and
+// the full puzzle studio.  The local materials index can be large; duplicate
+// refreshes during the fixture→live handoff only add latency and can make two
+// callers observe different revisions.
+let capabilityCatalogPromise = null;
 // Monotonic client-side fence: several UI actions can trigger compose calls
 // close together (preset change + content-pack toggle + explicit check).  An
 // older response must never overwrite the newer graph's validation/diff.
@@ -1652,8 +1657,19 @@ function renderCapabilitySource(catalog) {
 }
 
 function renderCapabilityCatalog(catalog) {
+  const nextRevision = catalog?.capability_revision || catalog?.source?.index_revision || null;
+  const revisionChanged = Boolean(capabilityState.revision && nextRevision && capabilityState.revision !== nextRevision);
+  if (revisionChanged && capabilityState.assembly?.nodes?.length) {
+    // A validation report is scoped to the capability catalogue revision that
+    // produced it.  Do not leave a green gate/send action alive after refresh.
+    capabilityState.assembly.validation = null;
+    capabilityState.assembly.revision = null;
+    capabilityState.assembly.diff = null;
+    capabilityState.assembly.methodBlockWarnings = [];
+    assemblyValidationEpoch += 1;
+  }
   capabilityState.catalog = catalog || null;
-  capabilityState.revision = catalog?.capability_revision || catalog?.source?.index_revision || null;
+  capabilityState.revision = nextRevision;
   renderCapabilitySource(catalog);
   const badge = document.getElementById('capabilityBadge');
   if (badge) badge.textContent = catalog?.methods?.length ? String(catalog.methods.length) : '—';
@@ -1696,6 +1712,10 @@ function renderCapabilityCatalog(catalog) {
     packRoot.innerHTML = capabilityPacks().map(pack => { const selected = selectedPacks.has(pack.id); const evidenceCount = (capabilityState.assembly?.contentPackEvidenceByPack?.[pack.id] || []).length; const evidenceNote = selected && evidenceCount ? ` · ${evidenceCount}条候选` : ''; return `<button type="button" class="content-pack ${selected ? 'selected' : ''}" data-content-pack="${escapeHTML(pack.id)}" aria-pressed="${selected ? 'true' : 'false'}" title="${selected ? '点击卸载；' : '点击挂载；'}检索：${escapeHTML(pack.query || '')}"><span>${escapeHTML(pack.title)}</span><em>${escapeHTML(pack.note)}</em><b>${selected ? `已挂载${evidenceNote} · 点击卸载` : '未挂载 · 点击挂载'}</b></button>`; }).join('') || '<div class="assembly-loading">内容包尚未加载。</div>';
   }
   renderAssemblyCanvas();
+  // The optional full-screen puzzle studio listens for this projection event.
+  // Keep the existing sidebar renderer as the source of truth; the new layer
+  // is only a view and never becomes a second capability catalogue.
+  try { window.dispatchEvent(new CustomEvent('qingjia:capability-catalog', { detail: { catalog } })); } catch (_) { /* older host */ }
 }
 
 function setAssemblyMode(mode) {
@@ -1812,16 +1832,30 @@ function makeAssemblyNode(blockId, index, methodId = null) {
   return { node_id: `${blockId.replace(/[^A-Za-z0-9]+/g, '-')}-${index + 1}`, block_id: blockId, method_id: methodId, label: block?.title || blockId, config: {} };
 }
 
-function buildPresetAssembly() {
+function buildPresetAssembly(options = {}) {
   const preset = selectedCapabilityPreset();
   const archetype = selectedCapabilityArchetype();
-  if (!preset) return;
-  let ids = [...(preset.block_ids || [])];
+  if (!preset) return null;
+  // The full-screen puzzle studio passes the exact previewed block list.  A
+  // fixed route must not silently shrink between preview and application;
+  // archetype-based tailoring remains available to the compact legacy panel
+  // when no explicit list is supplied.
+  const exactBlockIds = Array.isArray(options.block_ids) ? options.block_ids.map(String) : null;
+  if (exactBlockIds) {
+    const known = new Set(capabilityBlocks().map(item => String(item.id)));
+    const unknown = exactBlockIds.filter(id => !known.has(id));
+    const duplicate = exactBlockIds.filter((id, index) => exactBlockIds.indexOf(id) !== index);
+    if (unknown.length || duplicate.length) {
+      showToast(`固定方案清单无效${unknown.length ? ` · 未知块 ${unknown.slice(0, 2).join('、')}` : ''}${duplicate.length ? ' · 存在重复块' : ''}`);
+      return null;
+    }
+  }
+  let ids = exactBlockIds ? [...exactBlockIds] : [...(preset.block_ids || [])];
   const archetypeId = archetype?.id || '';
   // The catalog's standard preset is a superset.  Keep the visible chain
   // focused on the selected problem family while retaining the mandatory
   // baseline/validation/writing gates.
-  if (preset.id === 'standard-cumcm') {
+  if (!exactBlockIds && preset.id === 'standard-cumcm') {
     const core = ['problem-decomposition', 'data-audit', 'parameter-contract', 'baseline-model', 'validation', 'critic-challenger', 'sensitivity', 'writing'];
     const main = archetypeId === 'mechanism' ? ['scenario-contract', 'mechanism-model', 'simulation'] : archetypeId === 'simulation' ? ['scenario-contract', 'simulation'] : archetypeId === 'optimization' || archetypeId === 'policy-decision' ? ['optimization'] : [];
     // The transparent baseline must precede any solver/simulation block: the
@@ -1850,6 +1884,7 @@ function buildPresetAssembly() {
   setAssemblyMode('free');
   showToast(`已载入「${preset.title}」；现在可以替换或追加方法卡`);
   validateAssembly();
+  return capabilityState.assembly;
 }
 
 function autoLinkAssembly(nodes) {
@@ -1900,6 +1935,7 @@ function renderAssemblyCanvas() {
     const subtitle = method ? `${method.title} · ${method.family}` : `${block?.kind || 'block'} · ${Object.keys(block?.output_ports || {}).join(' + ') || '待定义输出'}`;
     return `<div class="assembly-node" data-assembly-node-index="${index}"><span class="assembly-node-index">${index + 1}</span><button type="button" class="assembly-node-copy" data-assembly-node-view="${index}"><strong>${escapeHTML(node.label || block?.title || node.block_id)}</strong><span>${escapeHTML(subtitle)}</span></button><button type="button" class="assembly-node-remove" data-assembly-node-remove="${index}" aria-label="移除节点">${dragonIcon('mark', { className: 'dragon-affordance' })}</button></div>`;
   }).join('');
+  try { window.dispatchEvent(new CustomEvent('qingjia:assembly-updated', { detail: { assembly: capabilityState.assembly } })); } catch (_) { /* older host */ }
 }
 
 function addAssemblyItem(type, id) {
@@ -2018,20 +2054,65 @@ function localAssemblyValidation() {
   const validationIndex = blockIds.indexOf('validation');
   if (paperIndex >= 0 && validationIndex < 0) errors.push('evidence_chain_missing:validation_to_writing');
   if (paperIndex >= 0 && validationIndex > paperIndex) errors.push('evidence_chain_order_invalid');
-  return { valid: errors.length === 0, errors, topological_order: nodes.map(node => node.node_id), node_count: nodes.length, edge_count: capabilityState.assembly.edges.length, missing_required_blocks: required.filter(id => !blockIds.includes(id)), required_block_ids: required, hard_gate: { ready: errors.length === 0, missing: required.filter(id => !blockIds.includes(id)) } };
+  const methodCompatibility = assemblyMethodCompatibilityIssues(nodes);
+  methodCompatibility.forEach(item => errors.push(`method_block_mismatch:${item.node_id}:${item.method_id}:${item.selected_block}`));
+  return { valid: errors.length === 0, errors, topological_order: nodes.map(node => node.node_id), node_count: nodes.length, edge_count: capabilityState.assembly.edges.length, missing_required_blocks: required.filter(id => !blockIds.includes(id)), required_block_ids: required, method_block_mismatches: methodCompatibility, hard_gate: { ready: errors.length === 0, missing: required.filter(id => !blockIds.includes(id)) } };
+}
+
+function assemblyMethodCompatibilityIssues(nodes = []) {
+  const familyDefaultBlock = {
+    statistical: 'baseline-model', classification: 'baseline-model', ensemble: 'baseline-model',
+    'time-series': 'baseline-model', survival: 'baseline-model', optimization: 'optimization',
+    mechanism: 'mechanism-model', simulation: 'simulation', validation: 'sensitivity',
+  };
+  return (nodes || []).flatMap(node => {
+    if (!node?.method_id) return [];
+    const method = capabilityMethod(node.method_id);
+    const block = capabilityBlock(node.block_id);
+    if (!method || !block) return [];
+    const typedKinds = Array.isArray(method.compatible_block_kinds) ? method.compatible_block_kinds.filter(Boolean).map(String) : [];
+    const family = String(method.family || '').toLowerCase();
+    const accepted = typedKinds.length ? typedKinds : (familyDefaultBlock[family] ? [String(capabilityBlock(familyDefaultBlock[family])?.kind || '')] : []);
+    if (!accepted.length || accepted.includes(String(block.kind))) return [];
+    return [{ node_id: node.node_id, method_id: node.method_id, family, selected_block: node.block_id, selected_kind: block.kind, accepted_kinds: accepted }];
+  });
 }
 
 async function validateAssembly() {
   const assembly = capabilityState.assembly;
   const epoch = ++assemblyValidationEpoch;
-  if (!assembly.nodes.length) { renderAssemblyGate(); return null; }
+  if (!assembly.nodes.length) {
+    assembly.validation = localAssemblyValidation();
+    assembly.diff = localAssemblyDiff();
+    renderAssemblyGate(null, !LIVE_API);
+    return { validation: assembly.validation, diff: assembly.diff, error: 'empty_assembly' };
+  }
   if (!LIVE_API) { assembly.validation = localAssemblyValidation(); assembly.diff = localAssemblyDiff(); renderAssemblyGate(null, true); return assembly.validation; }
-  if (!capabilityState.revision) { showToast('能力目录尚未同步，暂不能检查链路'); return null; }
+  if (!capabilityState.revision) {
+    const validation = { valid: false, errors: ['capability_revision_missing'], node_count: assembly.nodes.length, edge_count: assembly.edges.length };
+    assembly.validation = validation;
+    renderAssemblyGate();
+    showToast('能力目录尚未同步，暂不能检查链路');
+    return { validation, error: 'capability_revision_missing' };
+  }
   try {
     const response = await fetch(`${capabilityEndpoint('/compose')}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nodes: assembly.nodes, edges: assembly.edges, previous_nodes: assembly.previousNodes || [], previous_edges: assembly.previousEdges || [], innovation_card: assembly.innovationCard || undefined, previous_innovation_card: assembly.previousInnovationCard || undefined, content_pack_ids: assembly.contentPackIds || [], previous_content_pack_ids: assembly.previousContentPackIds || [], content_pack_evidence_refs: assembly.contentPackEvidenceRefs || [], content_pack_index_revision: assembly.contentPackIndexRevision || undefined, content_pack_resolution_revision: assembly.contentPackResolutionRevision || undefined, preset_id: assembly.presetId, archetype_id: assembly.archetypeId, scope: [window.selectedSubproblem || 'Q2'], base_revision: capabilityState.revision, idempotency_key: `assembly-${Date.now()}` }) });
     const payload = await response.json();
     if (!response.ok) throw new Error(capabilityErrorMessage(payload, 'CAPABILITY_COMPOSE_ERROR'));
-    if (epoch !== assemblyValidationEpoch || assembly !== capabilityState.assembly) return null;
+    if (epoch !== assemblyValidationEpoch || assembly !== capabilityState.assembly) {
+      return { validation: { valid: false, errors: ['validation_superseded'], node_count: capabilityState.assembly.nodes.length, edge_count: capabilityState.assembly.edges.length }, error: 'validation_superseded', superseded: true };
+    }
+    const remoteValidation = payload.validation || null;
+    const methodCompatibility = assemblyMethodCompatibilityIssues(assembly.nodes);
+    if (methodCompatibility.length) {
+      payload.validation = {
+        ...(remoteValidation || {}),
+        valid: false,
+        errors: [...(remoteValidation?.errors || []), ...methodCompatibility.map(item => `method_block_mismatch:${item.node_id}:${item.method_id}:${item.selected_block}`)],
+        method_block_mismatches: methodCompatibility,
+      };
+      payload.status = 'BLOCKED';
+    }
     assembly.validation = payload.validation || null;
     assembly.revision = payload.assembly_revision || null;
     assembly.diff = payload.diff || null;
@@ -2043,13 +2124,15 @@ async function validateAssembly() {
     renderAssemblyGate(payload);
     return payload;
   } catch (error) {
-    if (epoch !== assemblyValidationEpoch || assembly !== capabilityState.assembly) return null;
+    if (epoch !== assemblyValidationEpoch || assembly !== capabilityState.assembly) {
+      return { validation: { valid: false, errors: ['validation_superseded'], node_count: capabilityState.assembly.nodes.length, edge_count: capabilityState.assembly.edges.length }, error: 'validation_superseded', superseded: true };
+    }
     assembly.validation = { valid: false, errors: [error.message || 'CAPABILITY_COMPOSE_ERROR'], node_count: assembly.nodes.length, edge_count: assembly.edges.length };
     assembly.diff = null;
     assembly.methodBlockWarnings = [];
     renderAssemblyGate();
     showToast(`链路检查失败（${error.message || 'unknown'}）`);
-    return null;
+    return { validation: assembly.validation, error: error.message || 'CAPABILITY_COMPOSE_ERROR' };
   }
 }
 
@@ -2152,18 +2235,23 @@ async function loadCapabilityCatalog(force = false) {
     renderCapabilitySource({ source: { source_status: 'UNAVAILABLE', indexed_count: 0 }, methods: [], workflow_blocks: [], workflow_presets: [], problem_archetypes: [] });
     return null;
   }
+  if (capabilityCatalogPromise) return capabilityCatalogPromise;
   capabilityState.loading = true;
-  try {
-    const response = await fetch(`${capabilityEndpoint('/catalog')}${force ? '?refresh=true' : ''}`);
-    const payload = await response.json();
-    if (!response.ok) throw new Error(capabilityErrorMessage(payload, 'CAPABILITY_CATALOG_ERROR'));
-    renderCapabilityCatalog(payload);
-    return payload;
-  } catch (error) {
-    renderCapabilitySource({ source: { source_status: 'UNAVAILABLE', indexed_count: 0 } });
-    showToast(`能力目录读取失败（${error.message || 'unknown'}）`);
-    return null;
-  } finally { capabilityState.loading = false; }
+  capabilityCatalogPromise = (async () => {
+    try {
+      const response = await fetch(`${capabilityEndpoint('/catalog')}${force ? '?refresh=true' : ''}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(capabilityErrorMessage(payload, 'CAPABILITY_CATALOG_ERROR'));
+      renderCapabilityCatalog(payload);
+      return payload;
+    } catch (error) {
+      renderCapabilitySource({ source: { source_status: 'UNAVAILABLE', indexed_count: 0 } });
+      showToast(`能力目录读取失败（${error.message || 'unknown'}）`);
+      return null;
+    }
+  })();
+  try { return await capabilityCatalogPromise; }
+  finally { capabilityState.loading = false; capabilityCatalogPromise = null; }
 }
 
 function capabilityNodeModal(index) {
@@ -2228,12 +2316,14 @@ function openAssemblyPanel() {
 
 async function sendAssemblyToChat() {
   const nodes = capabilityState.assembly.nodes || [];
-  if (!nodes.length) { showToast('先加入至少一个工作块或方法卡'); return; }
+  if (!nodes.length) { showToast('先加入至少一个工作块或方法卡'); return { sent: false, error: 'empty_assembly' }; }
   // Recompute even when the prior graph was valid: selected subproblem,
   // catalog revision, and the diff baseline are part of the assembly hash.
   const checked = await validateAssembly();
-  const valid = checked?.validation?.valid ?? capabilityState.assembly.validation?.valid;
-  if (!valid) { showToast('链路仍有阻断；修复后才能同步到群聊'); return; }
+  if (!checked) { showToast('链路检查没有返回可用报告；暂不发送'); return { sent: false, error: 'validation_unavailable' }; }
+  const validation = checked?.validation || (Object.prototype.hasOwnProperty.call(checked, 'valid') ? checked : null);
+  const valid = validation?.valid === true;
+  if (!valid || (LIVE_API && !capabilityState.assembly.revision)) { showToast('链路仍有阻断；修复后才能同步到群聊'); return { sent: false, error: valid ? 'assembly_revision_missing' : 'validation_blocked', validation }; }
   const names = nodes.map(node => node.label || node.block_id).slice(0, 8).join(' → ');
   const assemblyRevision = capabilityState.assembly.revision || 'fixture:assembly-draft';
   const novelty = innovationGate(capabilityState.assembly.innovationCard);
@@ -2243,13 +2333,15 @@ async function sendAssemblyToChat() {
   const text = `能力装配已提交讨论：${names}${nodes.length > 8 ? ' → …' : ''}。结构门已通过，数值/证据仍待独立验证；${noveltyText}；${packText}。assembly=${assemblyRevision}`;
   const metadata = { assemblyRevision, capabilityRevision: capabilityState.revision || null, innovationStatus: novelty.status };
   if (LIVE_API) {
-    if (!liveRevision) { showToast('事件源 revision 尚未同步，暂不能发群聊'); return; }
+    if (!liveRevision) { showToast('事件源 revision 尚未同步，暂不能发群聊'); return { sent: false, error: 'live_revision_missing' }; }
     const committed = await commitAssembly('SUBMIT_REVIEW');
-    if (!committed) return;
-    await postLiveMessage(text, 'full', [], metadata);
+    if (!committed) return { sent: false, error: 'assembly_commit_failed' };
+    const posted = await postLiveMessage(text, 'full', [], metadata);
+    return { sent: posted === true, error: posted === true ? null : 'message_post_failed', assembly_revision: assemblyRevision };
   } else {
     addOwnerMessage(text, [], metadata);
     showToast('已加入演示群聊（SIMULATED；未写入事实源）');
+    return { sent: true, simulated: true, assembly_revision: assemblyRevision };
   }
 }
 
@@ -3323,7 +3415,13 @@ function bindEvents() {
   document.getElementById('knowledgeBtn').addEventListener('click', openKnowledgePanel);
   const workspaceBrowseButton = document.getElementById('workspaceBrowseBtn');
   if (workspaceBrowseButton) workspaceBrowseButton.addEventListener('click', openWorkspaceBrowser);
-  document.getElementById('assemblyBtn').addEventListener('click', openAssemblyPanel);
+  document.getElementById('assemblyBtn').addEventListener('click', () => {
+    // The full-screen puzzle lab is the primary composition surface.  Keep
+    // the compact legacy panel available as a graceful fallback for hosts
+    // that load an older asset bundle.
+    if (typeof window.openPuzzleStudio === 'function') window.openPuzzleStudio();
+    else openAssemblyPanel();
+  });
   const panelToggle = document.getElementById('panelToggleBtn');
   if (panelToggle) panelToggle.addEventListener('click', () => {
     const willOpen = !document.body.classList.contains('panel-drawer-open');
@@ -3357,6 +3455,10 @@ function bindEvents() {
     selectRightPanel(tab.dataset.panel);
     if (tab.dataset.panel === 'knowledge' && !knowledgeState.summary) loadKnowledgeSummary();
     if (tab.dataset.panel === 'assembly' && !capabilityState.catalog) loadCapabilityCatalog();
+    // The puzzle studio is the primary workflow surface.  Keep the legacy
+    // assembly panel mounted underneath it so older hosts and deep links still
+    // have a graceful fallback, but route the visible tab to the new lab.
+    if (tab.dataset.panel === 'assembly' && typeof window.openPuzzleStudio === 'function') window.openPuzzleStudio();
   }));
   document.querySelectorAll('.assembly-mode').forEach(button => button.addEventListener('click', () => setAssemblyMode(button.dataset.assemblyMode)));
   document.getElementById('capabilityRefreshBtn').addEventListener('click', async () => { await loadCapabilityCatalog(true); showToast('能力目录已按最新资料快照刷新'); });
@@ -3491,6 +3593,181 @@ function bindEvents() {
     else showToast('已回到主议事群');
   }));
 }
+
+/*
+ * A deliberately small bridge for the full-screen workflow puzzle lab.
+ * Keeping this adapter here means the new visual layer can evolve without
+ * duplicating the capability catalogue or bypassing the existing compose /
+ * commit gates.  It is read/write scoped to the in-memory assembly projection;
+ * the server remains authoritative whenever LIVE_API is available.
+ */
+function notifyPuzzleAssembly() {
+  try { window.dispatchEvent(new CustomEvent('qingjia:assembly-updated', { detail: { assembly: capabilityState.assembly } })); } catch (_) { /* older host */ }
+}
+
+function invalidatePuzzleAssembly() {
+  const assembly = capabilityState.assembly;
+  assembly.edges = autoLinkAssembly(assembly.nodes || []);
+  assembly.validation = null;
+  assembly.revision = null;
+  assembly.diff = null;
+  assembly.methodBlockWarnings = [];
+  assemblyValidationEpoch += 1;
+  renderAssemblyCanvas();
+  renderAssemblyGate();
+  renderAssemblyDiff(null);
+  renderInnovationSummary();
+  notifyPuzzleAssembly();
+}
+
+function puzzleSetSelection(presetId, archetypeId) {
+  if (presetId && typeof presetId === 'object') {
+    const payload = presetId;
+    presetId = payload.preset_id || payload.presetId || null;
+    archetypeId = payload.archetype_id || payload.archetypeId || archetypeId || null;
+  }
+  const presetSelect = document.getElementById('capabilityPresetSelect');
+  const archetypeSelect = document.getElementById('capabilityArchetypeSelect');
+  if (presetSelect && presetId && [...presetSelect.options].some(option => option.value === presetId)) presetSelect.value = presetId;
+  if (archetypeSelect && archetypeId && [...archetypeSelect.options].some(option => option.value === archetypeId)) archetypeSelect.value = archetypeId;
+  capabilityState.assembly.presetId = presetId || capabilityState.assembly.presetId || null;
+  capabilityState.assembly.archetypeId = archetypeId || capabilityState.assembly.archetypeId || null;
+  notifyPuzzleAssembly();
+}
+
+function puzzleReplaceMethod(index, methodId) {
+  if (index && typeof index === 'object') {
+    const payload = index;
+    methodId = payload.method_id || payload.methodId || methodId;
+    const nodeId = payload.node_id || payload.nodeId;
+    index = nodeId ? capabilityState.assembly.nodes.findIndex(item => item.node_id === nodeId) : payload.index;
+  }
+  const node = capabilityState.assembly.nodes?.[Number(index)];
+  const method = capabilityMethod(methodId);
+  if (!node || !method) return false;
+  node.method_id = method.id;
+  // Keep the workflow-block label stable.  The selected method is a replaceable
+  // hypothesis inside the block, not a semantic rename of the deliverable.
+  node.label = node.label || capabilityBlock(node.block_id)?.title || node.block_id;
+  node.config = { ...(node.config || {}), selected_method: method.id };
+  invalidatePuzzleAssembly();
+  // Return the canonical projection, not a bare acknowledgement.  The
+  // puzzle layer can then reconcile server-assigned ids without guessing
+  // whether a legacy adapter actually applied the edit.
+  return capabilityState.assembly;
+}
+
+function puzzleMoveNode(index, delta) {
+  if (index && typeof index === 'object') {
+    const payload = index;
+    const nodeId = payload.node_id || payload.nodeId;
+    index = nodeId ? capabilityState.assembly.nodes.findIndex(item => item.node_id === nodeId) : payload.from_index ?? payload.index;
+    delta = Number(payload.delta ?? (Number(payload.to_index) - Number(index)));
+  }
+  const nodes = capabilityState.assembly.nodes || [];
+  const from = Number(index);
+  const to = from + Number(delta);
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < 0 || from >= nodes.length || to >= nodes.length) return false;
+  [nodes[from], nodes[to]] = [nodes[to], nodes[from]];
+  // Node IDs intentionally stay stable; only the proposed topological order
+  // changes, which keeps event/audit references meaningful across edits.
+  invalidatePuzzleAssembly();
+  return capabilityState.assembly;
+}
+
+function puzzleInsertBlock(index, blockId) {
+  if (index && typeof index === 'object') {
+    const payload = index;
+    blockId = payload.block_id || payload.blockId || blockId;
+    index = payload.index;
+  }
+  const block = capabilityBlock(blockId);
+  if (!block) return false;
+  const nodes = capabilityState.assembly.nodes || [];
+  const requestedIndex = Number(index);
+  const safeIndex = Number.isFinite(requestedIndex) ? Math.max(0, Math.min(requestedIndex, nodes.length)) : nodes.length;
+  const node = makeAssemblyNode(block.id, safeIndex, null);
+  const used = new Set(nodes.map(item => item.node_id));
+  let suffix = safeIndex + 1;
+  let candidate = node.node_id;
+  while (used.has(candidate)) candidate = `${block.id.replace(/[^A-Za-z0-9]+/g, '-')}-${suffix += 1}`;
+  node.node_id = candidate;
+  nodes.splice(safeIndex, 0, node);
+  invalidatePuzzleAssembly();
+  return capabilityState.assembly;
+}
+
+function puzzleRestoreAssembly(draft) {
+  if (draft && draft.assembly && typeof draft.assembly === 'object') draft = draft.assembly;
+  if (!draft || !Array.isArray(draft.nodes)) return false;
+  // Restoration is an explicit reconciliation boundary.  Never turn an
+  // outdated draft into a shorter canonical graph by silently dropping
+  // unknown blocks or methods; the puzzle layer will surface a repair path.
+  const sourceNodes = draft.nodes;
+  const invalidBlock = sourceNodes.some(item => !item || !capabilityBlock(item.block_id));
+  const invalidMethod = sourceNodes.some(item => item?.method_id && !capabilityMethod(item.method_id));
+  if (invalidBlock || invalidMethod) return false;
+  const nodes = sourceNodes.map((item, index) => ({
+    node_id: String(item.node_id || `${String(item.block_id).replace(/[^A-Za-z0-9]+/g, '-')}-${index + 1}`),
+    block_id: String(item.block_id),
+    method_id: item.method_id && capabilityMethod(item.method_id) ? String(item.method_id) : null,
+    label: String(item.label || capabilityBlock(item.block_id)?.title || item.block_id),
+    config: { ...(item.config || {}) },
+  }));
+  capabilityState.assembly = {
+    nodes,
+    edges: autoLinkAssembly(nodes),
+    presetId: draft.presetId || null,
+    archetypeId: draft.archetypeId || null,
+    validation: null,
+    revision: null,
+    diff: null,
+    previousNodes: Array.isArray(draft.previousNodes) ? JSON.parse(JSON.stringify(draft.previousNodes)) : [],
+    previousEdges: Array.isArray(draft.previousEdges) ? JSON.parse(JSON.stringify(draft.previousEdges)) : [],
+    committedRevision: draft.committedRevision || null,
+    innovationCard: draft.innovationCard || null,
+    previousInnovationCard: draft.previousInnovationCard || null,
+    contentPackIds: Array.isArray(draft.contentPackIds) ? [...draft.contentPackIds] : [],
+    previousContentPackIds: Array.isArray(draft.previousContentPackIds) ? [...draft.previousContentPackIds] : [],
+    contentPackEvidenceRefs: Array.isArray(draft.contentPackEvidenceRefs) ? [...draft.contentPackEvidenceRefs] : [],
+    contentPackEvidenceByPack: draft.contentPackEvidenceByPack || {},
+    contentPackIndexRevision: draft.contentPackIndexRevision || null,
+    contentPackResolutionRevision: draft.contentPackResolutionRevision || null,
+    methodBlockWarnings: [],
+  };
+  puzzleSetSelection(capabilityState.assembly.presetId, capabilityState.assembly.archetypeId);
+  renderAssemblyCanvas();
+  renderAssemblyGate();
+  renderAssemblyDiff(null);
+  renderInnovationSummary();
+  notifyPuzzleAssembly();
+  return capabilityState.assembly;
+}
+
+window.qingjiaCapabilityBridge = {
+  getCatalog: () => capabilityState.catalog,
+  getAssembly: () => capabilityState.assembly,
+  getMode: () => capabilityState.mode,
+  getRevision: () => capabilityState.revision,
+  loadCatalog: loadCapabilityCatalog,
+  setSelection: puzzleSetSelection,
+  applyPreset: payload => {
+    if (payload && typeof payload === 'object') puzzleSetSelection(payload.preset_id || payload.presetId, payload.archetype_id || payload.archetypeId);
+    const options = payload && typeof payload === 'object' && Array.isArray(payload.block_ids) ? { block_ids: payload.block_ids } : {};
+    const applied = buildPresetAssembly(options);
+    if (!applied) return false;
+    notifyPuzzleAssembly(); return applied;
+  },
+  addBlock: payload => { const id = payload && typeof payload === 'object' ? (payload.block_id || payload.blockId) : payload; addAssemblyItem('block', id); notifyPuzzleAssembly(); return capabilityState.assembly; },
+  insertBlock: puzzleInsertBlock,
+  replaceMethod: puzzleReplaceMethod,
+  moveNode: puzzleMoveNode,
+  removeNode: payload => { const index = payload && typeof payload === 'object' ? (payload.index ?? capabilityState.assembly.nodes.findIndex(item => item.node_id === (payload.node_id || payload.nodeId))) : payload; removeAssemblyNode(Number(index)); notifyPuzzleAssembly(); return capabilityState.assembly; },
+  validate: validateAssembly,
+  send: sendAssemblyToChat,
+  restoreAssembly: puzzleRestoreAssembly,
+  openLegacyPanel: openAssemblyPanel,
+};
 
 window.showToast = showToast; window.closeModal = closeModal;
 // Expose the workspace boundary for smoke tests and future host adapters. The
