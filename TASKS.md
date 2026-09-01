@@ -22,9 +22,7 @@
 
 ## 待审
 
-| ID | 任务 | 负责人 | 分支 | 验收证据 |
-|---|---|---|---|---|
-| T-19 | 从 MHAgent 赛题 A 结果包反推可复用 Skill 与证据契约 | Codex（协调） | task/T-19-mhagent-skill-reconstruction | `notes/reviews/T-19-mhagent-skill-reconstruction.md`：独立只读复核 PASS；契约/Skill/JSON/Node/compileall/diff 通过，后端 138 passed；保留 READY_FOR_REVIEW 与未决审计项 |
+（暂无）
 
 ## 已完成
 
@@ -42,6 +40,7 @@
 | T-12 | 精读 2021/2023/2024 官方评阅要点，升级拆解文档 §4（官方总则+分题型信号+五条金律） | 2026-08-31 |
 | T-13 | 建立 skill 库与比赛 workflow（产物：`skills/` 7 个阶段 skill + 2 条 workflow；review.py 挂钩评审准则） | 2026-08-31 |
 | T-17 | 从校赛一等奖论文提炼数学表达与排版 Skill（推导链、公式/符号/图表/复现门；含结构审计与前向夹具） | 2026-09-01 |
+| T-19 | 从 MHAgent 赛题 A 结果包反推可复用 Skill 与证据契约（旁路七步契约、校验脚本、迁移说明与独立只读复核） | 2026-09-01 |
 
 ## 远端 main 同步记录（origin/main@ffd6001）
 
