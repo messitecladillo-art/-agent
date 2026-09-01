@@ -77,3 +77,9 @@
 - 配置/数据：前端版本 `v14.2.16` / `workflow-puzzle.js v1.20`；固定路线应用携带预览的完整 `block_ids`；编辑后清空旧 validation，显式检查前发送按钮保持禁用；LIVE bridge 空/失败响应不再回退为本地成功；live URL 缺少宿主桥时直接阻断写操作；异常/重复固定块清单拒绝静默应用；目录 revision 变化会清空旧绿灯，草稿恢复拒绝被 canonical 适配器静默截短的结果。
 - 结果：实时浏览器回归显示固定方案预览 13 块、应用后 13 块；检查中立即插入后 15 块在 0/0.9/3.1 秒均保持，门禁持续“等待检查当前链路”；再次检查后结构可审、发送按钮启用；浏览器日志 0；HTTP 根页、拼图脚本、两张 ImageGen PNG 均 200，越权 PNG 404；后端 `138 passed`。
 - 结论/下一步：本次拼图工作流可作为当前仓库的结构交付；仍需真实题面、参数来源、独立复算和 Owner 审批后才可进入论文/群聊结论。
+
+### 2026-09-01 · T-19 · MHAgent 结果包证据反推 Skill
+- 目的：从用户提供的 MHAgent 赛题 A 导出包中复原可观察的七步能力链，并以旁路契约接入现有 Skill/拼图体系，不覆盖原有方法卡。
+- 配置/数据：只读 `MHAgent_赛题A_全部_20260828_103359.zip`（本机源位置不入库）的 `README.txt`、`manifest.json`、阶段日志和产物清单；未复制题面/论文/数据/代码，未执行压缩包内脚本。
+- 结果：新增 `skills/mhagent-evidence-reconstruction/`（入口、七步 JSON 契约、无依赖校验器）与 `docs/mhagent-reconstructed-workflow.md`；`skills/README.md` 仅新增索引。契约保留日志缺失、累积产物、checkpoint 未知、AUDIT fatal=2/warn=1、论文数据待 Claude 自检和 63/64 页漂移等未决项，状态为 `READY_FOR_REVIEW`。
+- 验证：契约脚本 VALID；`python -X utf8 <CODEX_SKILL_ROOT>/skill-creator/scripts/quick_validate.py skills/mhagent-evidence-reconstruction` 通过；后端 `138 passed`；`node --check workflow-puzzle.js app.js` 通过；`python -m compileall -q backend skills/mhagent-evidence-reconstruction/scripts` 通过；`git diff --check` 通过。下一步：独立只读 Critic/Auditor 复核，关闭关键问题后再合并推送。

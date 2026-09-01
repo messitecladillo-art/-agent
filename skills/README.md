@@ -17,6 +17,7 @@
 | 5 终检 | `06-论文评审与终检.md` | review.py + Qoder | `notes/reviews/` |
 | 辅助 | `07-范文精析.md` | Qoder / Claude API 批量 | `notes/paper-notes/` |
 | 专项 | `08-美赛专项.md` | Qoder | 打美赛时叠加在 01–06 之上 |
+| 证据迁移 | `mhagent-evidence-reconstruction/SKILL.md` | Codex + 独立 Critic/Auditor | `docs/mhagent-reconstructed-workflow.md` |
 
 配套清单：`notes/算法模板盘点.md`（T-07 施工蓝图，七类模板候选 + 移植要点 + 缺口）。
 
@@ -53,6 +54,14 @@
 
 使用时必须先锁定当前竞赛版本与官方格式；结构检查通过不等于数学正确，仍需独立推导、
 数据审计、干净编译、视觉 QA 和 Owner 审批。
+
+## 运行证据反推 Skill（新增）
+
+`mhagent-evidence-reconstruction/` 只负责把外部 Agent 的导出结果包映射为七步能力契约：
+输入、产物、方法链、验证门、交接和未决项。它是现有 01–08 Skills 与拼图工作台的
+迁移/审计层，不会覆盖或替换原有方法卡；契约默认 `READY_FOR_REVIEW`，只有独立复核
+关闭证据冲突后才可升级。入口脚本为 `scripts/validate_step_contract.py`，详细证据边界见
+`docs/mhagent-reconstructed-workflow.md`。
 
 ## 内嵌的五条官方金律（所有 skill 的共同底座）
 

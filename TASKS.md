@@ -22,7 +22,9 @@
 
 ## 待审
 
-（暂无）
+| ID | 任务 | 负责人 | 分支 | 验收证据 |
+|---|---|---|---|---|
+| T-19 | 从 MHAgent 赛题 A 结果包反推可复用 Skill 与证据契约 | Codex（协调） | task/T-19-mhagent-skill-reconstruction | `notes/reviews/T-19-mhagent-skill-reconstruction.md`：独立只读复核 PASS；契约/Skill/JSON/Node/compileall/diff 通过，后端 138 passed；保留 READY_FOR_REVIEW 与未决审计项 |
 
 ## 已完成
 

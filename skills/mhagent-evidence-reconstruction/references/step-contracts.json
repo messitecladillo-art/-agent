@@ -1,0 +1,431 @@
+{
+  "schema_version": "mhagent-reconstruction/v1",
+  "source_kind": "exported-run-evidence",
+  "source_artifact": "MHAgent_赛题A_全部_20260828_103359.zip",
+  "status": "READY_FOR_REVIEW",
+  "observed_limits": {
+    "manifest_sub_steps_pruned": true,
+    "log_entry_cap": 2000,
+    "missing_step_logs": [
+      "comp-prob-analysis",
+      "comp-modeling"
+    ],
+    "output_lists_are_cumulative": true,
+    "model_ids_opaque": true,
+    "checkpoint_runtime_status": "unknown",
+    "external_data_files": 0
+  },
+  "evidence_levels": [
+    "OBSERVED",
+    "INFERRED",
+    "HYPOTHESIS"
+  ],
+  "steps": [
+    {
+      "id": "comp-prob-analysis",
+      "display_name": "赛题分析",
+      "order": 0,
+      "status_observed": "completed",
+      "evidence_confidence": "medium",
+      "inputs": [
+        "题面 DOCX（user_data/赛题A.docx）",
+        "题面抽取文本（user_data/赛题A_extracted.md）",
+        "运行配置（manifest.workflow）"
+      ],
+      "outputs": [
+        "PROBLEM_ANALYSIS.md",
+        "PROBLEM_FACTS.json",
+        "CAPABILITY_CHECKLIST.json",
+        "DATA_PROFILE.json",
+        "user_data/_problem_file.txt"
+      ],
+      "responsibilities": [
+        "锁定题面版本、子问题、单位和硬约束",
+        "把给定事实、规则和待求量登记为可引用字段",
+        "判断外部数据与所需能力，形成后续建模入口"
+      ],
+      "method_chain": [
+        "题面结构化抽取",
+        "事实/规则登记",
+        "能力清单与数据画像"
+      ],
+      "validation_gates": [
+        {
+          "id": "facts-traceable",
+          "check": "每个关键规则可回指题面字段或抽取文本",
+          "level": "INFERRED"
+        },
+        {
+          "id": "units-closed",
+          "check": "单位与换算登记完整，不能用隐含换算进入模型",
+          "level": "INFERRED"
+        }
+      ],
+      "checkpoint_declared": "approve",
+      "handoff_to": [
+        "comp-modeling"
+      ],
+      "evidence_refs": [
+        "manifest.json:steps[0]",
+        "manifest.json:steps[0].output_files",
+        "README.txt"
+      ],
+      "open_questions": [
+        "首步没有对应的 Claude 日志，具体抽取过程只能按 manifest 产物 INFERRED",
+        "checkpoint 仅有声明，未见运行时暂停事件"
+      ],
+      "failure_policy": "题面、单位或规则无法闭环时停止建模，不生成可执行结论。"
+    },
+    {
+      "id": "comp-modeling",
+      "display_name": "建模求解设计",
+      "order": 1,
+      "status_observed": "completed",
+      "evidence_confidence": "medium",
+      "inputs": [
+        "PROBLEM_ANALYSIS.md",
+        "PROBLEM_FACTS.json",
+        "CAPABILITY_CHECKLIST.json",
+        "DATA_PROFILE.json"
+      ],
+      "outputs": [
+        "MODELING_REPORT.md",
+        "CROSS_PROBLEM_LEDGER.json",
+        "模型假设、尺度与不变量登记"
+      ],
+      "responsibilities": [
+        "将子问题拆成可验证的模型链",
+        "说明变量、参数、边界条件、假设和适用范围",
+        "建立跨小问共享参数与 handoff，不让后续代码自行猜参数"
+      ],
+      "method_chain": [
+        "问题拆解与模型决策",
+        "共享参数/派生尺度账本",
+        "硬约束、方法声明与验证计划"
+      ],
+      "validation_gates": [
+        {
+          "id": "assumption-accountability",
+          "check": "每个关键假设写出影响、适用边界和验证方法",
+          "level": "INFERRED"
+        },
+        {
+          "id": "cross-problem-ledger",
+          "check": "Q1→Q2 依赖、共享参数和不变量可机器检查",
+          "level": "OBSERVED"
+        }
+      ],
+      "checkpoint_declared": "feedback",
+      "handoff_to": [
+        "comp-code"
+      ],
+      "evidence_refs": [
+        "manifest.json:steps[1]",
+        "manifest.json:steps[1].output_files",
+        "workspace/MODELING_REPORT.md",
+        "workspace/CROSS_PROBLEM_LEDGER.json"
+      ],
+      "open_questions": [
+        "第二步没有对应的 Claude 日志，方法选择过程不能还原为逐条观察",
+        "报告中的模型正确性仍需独立推导与数值复算"
+      ],
+      "failure_policy": "若变量/边界/参数来源或适用范围不完整，退回题面分析，不进入代码实现。"
+    },
+    {
+      "id": "comp-code",
+      "display_name": "编程实现",
+      "order": 2,
+      "status_observed": "completed",
+      "evidence_confidence": "high",
+      "inputs": [
+        "MODELING_REPORT.md",
+        "CROSS_PROBLEM_LEDGER.json",
+        "PROBLEM_FACTS.json"
+      ],
+      "outputs": [
+        "code/main.py",
+        "code/params.py",
+        "code/data_check.py",
+        "code/utils.py",
+        "code/swe2d.py",
+        "code/problem1.py",
+        "code/twolayer.py",
+        "code/problem2.py",
+        "code/sensitivity_analysis.py",
+        "RESULTS.md",
+        "CAPABILITY_VERDICT.json",
+        "AUDIT_REPORT.md",
+        "DELIVERABLES.json"
+      ],
+      "responsibilities": [
+        "把公式与边界条件实现为可运行求解器",
+        "在入口执行参数、数据、退化情形和可复现性检查",
+        "输出结果、单位、来源和审计报告供图表与论文消费"
+      ],
+      "method_chain": [
+        "参数/数据安全检查",
+        "Q1 浅水方程与 Arakawa C-grid 求解",
+        "Q2 两层约化重力与情景求解",
+        "不变量、敏感性和结果 provenance 审计"
+      ],
+      "validation_gates": [
+        {
+          "id": "solver-reproducible",
+          "check": "requirements、入口命令和结果文件可复现",
+          "level": "OBSERVED"
+        },
+        {
+          "id": "physics-invariants",
+          "check": "共享不变量与退化/边界检查在代码中有证据",
+          "level": "OBSERVED"
+        },
+        {
+          "id": "audit-conflicts-closed",
+          "check": "审计报告中的 fatal/warn 与论文解释逐项裁决",
+          "level": "HYPOTHESIS"
+        }
+      ],
+      "checkpoint_declared": "approve",
+      "handoff_to": [
+        "paper-figure"
+      ],
+      "evidence_refs": [
+        "manifest.json:steps[2]",
+        "workspace/code/main.py",
+        "workspace/code/requirements.txt",
+        "workspace/CAPABILITY_VERDICT.json",
+        "workspace/AUDIT_REPORT.md"
+      ],
+      "open_questions": [
+        "AUDIT_REPORT.md 保留 fatal=2、warn=1：1200/8000/44712 的 SI 换算与 9.49 的舍入上界尚未由独立审计关闭",
+        "结果包的 output_files 为累积列表，不能仅凭列表证明每个文件由本步新增"
+      ],
+      "failure_policy": "任一 fatal、来源冲突或独立复算失败时，阻断图表/论文消费；只能输出带未决标记的中间结果。"
+    },
+    {
+      "id": "paper-figure",
+      "display_name": "数据图表生成",
+      "order": 3,
+      "status_observed": "completed",
+      "evidence_confidence": "high",
+      "inputs": [
+        "RESULTS.md",
+        "代码结果 JSON/CSV",
+        "图表 manifest/recipe"
+      ],
+      "outputs": [
+        "figures/*.pdf（数据图与 TikZ 图）",
+        "TABLE_*.tex",
+        "latex_includes.tex",
+        "FIGURES_REPORT.md",
+        "图表数据与标签登记"
+      ],
+      "responsibilities": [
+        "只从已登记结果生成图表与表格",
+        "保持单位、数量级、图例、编号和论文引用一致",
+        "记录脚本、输入和导出格式，便于重新生成"
+      ],
+      "method_chain": [
+        "图表 recipe 预取",
+        "数据图/表格/TikZ 生成",
+        "标签、数值和版式结构检查"
+      ],
+      "validation_gates": [
+        {
+          "id": "data-lineage",
+          "check": "每张图表可回指结果字段与生成脚本",
+          "level": "INFERRED"
+        },
+        {
+          "id": "figure-structure",
+          "check": "图号、单位、标签和导出文件通过结构检查",
+          "level": "OBSERVED"
+        }
+      ],
+      "checkpoint_declared": "none",
+      "handoff_to": [
+        "paper-figure-html",
+        "comp-paper-zh"
+      ],
+      "evidence_refs": [
+        "manifest.json:steps[3]",
+        "workspace/FIGURES_REPORT.md",
+        "workspace/figures/",
+        "workspace/latex_includes.tex"
+      ],
+      "open_questions": [
+        "图表视觉通过不等于输入数值或数学结论正确，仍依赖代码审计门"
+      ],
+      "failure_policy": "输入字段或单位不可追溯时不生成发布图表，保留诊断清单。"
+    },
+    {
+      "id": "paper-figure-html",
+      "display_name": "流程与架构图绘制",
+      "order": 4,
+      "status_observed": "completed",
+      "evidence_confidence": "high",
+      "inputs": [
+        "MODELING_REPORT.md",
+        "CROSS_PROBLEM_LEDGER.json",
+        "图表/流程清单"
+      ],
+      "outputs": [
+        "figures/fig_roadmap.html",
+        "figures/fig_roadmap.pdf",
+        "HTML/PDF 报告与视觉检查标记"
+      ],
+      "responsibilities": [
+        "把模型链、数据流和交接关系表达为流程/架构图",
+        "保持图示节点与已批准契约一致，不新增数学事实",
+        "检查 HTML 到 PDF 的分页、中文、黑白打印和可读性"
+      ],
+      "method_chain": [
+        "确定流程节点与依赖",
+        "HTML/SVG/CSS 导出",
+        "PDF 几何、字体和视觉 QA"
+      ],
+      "validation_gates": [
+        {
+          "id": "roadmap-consistency",
+          "check": "流程图节点与七步契约/ledger 对齐",
+          "level": "INFERRED"
+        },
+        {
+          "id": "html-pdf-check",
+          "check": "HTML/PDF 转换和版面检查无阻断项",
+          "level": "OBSERVED"
+        }
+      ],
+      "checkpoint_declared": "none",
+      "handoff_to": [
+        "comp-paper-zh"
+      ],
+      "evidence_refs": [
+        "manifest.json:steps[4]",
+        "workspace/figures/fig_roadmap.html",
+        "workspace/figures/fig_roadmap.pdf"
+      ],
+      "open_questions": [
+        "视觉 QA 不能证明流程节点的数学或业务语义正确"
+      ],
+      "failure_policy": "流程图与契约不一致时退回模型设计；PDF 可读性失败时禁止进入论文。"
+    },
+    {
+      "id": "comp-paper-zh",
+      "display_name": "中文竞赛论文撰写",
+      "order": 5,
+      "status_observed": "completed",
+      "evidence_confidence": "high",
+      "inputs": [
+        "MODELING_REPORT.md",
+        "RESULTS.md",
+        "FIGURES_REPORT.md",
+        "figures/",
+        "题面事实与规则登记"
+      ],
+      "outputs": [
+        "main.tex",
+        "sections/*.tex",
+        "main.pdf（中间稿）",
+        "参考文献、公式、图表和附录代码"
+      ],
+      "responsibilities": [
+        "将问题、假设、推导、算法、结果、验证和局限组织成中文论文",
+        "让每个关键公式/图表/结论可交叉引用并可回放",
+        "不掩盖审计未决项，不把代理元数据写进匿名论文"
+      ],
+      "method_chain": [
+        "论文结构与摘要装配",
+        "公式/图表/结论交叉引用",
+        "附录代码与来源说明",
+        "占位符、匿名和 AI 元信息扫描"
+      ],
+      "validation_gates": [
+        {
+          "id": "claim-evidence-matrix",
+          "check": "关键结论均有公式、数据、图表或验证证据",
+          "level": "INFERRED"
+        },
+        {
+          "id": "paper-data-audit",
+          "check": "论文数字与数据审计报告逐项一致",
+          "level": "HYPOTHESIS"
+        }
+      ],
+      "checkpoint_declared": "approve",
+      "handoff_to": [
+        "comp-compile-zh"
+      ],
+      "evidence_refs": [
+        "manifest.json:steps[5]",
+        "workspace/main.tex",
+        "workspace/sections/",
+        "workspace/PAPER_DATA_CHECK_REPORT.md"
+      ],
+      "open_questions": [
+        "PAPER_DATA_CHECK_REPORT.md 仍显示待 Claude 自检，不能视为已完成独立审计",
+        "论文报告与最终编译报告存在 63/64 页快照漂移"
+      ],
+      "failure_policy": "claim matrix、数据审计、匿名或引用门未闭合时只保留草稿，不进入发布编译。"
+    },
+    {
+      "id": "comp-compile-zh",
+      "display_name": "编译与合规检查",
+      "order": 6,
+      "status_observed": "completed",
+      "evidence_confidence": "high",
+      "inputs": [
+        "main.tex 与 sections/*.tex",
+        "figures/",
+        "参考文献与字体",
+        "论文与审计报告"
+      ],
+      "outputs": [
+        "main.pdf（最终快照）",
+        "compile report",
+        "编译日志、引用/表格/页数/匿名检查结果"
+      ],
+      "responsibilities": [
+        "执行可重复的 XeLaTeX/引用编译并收集日志",
+        "检查图表嵌入、页数、表格、字体、引用、匿名和内部路径泄漏",
+        "把编译结果与数学/数据审计状态分开报告"
+      ],
+      "method_chain": [
+        "环境与资源预检",
+        "多遍 LaTeX 编译",
+        "结构/引用/合规审计",
+        "PDF 元数据与视觉 QA"
+      ],
+      "validation_gates": [
+        {
+          "id": "clean-compile",
+          "check": "编译命令、日志和依赖可复现，无严重错误",
+          "level": "OBSERVED"
+        },
+        {
+          "id": "release-compliance",
+          "check": "页数、匿名、引用、表格与资源嵌入满足当前竞赛规则",
+          "level": "INFERRED"
+        },
+        {
+          "id": "semantic-audit-closed",
+          "check": "编译成功不能覆盖上游数据/数学未决项",
+          "level": "HYPOTHESIS"
+        }
+      ],
+      "checkpoint_declared": "none",
+      "handoff_to": [],
+      "evidence_refs": [
+        "manifest.json:steps[6]",
+        "workspace/compile_report",
+        "workspace/main.pdf",
+        "workspace/AUDIT_REPORT.md"
+      ],
+      "open_questions": [
+        "论文报告记载 63 页、最终编译报告记载 64 页，应以带哈希的最新 PDF 快照重新确认",
+        "编译合规通过不代表上游 fatal/warn 已被独立数学审计关闭"
+      ],
+      "failure_policy": "任一编译、资源、匿名或上游审计硬门失败时禁止发布，并返回对应责任步骤。"
+    }
+  ]
+}
