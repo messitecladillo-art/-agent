@@ -1,0 +1,37 @@
+\documentclass{ctexart}
+\usepackage{amsmath,booktabs,graphicx}
+\begin{document}
+\section{模型}
+为回答 Q1，先定义状态量与时间范围。
+\begin{equation}
+  y_t = f(x_t;\theta)+\varepsilon_t,\qquad t\in\mathcal T
+  \label{eq:q1-observation}
+\end{equation}
+其中 $y_t$ 为观测量，单位与数据字典一致。
+\begin{align}
+  \widehat{\theta} &= \arg\min_{\theta\in\Theta} L(\theta),
+    \label{eq:q1-fit}\\
+  L(\theta) &= \sum_{t\in\mathcal T} (y_t-f(x_t;\theta))^2.
+    \label{eq:q1-loss}
+\end{align}
+由式~\eqref{eq:q1-fit} 得到参数估计，再用式~\eqref{eq:q1-loss} 计算误差。
+\begin{table}[htbp]
+  \centering
+  \caption{Q1 参数与单位}
+  \label{tab:q1-parameters}
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    符号 & 单位 \\
+    \midrule
+    $y_t$ & 1 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+\begin{figure}[htbp]
+  \centering
+  \rule{0.5\linewidth}{0.2\linewidth}
+  \caption{Q1 误差示意}
+  \label{fig:q1-error}
+\end{figure}
+图~\ref{fig:q1-error} 与表~\ref{tab:q1-parameters} 用于说明结果范围。
+\end{document}

@@ -59,3 +59,9 @@
 - 配置/数据：前端 `oracle-glass-qingjia-tactile-v14.2.13`；运行时 allowlist manifest 以最终 `/health` 与 catalog 响应为准（本日志为 append-only，追加记录会产生新的 runtime revision）；视口 1440/1366/1350/1340/1321×900、1280/1180/1024×768、1440/1366/1280/1024×720、390×844、360×800。
 - 结果：宽屏标题/状态/搜索命中区无重叠；低高度桌面收束 hero/Q 后至少保留两条完整近期消息；手机 Q 轨改为单行编号/状态，抽屉面板 z20 高于遮罩 z10；所有页面无横向溢出，成功连接提示静默留在顶栏；workspace catalog 86 项/67 项可检索/13 项资产，`skills` 检索返回24项，越权路径 HTTP 400；后端 `100 passed`，compileall、Node syntax、CSS 花括号、密钥/大文件扫描通过。
 - 结论/下一步：视觉与本地运行门槛通过；`source_integrity=STALE_DECLARATION` 仅表示被忽略的旧 `.collab` 声明未更新，不把它当作内容正确性或题面适配证明；生产版仍需真实模型 adapter、RBAC、签名 relay、持久化队列和语义索引。
+
+### 2026-09-01 · T-17 · 一等奖范文数学表达与排版 Skill
+- 目的：从用户提供的校赛一等奖论文中提炼可迁移的数学语言、推导链、公式/图表交叉引用和复现排版门，形成可装配的团队 Skill。
+- 配置/数据：参考 PDF `C:\Users\zyy20\Downloads\数学建模校赛第五版.pdf`，41 页 A4，SHA-256 `6e330b3520ce57b4fa9de3674e3dead4eef7bcf0fcc20ad08af1264f3ba48eae`；只提交抽象规则、结构化契约、审计脚本和正反例夹具。
+- 结果：新增 `skills/math-modeling-mathematical-writing/`（L0–L6 工作流、推导/版式指南、三类注册表、LaTeX/契约审计、前向回归）；Skill 校验、脚本编译、夹具、后端 `134 passed`、Node 语法和 backend compileall 均通过；workspace catalog 检索到入口文件；MiKTeX XeLaTeX 对 good fixture 双遍编译成功，`pdfinfo`/PNG 视觉抽查通过（仅为夹具，不代表正式论文渲染门）。
+- 结论/下一步：本 Skill 以 `READY_FOR_REVIEW` 结构状态交付；它不替代独立数学正确性、官方格式锁定、数据审计和人工渲染 QA。

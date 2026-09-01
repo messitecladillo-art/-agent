@@ -1,0 +1,48 @@
+{
+  "schema": "paper-contract/v1",
+  "input_revision": "git:demo-good",
+  "problem_contract": {
+    "contest": "demo",
+    "edition": "v1",
+    "group": "本科",
+    "problem_id": "A",
+    "subproblems": [
+      {"id": "Q1", "objective": "估计并解释响应", "deliverables": ["数值", "图"]}
+    ]
+  },
+  "variables": [
+    {"id": "data:response", "symbol": "y_t", "meaning": "观测响应", "kind": "input", "unit": "1", "status": "VERIFIED"},
+    {"id": "param:theta", "symbol": "theta", "meaning": "模型参数", "kind": "parameter", "unit": "1", "status": "VERIFIED"}
+  ],
+  "results": ["result:estimate"],
+  "assumptions": [
+    {"id": "asm:noise", "statement": "误差在给定范围内可诊断", "reason": "需要估计不确定性", "status": "HYPOTHESIS"}
+  ],
+  "equations": [
+    {
+      "id": "eq:q1-fit",
+      "label": "eq:q1-fit",
+      "question_id": "Q1",
+      "inputs": ["data:response", "param:theta"],
+      "outputs": ["result:estimate"],
+      "domain": "t in T",
+      "assumptions": ["asm:noise"],
+      "validation_refs": ["val:q1-holdout"],
+      "unit_check": {"status": "VERIFIED", "operation": "add", "terms": ["1", "1"]},
+      "status": "VERIFIED"
+    }
+  ],
+  "crossrefs": {
+    "items": [
+      {"id": "fig:q1-error", "kind": "figure", "label": "fig:q1-error", "caption": "误差范围", "cited_by": ["claim:q1-result"], "source_artifact": "artifacts/q1/error.svg", "generator": "scripts/plot_q1.py", "status": "VERIFIED"}
+    ]
+  },
+  "claims": [
+    {"id": "claim:q1-result", "question_id": "Q1", "text": "误差在预设范围内", "value": "0.10", "scope": "holdout", "evidence_refs": ["fig:q1-error"], "command": "python scripts/run_q1.py", "artifact_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "validation_refs": ["val:q1-holdout"], "status": "VERIFIED"}
+  ],
+  "validation": {
+    "checks": [
+      {"id": "val:q1-holdout", "kind": "holdout", "scope": "holdout", "threshold": "MAE <= 0.2", "command": "python scripts/run_q1.py", "exit_code": 0, "result_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "status": "VERIFIED"}
+    ]
+  }
+}

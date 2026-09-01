@@ -1,0 +1,16 @@
+{
+  "schema": "paper-contract/v1",
+  "input_revision": "git:demo-bad",
+  "problem_contract": {"contest": "demo", "edition": "v1", "group": "本科", "problem_id": "A", "subproblems": [{"id": "Q1", "objective": "估计", "deliverables": ["数值"]}]},
+  "variables": [
+    {"id": "x", "symbol": "x", "meaning": "长度", "kind": "input", "unit": "m", "status": "VERIFIED"},
+    {"id": "y", "symbol": "y", "meaning": "时间", "kind": "input", "unit": "s", "status": "VERIFIED"}
+  ],
+  "equations": [
+    {"id": "eq:bad", "label": "eq:bad", "question_id": "Q1", "inputs": ["x", "y"], "outputs": ["result:z"], "domain": "all", "assumptions": [], "validation_refs": [], "unit_check": {"status": "VERIFIED", "operation": "add", "terms": ["m", "s"]}, "status": "UNVERIFIED"},
+    {"id": "eq:bad", "label": "eq:bad-2", "question_id": "Q9", "inputs": ["unknown"], "outputs": [], "domain": "all", "assumptions": [], "validation_refs": [], "unit_check": {"status": "PENDING", "terms": ["1"]}, "status": "UNVERIFIED"}
+  ],
+  "claims": [
+    {"id": "claim:bad", "question_id": "Q1", "text": "结果很好", "value": "3.2", "scope": "", "evidence_refs": [], "status": "UNVERIFIED"}
+  ]
+}

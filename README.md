@@ -45,7 +45,7 @@ python -m http.server 4173
 
 - AGENTS.md：Qoder、Codex、Antigravity、Claude API 的职责边界与评审规则。
 - TASKS.md：任务状态的唯一事实来源；任务按“待认领 → 进行中 → 待审 → 已完成”流转。
-- skills/：审题、建模、求解、验证、写作、终检、范文精析和美赛专项的可执行方法卡；`notes/算法模板盘点.md` 是算法模板库的施工蓝图。
+- skills/：审题、建模、求解、验证、写作、数学表达与排版、终检、范文精析和美赛专项的可执行方法卡；`notes/算法模板盘点.md` 是算法模板库的施工蓝图。
 - notes/：共享笔记、材料索引和独立评审记录。
 - models/、experiments/、paper/、viz/：模型代码、实验结果、论文与展示产物。
 - scripts/agents/review.py：可选的 Claude API 独立评审脚本；密钥只放在本地 .env，不进入提交。

@@ -1,0 +1,5 @@
+interface:
+  display_name: "数学建模·数学表达与排版"
+  short_description: "面向数学建模论文的推导公式图表与复现质量审计工作流"
+  default_prompt: "Use $math-modeling-mathematical-writing to organize the current modeling paper into an auditable derivation, evidence chain, and reproducible layout."
+  brand_color: "#2F7F78"
