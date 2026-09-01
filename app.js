@@ -60,6 +60,7 @@ let capabilityState = {
 // refreshes during the fixture→live handoff only add latency and can make two
 // callers observe different revisions.
 let capabilityCatalogPromise = null;
+let latexCompileState = { toolchain: null, job: null, pollTimer: null };
 // Monotonic client-side fence: several UI actions can trigger compose calls
 // close together (preset change + content-pack toggle + explicit check).  An
 // older response must never overwrite the newer graph's validation/diff.
@@ -3022,9 +3023,124 @@ function addLocalPendingMessage(text, evidenceRefs = [], metadata = {}) {
   renderMessages();
 }
 
+function latexStatusText(status) {
+  return ({
+    AVAILABLE: '可编译', UNAVAILABLE: '工具链不可用', QUEUED: '排队中',
+    RUNNING: '编译中', SUCCEEDED: '已生成 PDF', FAILED: '编译失败', TIMED_OUT: '超时', EXPIRED: '记录已过期',
+  })[String(status || '').toUpperCase()] || '未核验';
+}
+
+function renderLatexCompile() {
+  const label = document.getElementById('latexStatusLabel');
+  const meta = document.getElementById('latexStatusMeta');
+  const bar = document.getElementById('latexProgressBar');
+  const button = document.getElementById('latexCompileBtn');
+  const link = document.getElementById('latexDownloadLink');
+  if (!label || !meta || !bar || !button || !link) return;
+  const toolchain = latexCompileState.toolchain;
+  const job = latexCompileState.job;
+  const status = job?.status || (toolchain ? (toolchain.available ? 'AVAILABLE' : 'UNAVAILABLE') : 'UNAVAILABLE');
+  label.textContent = latexStatusText(status);
+  label.dataset.status = String(status).toLowerCase();
+  const selectedCompiler = job?.result?.compiler || job?.compiler || toolchain?.compiler || '—';
+  if (!LIVE_API) meta.textContent = '仅实时模式可用 · 当前为演示界面';
+  else if (status === 'UNAVAILABLE') meta.textContent = toolchain?.reason || '未发现可运行的 TeX 引擎；不会自动安装';
+  else if (status === 'AVAILABLE' && toolchain?.default_entrypoint_exists === false) meta.textContent = `${selectedCompiler} · 默认入口不存在，可修改入口文件后编译`;
+  else if (status === 'QUEUED' || status === 'RUNNING') meta.textContent = `${selectedCompiler} · ${job?.entrypoint || 'paper/main.tex'} · 正在更新事件`;
+  else if (status === 'SUCCEEDED') {
+    const result = job.result || {};
+    const pageText = result.pdf_pages ? `${result.pdf_pages} 页` : '页数待 pdfinfo';
+    const sizeText = result.pdf_bytes ? `${Math.ceil(result.pdf_bytes / 1024)} KB` : '大小未知';
+    meta.textContent = `${selectedCompiler} · ${pageText} · ${sizeText} · ${String(result.pdf_sha256 || '').slice(0, 20)}…`;
+  } else if (job?.result?.error_code) meta.textContent = `${selectedCompiler} · ${job.result.error_code} · 日志已截断保存`;
+  else meta.textContent = `${selectedCompiler} · 等待明确编译动作`;
+  const progress = ({ QUEUED: 18, RUNNING: 58, SUCCEEDED: 100, FAILED: 100, TIMED_OUT: 100, EXPIRED: 100, AVAILABLE: 0, UNAVAILABLE: 0 })[status] || 0;
+  bar.style.width = `${progress}%`;
+  bar.dataset.status = String(status).toLowerCase();
+  button.disabled = !LIVE_API || !toolchain?.available || status === 'QUEUED' || status === 'RUNNING';
+  button.textContent = status === 'QUEUED' || status === 'RUNNING' ? '进行中' : '编译';
+  if (status === 'SUCCEEDED' && job?.job_id) {
+    link.hidden = false;
+    link.href = `${LIVE_API}/api/projects/${encodeURIComponent(LIVE_PROJECT)}/latex/jobs/${encodeURIComponent(job.job_id)}/pdf`;
+  } else {
+    link.hidden = true;
+    link.removeAttribute('href');
+  }
+}
+
+function applyLatexEvent(payload) {
+  if (!payload || !String(payload.type || '').startsWith('LATEX_COMPILE_')) return false;
+  const body = payload.payload || {};
+  if (payload.type === 'LATEX_COMPILE_QUEUED') {
+    latexCompileState.job = { ...(latexCompileState.job || {}), ...body, status: 'QUEUED' };
+  } else if (payload.type === 'LATEX_COMPILE_STARTED') {
+    latexCompileState.job = { ...(latexCompileState.job || {}), ...body, status: 'RUNNING' };
+  } else {
+    const finalJob = body.job || body;
+    latexCompileState.job = { ...(latexCompileState.job || {}), ...finalJob, status: finalJob.status || (payload.type.endsWith('FINISHED') ? 'SUCCEEDED' : 'FAILED') };
+  }
+  renderLatexCompile();
+  return true;
+}
+
+async function loadLatexToolchain() {
+  if (!LIVE_API) { latexCompileState.toolchain = { available: false, status: 'UNAVAILABLE', reason: '仅实时 API 支持编译' }; renderLatexCompile(); return; }
+  try {
+    const report = await fetch(`${LIVE_API}/api/projects/${LIVE_PROJECT}/latex/toolchain`).then(response => {
+      if (!response.ok) throw new Error('LATEX_TOOLCHAIN_UNAVAILABLE');
+      return response.json();
+    });
+    latexCompileState.toolchain = report;
+  } catch (_) {
+    latexCompileState.toolchain = { available: false, status: 'UNAVAILABLE', reason: '实时编译服务未连接' };
+  }
+  renderLatexCompile();
+}
+
+async function pollLatexJob(jobId) {
+  if (!LIVE_API || !jobId) return;
+  if (latexCompileState.pollTimer) window.clearTimeout(latexCompileState.pollTimer);
+  try {
+    const job = await fetch(`${LIVE_API}/api/projects/${LIVE_PROJECT}/latex/jobs/${encodeURIComponent(jobId)}`).then(response => {
+      if (!response.ok) throw new Error('LATEX_JOB_UNAVAILABLE');
+      return response.json();
+    });
+    latexCompileState.job = job;
+    renderLatexCompile();
+    if (['SUCCEEDED', 'FAILED', 'TIMED_OUT', 'UNAVAILABLE', 'EXPIRED'].includes(String(job.status))) return;
+    latexCompileState.pollTimer = window.setTimeout(() => pollLatexJob(jobId), 1200);
+  } catch (_) {
+    latexCompileState.pollTimer = window.setTimeout(() => pollLatexJob(jobId), 1800);
+  }
+}
+
+async function startLatexCompile() {
+  if (!LIVE_API) { showToast('演示模式不执行编译；请使用 ?live=1 连接本地服务'); return; }
+  if (!latexCompileState.toolchain?.available) { showToast('未发现可运行的 LaTeX 工具链；先在部署环境安装并重新探测'); return; }
+  const baseRevision = liveRevision || runtimeContext.inputRevision;
+  if (!/^(manifest|source):[a-f0-9]{64}$/i.test(String(baseRevision || ''))) { showToast('当前 revision 未锁定；同步完成后再编译'); return; }
+  const input = document.getElementById('latexEntrypoint');
+  const entrypoint = input?.value.trim() || 'paper/main.tex';
+  const button = document.getElementById('latexCompileBtn');
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch(`${LIVE_API}/api/projects/${LIVE_PROJECT}/latex/compile`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entrypoint, compiler: 'auto', engine: 'auto', clean: true, base_revision: baseRevision, idempotency_key: newClientId('latex') }) });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload?.detail?.code || 'LATEX_QUEUE_FAILED');
+    latexCompileState.job = { job_id: payload.job_id, status: payload.status, entrypoint };
+    renderLatexCompile();
+    pollLatexJob(payload.job_id);
+    showToast(`已排队编译 ${entrypoint}`);
+  } catch (error) {
+    renderLatexCompile();
+    showToast(`编译未排队（${error.message}）；未生成伪造 PDF`);
+  }
+}
+
 function appendLiveEvent(payload) {
   if (!payload || !payload.event_id || seenLiveEvents.has(payload.event_id)) return;
   seenLiveEvents.add(payload.event_id);
+  applyLatexEvent(payload);
   if (!eventRows.some(row => row && row.event_id === payload.event_id)) eventRows.push(payload);
   const eventSeq = Number(payload.seq || 0);
   const advancesCursor = eventSeq >= liveSeq;
@@ -3220,6 +3336,7 @@ function applyLiveSnapshot(snapshot) {
   });
   if (Array.isArray(snapshot.events)) {
     snapshot.events.forEach(event => {
+      applyLatexEvent(event);
       if (event?.event_id && !eventRows.some(row => row.event_id === event.event_id)) eventRows.push(event);
     });
   }
@@ -3492,6 +3609,7 @@ function bindEvents() {
   pauseButton?.addEventListener('click', () => { collaborationPaused = !collaborationPaused; localStoreSet('qingjia.collaborationPaused', collaborationPaused); syncPauseButton(); showToast(collaborationPaused ? '已暂停本地出站动作；仍接收事件与快照' : '已恢复本地出站动作'); });
   document.getElementById('newTaskBtn')?.addEventListener('click', openNewTaskModal);
   document.getElementById('approveAllBtn')?.addEventListener('click', openApprovalQueue);
+  document.getElementById('latexCompileBtn')?.addEventListener('click', startLatexCompile);
   document.getElementById('protocolBtn').addEventListener('click', () => showModal('agent-collab/v1', '<p>所有 Agent 使用统一 task/result/review/relay envelope；版本、哈希、身份、能力和证据必须可追溯。</p><pre>submit → poll → fetch_output → send_followup → cancel</pre>'));
   document.getElementById('settingsBtn').addEventListener('click', () => showModal('群组设置', '<h3>默认门禁</h3><ul><li>Coordinator：当前 Codex 根任务</li><li>最大 Agent：8 · 最大并行：4 · 深度：1</li><li>敏感数据：默认禁止外传</li><li>P0/P1 未关闭：禁止 ACCEPTED / RELEASED</li></ul>'));
   document.getElementById('inviteBtn')?.addEventListener('click', openInviteModal);
@@ -3783,4 +3901,5 @@ renderRuntimeContext(); renderMembers(); renderTasks(); renderDecisions(); rende
 if (LIVE_API) loadKnowledgeSummary();
 if (LIVE_API) loadCapabilityCatalog();
 if (LIVE_API) loadWorkspaceCatalog();
+loadLatexToolchain();
 if (LIVE_API_BLOCKED) showToast('已阻止未列入 allowlist 的实时 API；当前保持 SIMULATED 演示');

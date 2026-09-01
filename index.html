@@ -196,6 +196,13 @@
           </div>
 
           <div class="right-content" id="tasksPanel" hidden>
+            <section class="latex-compile-card" aria-label="LaTeX 与 PDF 实时编译">
+              <div class="latex-compile-head"><div><span class="section-kicker">PAPER BUILD</span><h3>LaTeX · PDF 实时编译</h3></div><span class="latex-status-pill" id="latexStatusLabel">探测中</span></div>
+              <div class="latex-compile-form"><label for="latexEntrypoint">入口文件</label><div class="latex-compile-row"><input id="latexEntrypoint" value="paper/main.tex" maxlength="240" spellcheck="false" aria-describedby="latexStatusMeta"><button type="button" class="mini-action primary" id="latexCompileBtn" disabled>编译</button></div></div>
+              <div class="latex-progress-track"><span id="latexProgressBar"></span></div>
+              <div class="latex-compile-meta" id="latexStatusMeta">正在读取本地工具链 · 不会自动执行</div>
+              <a class="latex-download-link" id="latexDownloadLink" hidden target="_blank" rel="noreferrer">打开最新 PDF</a>
+            </section>
             <div class="run-card">
               <div class="run-card-head"><span class="run-status"><i></i> RUNNING · 演示快照</span><span class="run-id" id="runIdLabel">RUN-MF-2026-0831</span></div>
               <h3>A题 · 决策模型运行</h3>

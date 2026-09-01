@@ -43,6 +43,7 @@ try:  # Works both as ``backend.app`` and as ``app`` from the backend folder.
     )
     from .problem_contract import build_problem_contract
     from .repo_catalog import CatalogPathError, WorkspaceCatalog
+    from .latex_compiler import CompileInputError, CompilerConfig, LatexCompiler
 except ImportError:  # pragma: no cover - exercised by the documented launch command
     from orchestrator import acceptance_blocked, canonical_path, validate_dependency_graph, write_sets_conflict
     from model_gateway import ModelGateway, ModelRequest, default_profiles
@@ -59,6 +60,7 @@ except ImportError:  # pragma: no cover - exercised by the documented launch com
     )
     from problem_contract import build_problem_contract
     from repo_catalog import CatalogPathError, WorkspaceCatalog
+    from latex_compiler import CompileInputError, CompilerConfig, LatexCompiler
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1139,6 +1141,17 @@ class RerunIn(BaseModel):
     idempotency_key: str = Field(min_length=1, max_length=200)
 
 
+class LatexCompileIn(BaseModel):
+    """Explicit user-triggered compile request for the paper workspace."""
+
+    entrypoint: str = Field(default="paper/main.tex", min_length=1, max_length=240)
+    compiler: Literal["auto", "tectonic", "latexmk", "xelatex", "lualatex", "pdflatex"] = "auto"
+    engine: Literal["auto", "xelatex", "lualatex", "pdflatex"] = "auto"
+    clean: bool = True
+    base_revision: str = Field(min_length=1, max_length=200)
+    idempotency_key: str = Field(min_length=1, max_length=200)
+
+
 class FindingCloseIn(BaseModel):
     actor_id: str = Field(min_length=1, max_length=120)
     evidence_ref: str = Field(min_length=1, max_length=300)
@@ -1445,6 +1458,15 @@ class EventStore:
 
 
 store = EventStore(os.getenv("COLLAB_STATE_FILE"))
+# LaTeX jobs are intentionally process-local for this offline-first MVP.  The
+# generated PDF/logs live below runtime/latex and are never exposed through the
+# generic static-file route.
+latex_compiler = LatexCompiler(CompilerConfig(root=ROOT, build_root=ROOT / "runtime" / "latex"))
+latex_jobs: Dict[str, Dict[str, Any]] = {}
+MAX_ACTIVE_LATEX_JOBS = 2
+MAX_LATEX_JOB_HISTORY = 48
+latex_queue_lock: Optional[asyncio.Lock] = None
+latex_queue_lock_loop: Optional[asyncio.AbstractEventLoop] = None
 app = FastAPI(title="G-CUP MAS Local API", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:4173", "http://127.0.0.1:4173"], allow_credentials=False, allow_methods=["GET", "POST"], allow_headers=["*"])
 
@@ -3231,6 +3253,217 @@ async def request_rerun(run_id: str, request: RerunIn) -> Dict[str, Any]:
         payload={"target_revision": request.target_revision, "reason": request.reason},
     )
     return {"accepted": True, "status": "QUEUED", "event": event.model_dump(), "revision": event.revision or store.revision}
+
+
+def _latex_job_snapshot(job: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a JSON-safe, path-redacted job projection for API/WS clients."""
+    result = job.get("result")
+    if hasattr(result, "to_dict"):
+        result = result.to_dict()
+    payload = dict(job)
+    payload["result"] = result
+    payload.pop("absolute_path", None)
+    return payload
+
+
+def _get_latex_queue_lock() -> asyncio.Lock:
+    """Keep queue admission atomic while remaining safe across TestClient loops."""
+    global latex_queue_lock, latex_queue_lock_loop
+    loop = asyncio.get_running_loop()
+    if latex_queue_lock is None or (latex_queue_lock_loop is not loop and not latex_queue_lock.locked()):
+        latex_queue_lock = asyncio.Lock()
+        latex_queue_lock_loop = loop
+    elif latex_queue_lock_loop is not loop:
+        raise RuntimeError("LaTeX queue is already active on another event loop")
+    return latex_queue_lock
+
+
+async def _run_latex_job(job_id: str, request: LatexCompileIn) -> None:
+    job = latex_jobs.get(job_id)
+    if not job:
+        return
+    job["status"] = "RUNNING"
+    job["started_at"] = utc_now()
+    await store.append(
+        actor_id="coordinator",
+        event_type="LATEX_COMPILE_STARTED",
+        payload={"job_id": job_id, "entrypoint": request.entrypoint, "compiler": request.compiler, "engine": request.engine},
+        idempotency_key=f"{job_id}:started",
+    )
+    try:
+        result = await asyncio.to_thread(
+            latex_compiler.compile_tex,
+            request.entrypoint,
+            compiler=request.compiler,
+            engine=request.engine,
+            job_id=job_id,
+            clean=request.clean,
+        )
+        result_payload = result.to_dict()
+    except Exception as error:  # pragma: no cover - defensive process boundary
+        result_payload = {
+            "job_id": job_id,
+            "status": "FAILED",
+            "entrypoint": request.entrypoint,
+            "compiler": request.compiler,
+            "engine": request.engine,
+            "started_at": job.get("started_at"),
+            "finished_at": utc_now(),
+            "duration_ms": None,
+            "log_tail": "编译任务在服务边界异常终止。",
+            "pdf_path": None,
+            "pdf_sha256": None,
+            "pdf_pages": None,
+            "pdf_bytes": None,
+            "error_code": "INTERNAL_COMPILER_ERROR",
+        }
+        # Do not copy process exception text into the API projection: TeX
+        # engines may echo absolute host paths or environment details.
+    job["status"] = result_payload.get("status", "FAILED")
+    job["finished_at"] = result_payload.get("finished_at") or utc_now()
+    job["result"] = result_payload
+    event_type = "LATEX_COMPILE_FINISHED" if job["status"] == "SUCCEEDED" else "LATEX_COMPILE_FAILED"
+    await store.append(
+        actor_id="coordinator",
+        event_type=event_type,
+        payload={"job": _latex_job_snapshot(job)},
+        idempotency_key=f"{job_id}:finished",
+    )
+
+
+@app.get("/api/projects/{project_id}/latex/toolchain")
+async def latex_toolchain(project_id: str) -> Dict[str, Any]:
+    if project_id != PROJECT_ID:
+        raise HTTPException(status_code=404, detail="project not found")
+    report = (await asyncio.to_thread(latex_compiler.detect_toolchain)).to_dict()
+    # The UI only needs availability/engine. Do not expose the host's
+    # absolute executable path through a browser-facing capability endpoint.
+    if report.get("executable"):
+        report["executable"] = Path(str(report["executable"])).name
+    try:
+        latex_compiler.validate_entrypoint("paper/main.tex")
+        default_entrypoint_exists = True
+        default_entrypoint_error = None
+    except CompileInputError as error:
+        default_entrypoint_exists = False
+        default_entrypoint_error = str(error)
+    report.update({
+        "project_id": project_id,
+        "default_entrypoint": "paper/main.tex",
+        "default_entrypoint_exists": default_entrypoint_exists,
+        "default_entrypoint_error": default_entrypoint_error,
+        "output_policy": "runtime/latex/<job_id>/; read-only PDF download route",
+        "live_mode": "explicit_job_with_websocket_events",
+    })
+    return report
+
+
+@app.post("/api/projects/{project_id}/latex/compile", status_code=202)
+async def queue_latex_compile(project_id: str, request: LatexCompileIn) -> Dict[str, Any]:
+    if project_id != PROJECT_ID:
+        raise HTTPException(status_code=404, detail="project not found")
+    validate_revision(request.base_revision, "base_revision")
+    try:
+        latex_compiler.validate_entrypoint(request.entrypoint)
+    except CompileInputError as error:
+        raise HTTPException(status_code=422, detail={"code": str(error), "field": "entrypoint"}) from error
+    async with _get_latex_queue_lock():
+        is_replay = any(item.idempotency_key == request.idempotency_key for item in store.events)
+        if not is_replay:
+            active_jobs = sum(1 for item in latex_jobs.values() if item.get("status") in {"QUEUED", "RUNNING"})
+            if active_jobs >= MAX_ACTIVE_LATEX_JOBS:
+                raise HTTPException(status_code=429, detail={"code": "LATEX_QUEUE_FULL", "active_jobs": active_jobs, "limit": MAX_ACTIVE_LATEX_JOBS})
+            # Keep the in-memory status projection and controlled runtime
+            # directories bounded; only terminal jobs are eligible for cleanup.
+            if len(latex_jobs) >= MAX_LATEX_JOB_HISTORY:
+                terminal = [item for item in latex_jobs.values() if item.get("status") not in {"QUEUED", "RUNNING"}]
+                for old in sorted(terminal, key=lambda item: str(item.get("finished_at") or item.get("queued_at") or ""))[: max(1, len(latex_jobs) - MAX_LATEX_JOB_HISTORY + 1)]:
+                    old_id = str(old.get("job_id"))
+                    latex_jobs.pop(old_id, None)
+                    try:
+                        latex_compiler.cleanup_job(old_id)
+                    except CompileInputError:
+                        pass
+        # Deriving the id from the idempotency key makes the event fingerprint
+        # stable across network retries, while avoiding user-controlled paths.
+        job_token = hashlib.sha256(request.idempotency_key.encode("utf-8")).hexdigest()[:24]
+        job_id = f"latex-{job_token}"
+        event = await store.append(
+            actor_id="owner",
+            event_type="LATEX_COMPILE_QUEUED",
+            base_revision=request.base_revision,
+            idempotency_key=request.idempotency_key,
+            payload={
+                "job_id": job_id,
+                "entrypoint": request.entrypoint,
+                "compiler": request.compiler,
+                "engine": request.engine,
+                "clean": request.clean,
+            },
+        )
+        # Idempotent retries reuse the first event's job id and never launch a
+        # second process. The request fingerprint is checked by EventStore.
+        job_id = str(event.payload.get("job_id", job_id))
+        if is_replay and job_id not in latex_jobs:
+            # A bounded-history eviction may remove the runtime projection,
+            # while the append-only event remains authoritative. Never turn a
+            # late retry into a second compiler process.
+            return {
+                "accepted": True,
+                "status": "EXPIRED",
+                "job_id": job_id,
+                "event": event.model_dump(),
+                "revision": event.revision or store.revision,
+            }
+        if job_id not in latex_jobs:
+            latex_jobs[job_id] = {
+                "job_id": job_id,
+                "status": "QUEUED",
+                "entrypoint": request.entrypoint,
+                "compiler": request.compiler,
+                "engine": request.engine,
+                "clean": request.clean,
+                "queued_at": utc_now(),
+                "base_revision": request.base_revision,
+                "result": None,
+            }
+            asyncio.create_task(_run_latex_job(job_id, request))
+        return {
+            "accepted": True,
+            "status": "QUEUED" if latex_jobs[job_id].get("status") in {"QUEUED", "RUNNING"} else latex_jobs[job_id].get("status"),
+            "job_id": job_id,
+            "event": event.model_dump(),
+            "revision": event.revision or store.revision,
+        }
+
+
+@app.get("/api/projects/{project_id}/latex/jobs/{job_id}")
+async def latex_job_status(project_id: str, job_id: str) -> Dict[str, Any]:
+    if project_id != PROJECT_ID:
+        raise HTTPException(status_code=404, detail="project not found")
+    job = latex_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail={"code": "LATEX_JOB_NOT_FOUND"})
+    return _latex_job_snapshot(job)
+
+
+@app.get("/api/projects/{project_id}/latex/jobs/{job_id}/pdf")
+async def latex_job_pdf(project_id: str, job_id: str) -> FileResponse:
+    if project_id != PROJECT_ID:
+        raise HTTPException(status_code=404, detail="project not found")
+    job = latex_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail={"code": "LATEX_JOB_NOT_FOUND"})
+    if job.get("status") != "SUCCEEDED" or not isinstance(job.get("result"), dict):
+        raise HTTPException(status_code=409, detail={"code": "PDF_NOT_READY", "status": job.get("status")})
+    relative_path = job["result"].get("pdf_path")
+    try:
+        pdf_path = latex_compiler.resolve_pdf(job_id, str(relative_path or ""))
+    except CompileInputError as error:
+        code = str(error)
+        status = 404 if code in {"PDF_NOT_FOUND", "INVALID_PDF_PATH"} else 400
+        raise HTTPException(status_code=status, detail={"code": code}) from error
+    return FileResponse(pdf_path, media_type="application/pdf", filename=pdf_path.name)
 
 
 @app.websocket("/ws/projects/{project_id}")

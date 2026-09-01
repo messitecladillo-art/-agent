@@ -33,6 +33,10 @@ python -m uvicorn backend.app:app --host 127.0.0.1 --port 8787
 - `GET /api/model-profiles`
 - `POST /api/model-route`（只读能力路由预览，不会调用供应商）
 - `POST /api/runs/{run_id}/rerun`
+- `GET /api/projects/{project_id}/latex/toolchain`
+- `POST /api/projects/{project_id}/latex/compile`（显式入队；固定参数、超时、日志上限）
+- `GET /api/projects/{project_id}/latex/jobs/{job_id}`
+- `GET /api/projects/{project_id}/latex/jobs/{job_id}/pdf`（仅 `SUCCEEDED` 且路径通过白名单时开放）
 - `WS /ws/projects/{project_id}`
 - `GET /api/projects/{project_id}/knowledge/summary`（只读资料盘点）
 - `GET /api/projects/{project_id}/knowledge/search` / `retrieve`（限量检索与短片段）
@@ -47,6 +51,8 @@ python -m uvicorn backend.app:app --host 127.0.0.1 --port 8787
 传到浏览器；检索结果使用严格格式的 `kbdoc:kbdoc_<16位hex>` 文档级引用，不能绕过现有 validation/artifact/release 门禁；当前切片尚未承诺 PDF 页码级 `kbchunk` 定位。
 
 本地服务提供原子 revision/CAS、完整 SHA-256 revision、请求指纹幂等、事件序号/分页、`prev_hash → event_hash` 日志链、断线补发、任务 lease/fencing/reclaim、结果回执、Owner 审批门和 `PENDING_RELAY` 外部边界。revision 输入必须是 `manifest:<64 hex>` 或 `source:<64 hex>`；显式建模结果还会经过题型、双检查族、scope/threshold、exit code 和结果 hash 的 `validation_gate`，并在 accept/release 前检查 `artifact_manifest` 与 `paper_claims` 的 provenance。旧适配器结果保留为 `UNVERIFIED` 迁移状态，不能直接验收。默认状态在内存中；设置 `COLLAB_STATE_FILE=runtime/collab-state.json` 可启用单进程的原子 JSON journal，进程重启后可恢复。它不等同于多进程数据库；生产版必须替换成 SQLite WAL/Postgres、OIDC/RBAC、真正的签名 relay、文件沙箱和审计存储。`COLLAB_RELAY_SECRET` 仅用于本地 HMAC 演示，不能当生产身份系统。
+
+LaTeX/PDF 编译器是任务抽屉里的显式实时 job：工具链探测、`QUEUED → RUNNING → SUCCEEDED/FAILED/TIMED_OUT` 状态和 `LATEX_COMPILE_*` 事件沿用同一 revision/CAS/幂等/WebSocket 边界。入口仅允许仓库相对 `.tex` 文件，输出隔离在 `runtime/latex/<job_id>/`，不会通过静态 catch-all 暴露。详见 [`docs/latex-pdf-live-compiler.md`](../docs/latex-pdf-live-compiler.md)。当前实现为单进程、本地受信源 MVP，不能直接当公网沙箱；目标服务器必须重新探测 XeLaTeX/Poppler，并在生产部署前补上持久化队列、低权限沙箱、网络禁用、OIDC/RBAC 与下载鉴权。
 
 ### 一个最小 API 流程
 

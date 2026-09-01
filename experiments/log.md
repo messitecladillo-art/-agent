@@ -83,3 +83,9 @@
 - 配置/数据：只读 `MHAgent_赛题A_全部_20260828_103359.zip`（本机源位置不入库）的 `README.txt`、`manifest.json`、阶段日志和产物清单；未复制题面/论文/数据/代码，未执行压缩包内脚本。
 - 结果：新增 `skills/mhagent-evidence-reconstruction/`（入口、七步 JSON 契约、无依赖校验器）与 `docs/mhagent-reconstructed-workflow.md`；`skills/README.md` 仅新增索引。契约保留日志缺失、累积产物、checkpoint 未知、AUDIT fatal=2/warn=1、论文数据待 Claude 自检和 63/64 页漂移等未决项，状态为 `READY_FOR_REVIEW`。
 - 验证：契约脚本 VALID；`python -X utf8 <CODEX_SKILL_ROOT>/skill-creator/scripts/quick_validate.py skills/mhagent-evidence-reconstruction` 通过；后端 `138 passed`；`node --check workflow-puzzle.js app.js` 通过；`python -m compileall -q backend skills/mhagent-evidence-reconstruction/scripts` 通过；`git diff --check` 通过。下一步：独立只读 Critic/Auditor 复核，关闭关键问题后再合并推送。
+
+### 2026-09-02 · T-20 · LaTeX/PDF 实时编译器接入
+- 目的：将论文编译接入现有任务抽屉、revision/CAS、事件流和 WebSocket，同时保持输入/产物边界可审计。
+- 配置/数据：基线 `25f7782d6b80c60f316881c1d49deecc343bd074`；新增安全编译内核、编译器/API 测试、任务卡和接口文档；不向空的 `paper/` 写入示例论文。
+- 结果：本机工具链探测实际跳过不可运行的 `latexmk`（Perl 缺失），选中可运行 XeLaTeX；Poppler `pdfinfo/pdftoppm` 可定位；专用编译器/API 测试 `13 passed`，后端全量 `151 passed`。日志脱敏覆盖混合分隔符与 TeX 跨行路径夹具；API 对入口不存在、绝对路径、越界路径同步拒绝。当前无 `paper/main.tex`，未生成伪造 PDF；独立 Critic 判定本地受信源 MVP `PASS`（P1=0）。
+- 结论/下一步：已完成本地接入；生产部署仍需目标环境重新探测、staged source/OS 沙箱、持久化有界队列、OIDC/RBAC 与下载鉴权；编译成功不改变数学 claim 或 Owner 发布门。
