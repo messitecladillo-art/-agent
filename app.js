@@ -60,6 +60,50 @@ let capabilityState = {
 // older response must never overwrite the newer graph's validation/diff.
 let assemblyValidationEpoch = 0;
 
+// The shell has several social-chat surfaces (conversation tabs, channels,
+// threads and an event stream).  Keep their view state in one small client
+// projection so a click always changes something observable and the same
+// state can be reconstructed after a live snapshot.  These values never
+// masquerade as server facts: local-only changes are labelled as such in the
+// UI and are intentionally not sent to an external provider.
+let activeConversationFilter = 'all';
+let activeChannel = '主议事群';
+let collaborationPaused = false;
+let eventRows = [];
+let localApprovals = [];
+let localAttachments = [];
+let localChannels = [];
+let threadRoots = [];
+let notificationRead = false;
+let modalReturnFocus = null;
+
+function newClientId(prefix = 'ui') {
+  try {
+    if (window.crypto?.randomUUID) return `${prefix}-${window.crypto.randomUUID()}`;
+  } catch (_) { /* old browsers / restricted contexts */ }
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function localStoreGet(key, fallback) {
+  try {
+    const value = window.localStorage.getItem(key);
+    return value === null ? fallback : JSON.parse(value);
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function localStoreSet(key, value) {
+  try { window.localStorage.setItem(key, JSON.stringify(value)); } catch (_) { /* private mode */ }
+}
+
+try {
+  activeChannel = String(localStoreGet('qingjia.activeChannel', activeChannel) || activeChannel);
+  activeConversationFilter = String(localStoreGet('qingjia.conversationFilter', activeConversationFilter) || activeConversationFilter);
+  collaborationPaused = Boolean(localStoreGet('qingjia.collaborationPaused', false));
+  localChannels = Array.isArray(localStoreGet('qingjia.localChannels', [])) ? localStoreGet('qingjia.localChannels', []) : [];
+} catch (_) { /* keep deterministic defaults */ }
+
 const capabilityContentPacks = [
   { id: 'problem-evidence', title: '题面证据', note: '题面、附件、单位与约束', query: '历年赛题 附件 约束 单位' },
   { id: 'paper-structure', title: '范文结构', note: '问题分析、模型链、验证章节', query: '优秀论文 问题分析 模型假设 验证' },
@@ -708,7 +752,7 @@ function mergeSnapshotTasks(serverTasks) {
     const hasManifestEvidence = Boolean(serverTask.manifest_linked || serverTask.result?.manifest_linked || serverTask.result?.validation_gate?.ready && (serverTask.result?.artifact_refs || []).length);
     let safeStatus = serverTask.status;
     if (['VERIFIED', 'ACCEPTED', 'RELEASED'].includes(safeStatus) && !hasManifestEvidence) safeStatus = 'UNVERIFIED';
-    const mapped = { state: taskUiState(safeStatus), owner: serverTask.owner || serverTask.claimed_by || 'Coordinator', meta: safeStatus === 'UNVERIFIED' ? `${serverTask.status} · provenance 未闭合` : (serverTask.status || '已同步'), status: safeStatus, rawStatus: serverTask.status, subproblemId: serverTask.subproblem_id || serverTask.subproblemId };
+    const mapped = { state: taskUiState(safeStatus), owner: serverTask.owner || serverTask.claimed_by || 'Coordinator', meta: safeStatus === 'UNVERIFIED' ? `${serverTask.status} · provenance 未闭合` : (serverTask.status || '已同步'), status: safeStatus, rawStatus: serverTask.status, subproblemId: serverTask.subproblem_id || serverTask.subproblemId, rawTask: JSON.parse(JSON.stringify(serverTask)) };
     if (existing) Object.assign(existing, mapped);
     else tasks.push({ id: serverTask.id, title: serverTask.title || '未命名任务', icon: mapped.state === 'verified' || mapped.state === 'accepted' || mapped.state === 'released' ? '✓' : mapped.state === 'blocked' ? '!' : '·', ...mapped });
   });
@@ -756,6 +800,10 @@ function projectLiveControl(payload) {
 
 function projectLiveSnapshotCollections(snapshot) {
   const approvals = snapshot.approvals || [];
+  // Keep the server projection separate from local decision labels.  The
+  // approval queue can therefore show exactly what was recorded and what is
+  // still only a UI draft.
+  localApprovals = Array.isArray(approvals) ? JSON.parse(JSON.stringify(approvals)) : [];
   if (approvals.length) {
     const button = document.getElementById('approveAllBtn');
     if (button) button.innerHTML = `审批已记录 · ${approvals.length} 项 <span>→</span>`;
@@ -829,7 +877,8 @@ function renderDecisions() {
     <article class="decision-card" data-decision="${item.id}">
       <h4>${escapeHTML(item.title)}</h4><p>${escapeHTML(item.body)}</p>
       <div class="decision-meta"><span class="mini-avatar ${item.color}">${dragonIcon(dragonMemberAsset(dragonDecisionMember(item)), { className: 'dragon-mini-avatar' })}</span><span>${escapeHTML(item.label)} · 需要群主决定</span></div>
-      <div class="decision-actions"><button class="decision-approve" data-action="approve">批准</button><button class="decision-more" data-action="inspect">展开证据</button></div>
+      <div class="decision-actions"><button class="decision-approve" data-action="approve" ${item.decision ? 'disabled' : ''}>${escapeHTML(item.decision === 'reject' ? '已拒绝' : item.decision === 'approve' ? '已批准' : '批准')}</button><button class="decision-reject" data-action="reject" ${item.decision ? 'disabled' : ''}>拒绝</button><button class="decision-more" data-action="inspect">展开证据</button></div>
+      ${item.decision ? `<div class="decision-recorded"><span class="tag ${item.decision === 'approve' ? 'teal' : 'rose'}">${escapeHTML(item.decision === 'approve' ? '已记录批准' : '已记录拒绝')}</span><small>${escapeHTML(item.decisionSource || '本地视图')}</small></div>` : ''}
     </article>`).join('');
 }
 
@@ -861,6 +910,94 @@ function isSameMessageGroup(previous, current) {
   let delta = Math.abs(currentMinutes - previousMinutes);
   if (delta > 720) delta = 1440 - delta;
   return delta <= 2;
+}
+
+function canonicalChannelLabel(value) {
+  const raw = String(value || '').trim();
+  const aliases = {
+    main: '主议事群',
+    总控: '主议事群',
+    '主议事群': '主议事群',
+    data: '题面与数据',
+    '题面与数据': '题面与数据',
+    modeling: '建模方案',
+    '建模方案': '建模方案',
+    algorithm: '算法与仿真',
+    '算法与仿真': '算法与仿真',
+    verify: '验证与质疑',
+    '验证与质疑': '验证与质疑',
+    paper: '论文与答辩',
+    '论文与答辩': '论文与答辩',
+    knowledge: '资料库',
+    '资料库': '资料库',
+  };
+  return aliases[raw] || raw || '主议事群';
+}
+
+function inferredMessageChannel(message) {
+  const explicit = message?.channel || message?.channelName;
+  if (explicit) return canonicalChannelLabel(explicit);
+  if (message?.type === 'system' || message?.type === 'date') return '主议事群';
+  const member = String(message?.member || '').toLowerCase();
+  const kind = String(message?.kind || '');
+  if (member === 'data' || member === 'scope' || /题面|数据|泄漏/.test(String(message?.text || ''))) return '题面与数据';
+  if (member === 'routea' || member === 'routeb' || /路线|模型|方案|量纲/.test(String(message?.text || ''))) return '建模方案';
+  if (member === 'validator' || member === 'critic' || /验证|质疑|反例|finding|回测/.test(String(message?.text || ''))) return '验证与质疑';
+  if (kind === '装配' || kind === '复跑') return '算法与仿真';
+  if (kind === '论文' || kind === '答辩') return '论文与答辩';
+  return '主议事群';
+}
+
+function messageMatchesView(message) {
+  if (message?.type === 'system' || message?.type === 'date') return true;
+  const filter = activeConversationFilter;
+  if (filter === 'private') return message.private === true || message.visibility === 'private' || message.channel === 'private';
+  if (filter === 'mentions') {
+    const text = String(message.text || '');
+    return message.member === 'owner' || Array.isArray(message.mentions) && message.mentions.some(item => ['owner', 'user'].includes(String(item))) || /@(?:我|owner|群主|青禾)/i.test(text);
+  }
+  if (filter === 'group' && (message.private === true || message.visibility === 'private' || message.channel === 'private')) return false;
+  if (!activeChannel || activeChannel === '主议事群' || activeChannel === '总控') return true;
+  return inferredMessageChannel(message) === canonicalChannelLabel(activeChannel);
+}
+
+function visibleMessages() {
+  return messages.filter(messageMatchesView);
+}
+
+function activeViewLabel() {
+  const labels = { all: '全部', group: '群组', private: '私聊', mentions: '@我' };
+  return labels[activeConversationFilter] || '全部';
+}
+
+function setActiveConversationFilter(filter) {
+  const allowed = new Set(['all', 'group', 'private', 'mentions']);
+  activeConversationFilter = allowed.has(filter) ? filter : 'all';
+  localStoreSet('qingjia.conversationFilter', activeConversationFilter);
+  document.querySelectorAll('.conversation-tab').forEach(tab => {
+    const selected = tab.dataset.filter === activeConversationFilter;
+    tab.classList.toggle('active', selected);
+    tab.setAttribute('aria-selected', String(selected));
+  });
+  renderMessages();
+  showToast(`已切换到${activeViewLabel()}视图 · ${visibleMessages().filter(item => !['system', 'date'].includes(item.type)).length} 条消息`);
+}
+
+function setActiveChannel(channel, options = {}) {
+  const label = canonicalChannelLabel(channel);
+  activeChannel = label;
+  localStoreSet('qingjia.activeChannel', activeChannel);
+  document.querySelectorAll('.channel-item').forEach(item => {
+    item.classList.toggle('active', canonicalChannelLabel(item.dataset.channel) === label);
+  });
+  const title = document.querySelector('.chat-title-wrap h2');
+  const subtitle = document.querySelector('.chat-title-wrap span');
+  if (title) title.textContent = label;
+  if (subtitle) subtitle.textContent = label === '主议事群' ? '所有关键结论都必须留下证据' : `频道摘要 · ${label} 的任务与证据`;
+  document.querySelector('.chat-panel')?.setAttribute('data-active-channel', label);
+  renderMessages();
+  if (label === '资料库') openKnowledgePanel();
+  if (!options.silent) showToast(`已切换到 #${label}`);
 }
 
 function safeMessageAttachmentUrl(value) {
@@ -904,10 +1041,12 @@ function renderMessageAttachments(attachments) {
 
 function renderMessages() {
   const feed = document.getElementById('chatFeed');
-  feed.innerHTML = messages.map((message, messageIndex) => {
+  if (!feed) return;
+  const viewMessages = visibleMessages();
+  feed.innerHTML = viewMessages.map((message, messageIndex) => {
     if (message.type === 'system') return `<div class="system-note"><span class="system-icon">${dragonIcon('mark', { className: 'dragon-system-icon' })}</span><span>${escapeHTML(message.text)}</span></div>`;
     if (message.type === 'date') return `<div class="date-divider">${escapeHTML(message.text)}</div>`;
-    const previousMessage = messages[messageIndex - 1];
+    const previousMessage = viewMessages[messageIndex - 1];
     const isContinuation = isSameMessageGroup(previousMessage, message);
     const member = getMember(message.member);
     const tagHtml = (message.tags || []).map(([label, color]) => `<span class="tag ${color}">${escapeHTML(label)}</span>`).join('');
@@ -945,6 +1084,9 @@ function renderMessages() {
       <div class="message-body"><div class="message-meta" title="${escapeHTML(metaTitle)}"><span class="message-name">${escapeHTML(displayName)}</span><span class="message-role">${escapeHTML(roleText)}</span><span class="message-time">${escapeHTML(message.time || '')}</span></div>
       <div class="message-bubble"><p><span class="tag message-kind-tag ${kindClass[kind] || 'blue'}">${escapeHTML(kind)}</span>${message.text || ''}</p>${quoteHtml}${attachmentHtml}${provenanceHtml}</div></div></article>`;
   }).join('');
+  if (!viewMessages.some(message => message.type !== 'system' && message.type !== 'date')) {
+    feed.innerHTML = `<div class="filtered-empty"><span class="filtered-empty-mark">${dragonIcon('mark', { className: 'dragon-empty-icon' })}</span><strong>当前视图暂无消息</strong><p>${escapeHTML(activeConversationFilter === 'private' ? '暂无私聊记录；切换到“群组”查看协作消息。' : `#${activeChannel} 暂无可显示的消息；切换频道或视图继续浏览。`)}</p></div>`;
+  }
   // Font loading and responsive reflow can change the feed height a frame
   // after the HTML is painted.  Align once now and once after layout so the
   // latest Owner message is actually visible on a small screen, rather than
@@ -2112,19 +2254,579 @@ async function sendAssemblyToChat() {
 }
 
 function showModal(title, body) {
-  document.getElementById('modalBody').innerHTML = `<h2 id="modalTitle">${escapeHTML(title)}</h2>${body}`;
-  document.getElementById('modalBackdrop').hidden = false;
+  const modalBody = document.getElementById('modalBody');
+  const backdrop = document.getElementById('modalBackdrop');
+  if (!modalBody || !backdrop) return;
+  modalReturnFocus = document.activeElement;
+  modalBody.innerHTML = `<h2 id="modalTitle">${escapeHTML(title)}</h2>${body}`;
+  backdrop.hidden = false;
+  document.body.classList.add('modal-open');
+  const firstControl = modalBody.querySelector('input, textarea, select, button:not(.modal-close), a[href]');
+  window.setTimeout(() => firstControl?.focus(), 0);
 }
 
-function closeModal() { document.getElementById('modalBackdrop').hidden = true; }
+function closeModal() {
+  const backdrop = document.getElementById('modalBackdrop');
+  if (!backdrop) return;
+  backdrop.hidden = true;
+  document.body.classList.remove('modal-open');
+  try { modalReturnFocus?.focus?.(); } catch (_) { /* detached control */ }
+  modalReturnFocus = null;
+}
+
+function openMobileMoreModal() {
+  showModal('群聊更多功能', `<p class="mobile-more-intro">常用的群聊入口收在这里，保持主界面专注于当前讨论。</p><div class="mobile-more-actions" role="menu" aria-label="群聊更多功能"><button type="button" class="mobile-more-action" data-mobile-more-action="threads" role="menuitem"><span class="mobile-more-action-icon">↯</span><span><strong>线程</strong><small>查看质疑与回应</small></span><span>›</span></button><button type="button" class="mobile-more-action" data-mobile-more-action="events" role="menuitem"><span class="mobile-more-action-icon">⟲</span><span><strong>事件流</strong><small>回放协作事实源</small></span><span>›</span></button><button type="button" class="mobile-more-action" data-mobile-more-action="filter" role="menuitem"><span class="mobile-more-action-icon">⌁</span><span><strong>会话筛选</strong><small>全部 · 群组 · 私聊 · @我</small></span><span>›</span></button><button type="button" class="mobile-more-action" data-mobile-more-action="channels" role="menuitem"><span class="mobile-more-action-icon">☷</span><span><strong>频道管理</strong><small>切换或新建协作频道</small></span><span>›</span></button></div>`);
+}
+
+function apiErrorCode(error, fallback = 'REQUEST_FAILED') {
+  const detail = error?.payload?.detail;
+  if (detail && typeof detail === 'object') return String(detail.code || detail.message || fallback);
+  return String(detail || error?.message || fallback);
+}
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  let payload = null;
+  try { payload = await response.json(); } catch (_) { /* empty/non-json response */ }
+  if (!response.ok) {
+    const error = new Error(apiErrorCode({ payload }, `HTTP_${response.status}`));
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
+  }
+  return payload || {};
+}
+
+function plainText(value) {
+  const node = document.createElement('div');
+  node.innerHTML = String(value || '');
+  return node.textContent || node.innerText || '';
+}
+
+function parseSearchQuery(query) {
+  const raw = String(query || '').trim();
+  const filters = {};
+  const rest = raw.replace(/(?:^|\s)(task|status|agent|claim|channel):("[^"]+"|[^\s]+)/gi, (whole, key, value) => {
+    filters[String(key).toLowerCase()] = String(value || '').replace(/^"|"$/g, '').toLowerCase();
+    return ' ';
+  }).replace(/\s+/g, ' ').trim().toLowerCase();
+  return { raw, filters, terms: rest ? rest.split(' ').filter(Boolean) : [] };
+}
+
+function searchableMessageText(message) {
+  return [message.member, message.kind, message.text, message.taskId, message.task_id, message.subproblemId, message.subproblem_id, ...(message.evidenceRefs || []), ...(((message.tags || []).flat?.() || []))].filter(Boolean).join(' ');
+}
+
+function runLocalSearch(query) {
+  const parsed = parseSearchQuery(query);
+  const matches = [];
+  const add = (kind, id, title, detail, target) => {
+    const haystack = `${title} ${detail} ${id}`.toLowerCase();
+    if (parsed.filters.task && !haystack.includes(parsed.filters.task) && !String(target?.taskId || '').toLowerCase().includes(parsed.filters.task)) return;
+    if (parsed.filters.status && !haystack.includes(parsed.filters.status)) return;
+    if (parsed.filters.agent && !haystack.includes(parsed.filters.agent)) return;
+    if (parsed.filters.claim && !haystack.includes(parsed.filters.claim)) return;
+    if (parsed.filters.channel && !haystack.includes(parsed.filters.channel)) return;
+    if (parsed.terms.some(term => !haystack.includes(term))) return;
+    matches.push({ kind, id: String(id || newClientId('result')), title, detail, target });
+  };
+  messages.filter(item => item.type !== 'system' && item.type !== 'date').forEach(item => add('消息', item.id, `${getMember(item.member).name} · ${item.kind || '进展'}`, plainText(item.text), { messageId: item.id, taskId: item.taskId || item.task_id }));
+  tasks.forEach(item => add('任务', item.id, `${item.id} · ${item.title}`, `${item.status || item.state || ''} · ${item.owner || ''} · ${item.meta || ''}`, { taskId: item.id }));
+  evidence.forEach(item => add('证据', item.title, item.title, `${item.status || 'UNVERIFIED'} · ${item.meta || ''}`, { evidence: item.title }));
+  (knowledgeState.results || []).forEach(item => {
+    const id = item.doc_id || item.docId || item.id;
+    add('资料', id, item.title || item.name || id, item.snippet || item.path || item.module || '', { kbDoc: id, kbItem: item });
+  });
+  eventRows.slice(-200).forEach(item => add('事件', item.event_id, `${item.type || 'EVENT'} · ${item.actor_id || ''}`, eventText(item.payload || {}), { eventId: item.event_id, taskId: item.task_id }));
+  return { parsed, matches: matches.slice(0, 80) };
+}
+
+function renderSearchResults(query) {
+  const root = document.getElementById('searchResults');
+  const meta = document.getElementById('searchResultMeta');
+  if (!root) return;
+  const { parsed, matches } = runLocalSearch(query);
+  if (meta) meta.textContent = query ? `${matches.length} 条本地匹配 · ${contextModeLabel()}` : '输入关键词开始搜索';
+  if (!query.trim()) {
+    root.innerHTML = '<div class="search-empty"><strong>搜索群聊与证据</strong><span>支持 task:G7 · status:P1 · agent:Critic · claim:C-17</span></div>';
+    return;
+  }
+  if (!matches.length) {
+    root.innerHTML = `<div class="search-empty"><strong>没有匹配结果</strong><span>已按当前消息、任务、证据、已载入资料和事件索引检索。</span><button type="button" class="decision-more" data-search-kb="${escapeHTML(parsed.terms.join(' '))}">在资料库继续检索</button></div>`;
+    return;
+  }
+  root.innerHTML = matches.map(item => {
+    const targetAttrs = item.target?.messageId ? `data-search-message="${escapeHTML(item.target.messageId)}"` : item.target?.taskId ? `data-search-task="${escapeHTML(item.target.taskId)}"` : item.target?.evidence ? `data-search-evidence="${escapeHTML(item.target.evidence)}"` : item.target?.kbDoc ? `data-search-kb-doc="${escapeHTML(item.target.kbDoc)}"` : item.target?.eventId ? `data-search-event="${escapeHTML(item.target.eventId)}"` : '';
+    return `<button type="button" class="search-result-row" ${targetAttrs}><span class="search-result-kind">${escapeHTML(item.kind)}</span><span class="search-result-copy"><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(item.detail.slice(0, 180))}</small></span><span class="search-result-arrow">${dragonIcon('mark', { className: 'dragon-affordance' })}</span></button>`;
+  }).join('');
+}
+
+function openSearch(initial = '') {
+  showModal('搜索群聊与证据', `<form id="globalSearchForm" class="global-search-form"><div class="global-search-input-row"><input id="globalSearchInput" name="q" autofocus autocomplete="off" value="${escapeHTML(initial)}" placeholder="搜索 claim、task_id、文件名或 Agent…"/><button type="submit" class="approve-button">搜索</button></div><p class="search-syntax">支持：claim:C-17 · task:G7 · status:P1 · agent:Critic · 关键词</p></form><div class="search-result-meta" id="searchResultMeta"></div><div id="searchResults" class="search-results"></div>`);
+  renderSearchResults(initial);
+}
+
+function focusMessage(messageId) {
+  const target = document.querySelector(`[data-message-id="${CSS.escape(String(messageId))}"]`);
+  if (!target) {
+    // The target can be hidden by a channel/filter.  Return to the main view so
+    // a search result never appears to do nothing.
+    activeConversationFilter = 'all';
+    activeChannel = '主议事群';
+    setActiveConversationFilter('all');
+    setActiveChannel('主议事群', { silent: true });
+  }
+  const visible = document.querySelector(`[data-message-id="${CSS.escape(String(messageId))}"]`);
+  if (visible) {
+    visible.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    visible.classList.add('search-focus');
+    window.setTimeout(() => visible.classList.remove('search-focus'), 1600);
+  }
+}
+
+function eventRowMarkup(row) {
+  const payload = row?.payload || {};
+  const status = payload.status || payload.provenance_status || row?.status || 'RECORDED';
+  const task = row?.task_id || payload.task_id || '—';
+  return `<div class="event-row"><div class="event-row-top"><span class="event-seq">#${escapeHTML(row?.seq || '—')}</span><strong>${escapeHTML(row?.type || 'EVENT')}</strong><span class="event-actor">${escapeHTML(row?.actor_id || 'unknown')}</span><time>${escapeHTML(timeFromTimestamp(row?.timestamp))}</time></div><div class="event-row-body"><span>${escapeHTML(eventText(payload))}</span><span class="event-status">${escapeHTML(status)}</span></div><div class="event-row-meta"><code>${escapeHTML(row?.event_id || '—')}</code><span>task ${escapeHTML(task)}</span><code title="${escapeHTML(row?.event_hash || '')}">${escapeHTML(compactRevision(row?.event_hash || row?.revision || 'UNVERIFIED', 18))}</code></div></div>`;
+}
+
+function renderEventModalRows() {
+  const root = document.getElementById('eventRows');
+  const meta = document.getElementById('eventModalMeta');
+  if (!root) return;
+  const rows = [...eventRows].sort((a, b) => Number(a.seq || 0) - Number(b.seq || 0)).slice(-300);
+  if (meta) meta.textContent = `${rows.length} 条 · ${LIVE_API ? (liveConnected ? 'LIVE · 已连接' : 'LIVE · 等待连接') : 'SIMULATED · fixture'}`;
+  root.innerHTML = rows.length ? rows.map(eventRowMarkup).join('') : `<div class="search-empty"><strong>暂无事件</strong><span>${LIVE_API ? '事实源尚无可回放事件。' : '演示事件会在发送消息或操作工作台后出现。'}</span></div>`;
+}
+
+async function openEventsModal() {
+  showModal('事件流 · append-only', `<div class="modal-toolbar"><span id="eventModalMeta">读取中…</span><button type="button" class="decision-more" id="refreshEventsBtn">刷新</button></div><p>事件流是协作事实源，群聊只是它的可读投影。每一行都显示序号、操作者、任务、状态和哈希；缺口不会被静默填补。</p><div id="eventRows" class="event-rows"><div class="search-empty"><strong>正在读取事件</strong></div></div>`);
+  if (LIVE_API) {
+    try {
+      const payload = await fetchJson(`${LIVE_API}/api/projects/${LIVE_PROJECT}/events?after_seq=0&limit=500`);
+      (payload.events || []).forEach(row => {
+        if (row?.event_id && !eventRows.some(existing => existing.event_id === row.event_id)) eventRows.push(row);
+      });
+    } catch (error) {
+      const root = document.getElementById('eventRows');
+      if (root) root.innerHTML = `<div class="search-empty"><strong>事件读取失败</strong><span>${escapeHTML(apiErrorCode(error, 'EVENT_REPLAY_UNAVAILABLE'))} · 将保留本地已收事件</span></div>`;
+    }
+  } else if (!eventRows.length) {
+    // Build an explicitly simulated projection from fixture messages.  It is
+    // useful for learning the protocol, but never presented as a server log.
+    eventRows = messages.filter(item => item.type !== 'system' && item.type !== 'date').map((item, index) => ({ event_id: item.id || `fixture-${index}`, seq: index + 1, timestamp: item.time, actor_id: item.member, type: item.kind || 'MESSAGE', payload: { text: plainText(item.text), task_id: item.taskId, status: item.status || 'PRODUCED' }, event_hash: 'fixture:unverified' }));
+  }
+  renderEventModalRows();
+  document.getElementById('refreshEventsBtn')?.addEventListener('click', () => openEventsModal());
+}
+
+function threadCandidates() {
+  return messages.filter(item => item.type !== 'system' && item.type !== 'date' && (item.actions?.length || item.kind === '质疑' || item.kind === '审查' || /@/.test(String(item.text || '')) || item.threadRootId));
+}
+
+function threadRowMarkup(item) {
+  return `<button type="button" class="thread-row" data-thread-root="${escapeHTML(item.id)}"><span class="thread-avatar">${dragonIcon(dragonMemberAsset(getMember(item.member)), { className: 'dragon-mini-avatar' })}</span><span class="thread-copy"><strong>${escapeHTML(getMember(item.member).name)} · ${escapeHTML(item.kind || '讨论')}</strong><small>${escapeHTML(plainText(item.text).slice(0, 150))}</small><em>${escapeHTML(item.taskId || 'task:unassigned')} · ${escapeHTML(item.status || 'UNVERIFIED')}</em></span><span class="search-result-arrow">${dragonIcon('mark', { className: 'dragon-affordance' })}</span></button>`;
+}
+
+function openThreadsModal(rootId = '') {
+  const candidates = threadCandidates();
+  const selected = candidates.find(item => item.id === rootId) || candidates[0];
+  const rows = candidates.map(threadRowMarkup).join('');
+  const selectedText = selected ? `<div class="thread-root-card"><span class="tag rose">根消息</span><p>${escapeHTML(plainText(selected.text))}</p><small>${escapeHTML(getMember(selected.member).name)} · ${escapeHTML(selected.taskId || 'unassigned')}</small></div>` : '<div class="search-empty"><strong>暂无开放线程</strong><span>对消息执行“发起反驳线程”即可建立一个本地可追踪讨论。</span></div>';
+  showModal('线程 · 质疑与回应', `<div class="modal-toolbar"><span>${candidates.length} 个待跟进讨论 · ${contextModeLabel()}</span><button type="button" class="decision-more" id="refreshThreadsBtn">刷新</button></div><div class="thread-layout"><div class="thread-list">${rows || '<div class="search-empty"><strong>暂无线程</strong></div>'}</div><div class="thread-detail">${selectedText}${selected ? `<form id="threadReplyForm" class="thread-reply-form" data-thread-root="${escapeHTML(selected.id)}"><label>回复这条讨论<textarea name="reply" rows="3" placeholder="写下反例、验证计划或需要 Owner 裁决的点…" required></textarea></label><button type="submit" class="approve-button">发送回应</button><small>LIVE 会写入事件源；SIMULATED 仅加入本地演示群聊。</small></form>` : ''}</div></div>`);
+  document.getElementById('refreshThreadsBtn')?.addEventListener('click', () => openThreadsModal(rootId));
+  // The reply form also carries `data-thread-root`; binding the row handler to
+  // every matching element would rebuild the modal on submit before the
+  // delegated submit listener could run.  Restrict this listener to thread
+  // navigation rows and leave the form lifecycle untouched.
+  document.querySelectorAll('.thread-row[data-thread-root]').forEach(button => button.addEventListener('click', () => openThreadsModal(button.dataset.threadRoot)));
+}
+
+async function submitThreadReply(form) {
+  const rootId = form.dataset.threadRoot;
+  const input = form.querySelector('textarea');
+  const text = input?.value.trim();
+  if (!text || collaborationPaused) {
+    if (collaborationPaused) showToast('协作已暂停；线程回应暂存前请先恢复协作');
+    return;
+  }
+  const root = messages.find(item => item.id === rootId);
+  const taskId = root?.taskId || 'G7';
+  // A reply is part of the conversation the Owner is currently reading.  The
+  // old prototype always wrote ``main`` here, so a reply made from a scoped
+  // channel was accepted but immediately disappeared behind that channel's
+  // filter.  Preserve the canonical server spelling for the main room while
+  // carrying an explicit label for every other channel.
+  const replyChannel = activeChannel === '主议事群' ? 'main' : activeChannel;
+  if (LIVE_API) {
+    if (!liveRevision) { showToast('事件源 revision 尚未同步，暂不能回复线程'); return; }
+    const ok = await postLiveMessage(text, document.getElementById('composerMode')?.value || 'full', [], { threadRootId: rootId, taskId, channel: replyChannel });
+    if (ok) { closeModal(); showToast('线程回应已写入事件源'); }
+    return;
+  }
+  messages.push(normalizeProvenance({ id: newClientId('thread'), member: 'owner', time: timeFromTimestamp(), kind: '群聊', channel: replyChannel, text: escapeHTML(text), tags: [['线程回应', 'violet']], status: 'PRODUCED', claimClass: 'hypothesis', taskId, subproblemId: root?.subproblemId || 'Q4', targetRevision: runtimeContext.controlRevision, evidenceRefs: [], threadRootId: rootId }, 'fixture'));
+  renderMessages();
+  closeModal();
+  showToast('线程回应已加入本地演示群聊 · SIMULATED');
+}
+
+function taskOwnerOptions(selected = 'coordinator') {
+  const rows = [{ id: 'coordinator', label: 'Coordinator（可由适配器领取）' }, ...members.map(member => ({ id: member.id, label: `${member.name} · ${member.shortModel || member.model}` }))];
+  return rows.map(row => `<option value="${escapeHTML(row.id)}" ${row.id === selected ? 'selected' : ''}>${escapeHTML(row.label)}</option>`).join('');
+}
+
+function openNewTaskModal() {
+  const maxTaskNumber = Math.max(10, ...tasks.map(item => Number(String(item.id).replace(/\D/g, '')) || 0));
+  const nextId = `G${maxTaskNumber + 1}`;
+  showModal('新建协作任务', `<form id="newTaskForm" class="task-form"><p>群主定义目标后，Coordinator 会生成可追踪的 task envelope。${LIVE_API ? '当前为 LIVE：提交会写入本地事实源。' : '当前为 SIMULATED：提交只写入本地浏览器视图。'}</p><div class="form-grid"><label>任务 ID<input name="taskId" value="${escapeHTML(nextId)}" pattern="[A-Za-z0-9][A-Za-z0-9_.\\-]{0,39}" required></label><label>负责人<select name="ownerId">${taskOwnerOptions()}</select></label><label class="form-span">标题<input name="title" placeholder="例如：补充 Q3 的敏感性验证" required maxlength="300"></label><label class="form-span">目标<textarea name="objective" rows="3" placeholder="写清输入、交付物、验收条件和停止条件…" required maxlength="5000"></textarea></label><label>模式<select name="mode"><option value="full">FULL 协作</option><option value="lite">LITE 审查</option><option value="solo">SOLO 单 Agent</option></select></label><label>依赖<input name="dependsOn" placeholder="G3, G5（可留空）"></label><label class="form-span">写集<input name="writeSet" value="artifacts/${escapeHTML(nextId)}" placeholder="artifacts/G10"></label></div><div class="form-actions"><button type="button" class="decision-more" data-modal-cancel>取消</button><button type="submit" class="approve-button">创建任务</button></div><p class="form-note">写集只允许相对路径；不会自动执行模型或修改原始资料。</p></form>`);
+}
+
+function parseCsv(value) {
+  return String(value || '').split(',').map(item => item.trim()).filter(Boolean);
+}
+
+async function submitNewTask(form) {
+  if (collaborationPaused) { showToast('协作已暂停；恢复后再创建任务'); return; }
+  const data = new FormData(form);
+  const task = {
+    task_id: String(data.get('taskId') || '').trim(),
+    title: String(data.get('title') || '').trim(),
+    owner_id: String(data.get('ownerId') || 'coordinator').trim(),
+    reviewer_id: 'validator',
+    objective: String(data.get('objective') || '').trim(),
+    depends_on: parseCsv(data.get('dependsOn')),
+    write_set: parseCsv(data.get('writeSet')),
+    capabilities: { source: 'ui', requested: ['bounded_write', 'evidence_trace'] },
+    acceptance: ['返回 task/result envelope', '至少一条可复核证据', '独立审查后再进入 VERIFIED'],
+    input_revision: runtimeContext.inputRevision,
+    base_revision: liveRevision || runtimeContext.controlRevision,
+    mode: String(data.get('mode') || 'full'),
+    requested_by: 'owner',
+    idempotency_key: newClientId('dispatch'),
+  };
+  if (!task.task_id || !task.title || !task.objective) { showToast('请补全任务 ID、标题和目标'); return; }
+  if (LIVE_API) {
+    if (!liveRevision || !/^manifest:[0-9a-f]{64}$/i.test(String(task.input_revision || ''))) { showToast('实时输入/控制 revision 尚未就绪，暂不能派发'); return; }
+    try {
+      const payload = await fetchJson(`${LIVE_API}/api/projects/${LIVE_PROJECT}/dispatch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(task) });
+      liveRevision = payload.revision || liveRevision;
+      setRuntimeContext({ controlRevision: liveRevision });
+      mergeSnapshotTasks([payload.task]);
+      if (payload.event) ingestLiveEvent(payload.event, LIVE_API, false);
+      closeModal();
+      showToast(`任务 ${task.task_id} 已写入事件源，等待 ${task.owner_id} 领取`);
+    } catch (error) {
+      if (apiErrorCode(error) === 'STALE_REVISION') await refreshLiveSnapshotWithNotice('版本已变化，已刷新快照；请确认后重试');
+      else showToast(`任务派发失败：${apiErrorCode(error)}`);
+    }
+    return;
+  }
+  const localTask = { id: task.task_id, title: task.title, owner: task.owner_id, meta: '刚创建 · 等待本地适配器', status: 'QUEUED', state: 'wait', subproblemId: window.selectedSubproblem || 'Q2', source: 'local_ui', rawTask: task };
+  const existing = tasks.find(item => item.id === localTask.id);
+  if (existing) { showToast(`任务 ID ${localTask.id} 已存在`); return; }
+  tasks.push(localTask);
+  renderTasks();
+  messages.push(normalizeProvenance({ id: newClientId('dispatch'), member: 'owner', time: timeFromTimestamp(), kind: '派发', text: escapeHTML(`已创建任务 ${task.task_id}：${task.title}。等待 ${task.owner_id} 领取。`), tags: [['TASK_DISPATCHED', 'blue'], ['SIMULATED', 'amber']], status: 'PRODUCED', claimClass: 'derived', taskId: task.task_id, subproblemId: window.selectedSubproblem || 'Q2', targetRevision: runtimeContext.controlRevision, evidenceRefs: [] }, 'fixture'));
+  renderMessages();
+  closeModal();
+  showToast(`任务 ${task.task_id} 已加入本地队列 · SIMULATED`);
+}
+
+async function refreshLiveSnapshotWithNotice(notice = '') {
+  if (!LIVE_API) return false;
+  try {
+    const snapshot = await fetchJson(`${LIVE_API}/api/projects/${LIVE_PROJECT}/snapshot`);
+    applyLiveSnapshot(snapshot);
+    if (notice) showToast(notice);
+    return true;
+  } catch (error) {
+    showToast(`快照刷新失败：${apiErrorCode(error)}`);
+    return false;
+  }
+}
+
+async function requeueTask(task) {
+  if (!task || !['blocked', 'failed', 'timeout'].includes(String(task.state || task.status || '').toLowerCase())) {
+    showToast('只有 BLOCKED / FAILED / TIMEOUT 任务可以重新排队');
+    return;
+  }
+  const reason = window.prompt('重新排队原因（会写入审计记录）', '已补充缺失证据，等待重新执行');
+  if (!reason?.trim()) return;
+  if (collaborationPaused) { showToast('协作已暂停；恢复后再重新排队'); return; }
+  const taskId = task.id;
+  if (LIVE_API) {
+    if (!liveRevision) { showToast('控制 revision 尚未同步'); return; }
+    try {
+      const payload = await fetchJson(`${LIVE_API}/api/tasks/${encodeURIComponent(taskId)}/requeue`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: 'owner', reason: reason.trim(), evidence_refs: [], target_revision: liveRevision, idempotency_key: newClientId('requeue') }) });
+      liveRevision = payload.revision || liveRevision;
+      setRuntimeContext({ controlRevision: liveRevision });
+      if (payload.task) mergeSnapshotTasks([payload.task]);
+      if (payload.event) ingestLiveEvent(payload.event, LIVE_API, false);
+      closeModal();
+      showToast(`${taskId} 已重新排队`);
+    } catch (error) {
+      if (apiErrorCode(error) === 'STALE_REVISION') await refreshLiveSnapshotWithNotice('任务版本已变化，已刷新快照');
+      else showToast(`重新排队失败：${apiErrorCode(error)}`);
+    }
+    return;
+  }
+  task.status = 'QUEUED'; task.state = 'wait'; task.meta = '已重新排队 · 等待本地适配器';
+  renderTasks(); renderMessages(); closeModal(); showToast(`${taskId} 已重新排队 · SIMULATED`);
+}
+
+function decisionScope(item) {
+  const scopes = { 'dec-1': 'route:routeB', 'dec-2': 'assumption:theta', 'dec-3': 'external:antigravity' };
+  return scopes[item?.id] || `decision:${item?.id || 'unknown'}`;
+}
+
+function decisionState(item) {
+  return item?.decision || localApprovals.find(row => row.scope === decisionScope(item))?.decision || '';
+}
+
+function approvalRowMarkup(item) {
+  const decision = decisionState(item);
+  const stateLabel = decision ? (decision === 'approve' ? '已批准' : decision === 'reject' ? '已拒绝' : '已记录') : '待决定';
+  return `<article class="approval-queue-row" data-approval-decision="${escapeHTML(item.id)}"><div><span class="tag ${decision === 'approve' ? 'teal' : decision === 'reject' ? 'rose' : 'amber'}">${escapeHTML(stateLabel)}</span><strong>${escapeHTML(item.title)}</strong><p>${escapeHTML(item.body)}</p><small>scope: ${escapeHTML(decisionScope(item))}</small></div><div class="approval-queue-actions"><button type="button" class="decision-approve" data-approval-action="approve" ${decision ? 'disabled' : ''}>批准</button><button type="button" class="decision-reject" data-approval-action="reject" ${decision ? 'disabled' : ''}>拒绝</button><button type="button" class="decision-more" data-approval-action="inspect">证据</button></div></article>`;
+}
+
+function renderApprovalQueueRows() {
+  const root = document.getElementById('approvalQueueRows');
+  const meta = document.getElementById('approvalQueueMeta');
+  if (!root) return;
+  const recorded = localApprovals.length;
+  if (meta) meta.textContent = `${decisions.length} 项决策 · ${recorded} 条服务端记录 · ${contextModeLabel()}`;
+  root.innerHTML = decisions.map(approvalRowMarkup).join('');
+}
+
+function openApprovalQueue() {
+  showModal('群主审批队列', `<div class="modal-toolbar"><span id="approvalQueueMeta">读取中…</span><button type="button" class="decision-more" id="refreshApprovalsBtn">刷新</button></div><p>批准只记录 Owner 决策，不会自动发布、执行模型或向外部平台发送数据。外部 relay 仍需单独的范围与版本校验。</p><div id="approvalQueueRows" class="approval-queue-rows"></div>`);
+  renderApprovalQueueRows();
+  document.getElementById('refreshApprovalsBtn')?.addEventListener('click', async () => {
+    if (LIVE_API) await refreshLiveSnapshotWithNotice('审批快照已刷新');
+    renderApprovalQueueRows();
+  });
+}
+
+async function recordDecision(itemId, verdict) {
+  const item = decisions.find(row => row.id === itemId);
+  if (!item) return;
+  if (collaborationPaused) { showToast('协作已暂停；Owner 审批仍可查看，但请恢复后记录'); return; }
+  const scope = decisionScope(item);
+  const decision = verdict === 'approve' ? 'approve' : 'reject';
+  if (LIVE_API) {
+    if (!liveRevision || !/^manifest:[0-9a-f]{64}$/i.test(String(liveRevision))) { showToast('控制 revision 尚未就绪，暂不能记录审批'); return; }
+    try {
+      const payload = await fetchJson(`${LIVE_API}/api/projects/${LIVE_PROJECT}/approvals`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ owner_id: 'owner', scope, decision, target_revision: liveRevision, base_revision: liveRevision, note: `UI decision ${item.id}: ${item.title}`, idempotency_key: newClientId('approval') }) });
+      localApprovals.push(payload.approval || { scope, decision, target_revision: liveRevision, status: 'RECORDED' });
+      item.decision = decision; item.decisionSource = 'LIVE · 事件源';
+      liveRevision = payload.revision || liveRevision;
+      setRuntimeContext({ controlRevision: liveRevision });
+      if (payload.event) ingestLiveEvent(payload.event, LIVE_API, false);
+      renderDecisions(); renderApprovalQueueRows();
+      showToast(`已记录 Owner ${decision === 'approve' ? '批准' : '拒绝'}：${item.title}`);
+    } catch (error) {
+      if (apiErrorCode(error) === 'STALE_REVISION') await refreshLiveSnapshotWithNotice('审批版本已变化，已刷新快照');
+      else showToast(`审批记录失败：${apiErrorCode(error)}`);
+    }
+    return;
+  }
+  item.decision = decision;
+  item.decisionSource = 'SIMULATED · 本地视图';
+  localApprovals.push({ approval_id: newClientId('approval'), owner_id: 'owner', scope, decision, target_revision: runtimeContext.controlRevision, status: 'LOCAL_ONLY' });
+  renderDecisions(); renderApprovalQueueRows();
+  showToast(`已记录本地 Owner ${decision === 'approve' ? '批准' : '拒绝'} · SIMULATED`);
+}
+
+function allChannelLabels() {
+  const base = ['主议事群', '题面与数据', '建模方案', '算法与仿真', '验证与质疑', '论文与答辩', '资料库'];
+  return [...new Set([...base, ...localChannels.map(item => String(item.name || item).trim()).filter(Boolean)])];
+}
+
+function renderLocalChannels() {
+  const root = document.querySelector('.channel-list');
+  if (!root) return;
+  root.querySelectorAll('[data-local-channel="true"]').forEach(node => node.remove());
+  localChannels.forEach(item => {
+    const label = String(item.name || item).trim();
+    if (!label || allChannelLabels().slice(0, 7).includes(label)) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'channel-item local-channel-item';
+    button.dataset.channel = label;
+    button.dataset.localChannel = 'true';
+    button.innerHTML = `<img class="channel-icon" src="assets/ip/xiao-qinglong-mark-v1.png" alt="" /><strong>${escapeHTML(label)}</strong><em>${channelCount(label) || ''}</em>`;
+    button.addEventListener('click', () => setActiveChannel(label));
+    root.appendChild(button);
+  });
+  root.querySelectorAll('.channel-item').forEach(node => {
+    node.classList.toggle('active', canonicalChannelLabel(node.dataset.channel) === canonicalChannelLabel(activeChannel));
+  });
+}
+
+function channelCount(label) {
+  return messages.filter(item => item.type !== 'system' && item.type !== 'date' && inferredMessageChannel(item) === canonicalChannelLabel(label)).length;
+}
+
+function renderChannelManagementRows(actionAttr = 'channel-manage-select') {
+  return allChannelLabels().map(label => `<button type="button" class="channel-manage-row ${canonicalChannelLabel(label) === canonicalChannelLabel(activeChannel) ? 'active' : ''}" data-${actionAttr}="${escapeHTML(label)}"><span class="channel-manage-mark">${escapeHTML(label.slice(0, 1))}</span><span><strong>#${escapeHTML(label)}</strong><small>${channelCount(label)} 条本地消息${label === '资料库' ? ' · 打开资料面板' : ''}</small></span><em>${canonicalChannelLabel(label) === canonicalChannelLabel(activeChannel) ? '当前' : '切换'}</em></button>`).join('');
+}
+
+function openConversationManager() {
+  showModal('会话管理', `<p>会话筛选只改变当前阅读视图，不删除事实源消息。选择频道后会同步左侧高亮和聊天标题。</p><div class="conversation-manage-tabs"><button type="button" class="decision-more" data-manage-filter="all">全部</button><button type="button" class="decision-more" data-manage-filter="group">群组</button><button type="button" class="decision-more" data-manage-filter="private">私聊</button><button type="button" class="decision-more" data-manage-filter="mentions">@我</button></div><div class="channel-manage-list">${renderChannelManagementRows()}</div><form id="newChannelForm" class="new-channel-form"><label>添加本地视图频道<input name="channel" maxlength="40" placeholder="例如：模型复盘"></label><button type="submit" class="approve-button">添加</button><small>仅保存当前浏览器视图，不创建服务端频道。</small></form>`);
+}
+
+function openChannelSettings() {
+  showModal('频道管理', `<div class="modal-toolbar"><span>当前频道：#${escapeHTML(activeChannel)}</span><span class="tag amber">本地视图设置</span></div><p>这里的切换会立即过滤群聊消息；服务端仍以 event.channel 为准。资料库频道会打开知识库面板。</p><div class="channel-manage-list">${renderChannelManagementRows('channel-settings-select')}</div><label class="channel-mute-toggle"><input type="checkbox" id="channelMuteToggle" ${localStoreGet(`qingjia.muted.${activeChannel}`, false) ? 'checked' : ''}> 静默本频道的提示 toast（不影响事件接收）</label>`);
+  document.getElementById('channelMuteToggle')?.addEventListener('change', event => localStoreSet(`qingjia.muted.${activeChannel}`, event.target.checked));
+}
+
+function addLocalChannel(name) {
+  const clean = String(name || '').trim();
+  if (!clean || clean.length > 40) { showToast('频道名称需为 1—40 个字符'); return; }
+  if (allChannelLabels().some(item => item === clean)) { showToast('该频道已存在'); return; }
+  localChannels.push({ name: clean, createdAt: new Date().toISOString() });
+  localStoreSet('qingjia.localChannels', localChannels);
+  renderLocalChannels();
+  closeModal();
+  setActiveChannel(clean);
+  showToast(`已添加本地视图频道 #${clean}`);
+}
+
+function openNotifications() {
+  const items = [
+    { id: 'n1', tone: 'rose', title: 'Critic 提交了 P1 质疑', detail: '路线 B 的极端样本外推仍缺少证据。', action: () => { closeModal(); setActiveChannel('验证与质疑'); focusMessage('m5'); } },
+    { id: 'n2', tone: 'teal', title: 'Validator 完成 baseline 复跑', detail: '结果一致，但状态空间模型尚未集成。', action: () => { closeModal(); setActiveChannel('验证与质疑'); focusMessage('m6'); } },
+    { id: 'n3', tone: 'amber', title: '外部 relay 等待授权', detail: 'Antigravity 尚未获得输入哈希确认。', action: () => { closeModal(); openInviteModal(); } },
+  ];
+  showModal('通知中心', `<div class="modal-toolbar"><span>${notificationRead ? '已读' : '3 条待处理通知'}</span><button type="button" class="decision-more" id="markNotificationsRead">全部标为已读</button></div><div class="notification-list">${items.map(item => `<button type="button" class="notification-row" data-notification="${item.id}"><span class="notification-dot ${item.tone}"></span><span><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(item.detail)}</small></span><span>›</span></button>`).join('')}</div>`);
+  document.getElementById('markNotificationsRead')?.addEventListener('click', () => { notificationRead = true; const badge = document.querySelector('.notification-badge'); if (badge) badge.hidden = true; openNotifications(); });
+  document.querySelectorAll('[data-notification]').forEach(button => button.addEventListener('click', () => items.find(item => item.id === button.dataset.notification)?.action()));
+}
+
+function openInviteModal() {
+  const targetOptions = ['critic', 'validator', 'antigravity', 'qoder', 'claude'].map(id => `<option value="${id}" ${id === 'antigravity' ? 'selected' : ''}>${id === 'antigravity' ? 'Antigravity · 外部审查' : id}</option>`).join('');
+  showModal('邀请协作成员', `<p>先选择能力和目标，再生成一个可审计的 relay 冻结包。生成 relay 不等于外部 Agent 已连接；ACK 仍需由目标端返回。</p><form id="inviteForm" class="invite-form"><label>目标 Agent<select name="target">${targetOptions}</select></label><label>目标类型<select name="targetKind"><option value="local">local · 本机适配器</option><option value="external">external · 需要 Owner approval</option></select></label><label>任务<select name="task"><option value="G7">G7 · Critic 评分与反例</option><option value="G9">G9 · 群主路线审批</option></select></label><div class="form-actions"><button type="button" class="decision-more" data-modal-cancel>取消</button><button type="submit" class="approve-button">生成冻结包</button></div><small id="inviteStatus">${LIVE_API ? 'LIVE · 生成后写入 relay 事件' : 'SIMULATED · 只在本地显示待 relay 状态'}</small></form>`);
+}
+
+async function submitInvite(form) {
+  if (collaborationPaused) { showToast('协作已暂停；恢复后再生成 relay'); return; }
+  const data = new FormData(form);
+  const toAgent = String(data.get('target') || 'antigravity');
+  const targetKind = String(data.get('targetKind') || 'external');
+  const taskId = String(data.get('task') || 'G7');
+  if (LIVE_API) {
+    if (!liveRevision || !/^manifest:[0-9a-f]{64}$/i.test(String(runtimeContext.inputRevision || ''))) { showToast('输入/控制 revision 尚未同步'); return; }
+    try {
+      const payload = await fetchJson(`${LIVE_API}/api/relays`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from_agent_id: 'owner', to_agent_id: toAgent, task_id: taskId, input_revision: runtimeContext.inputRevision, base_revision: liveRevision, payload: { purpose: 'independent_review', requested_capabilities: ['counterexample', 'paper_audit'] }, approval_ref: targetKind === 'external' ? (localApprovals.find(item => item.scope === 'external:antigravity' && item.decision === 'approve')?.approval_id || null) : null, target_kind: targetKind, idempotency_key: newClientId('relay') }) });
+      liveRevision = payload.revision || liveRevision; setRuntimeContext({ controlRevision: liveRevision });
+      if (payload.event) ingestLiveEvent(payload.event, LIVE_API, false);
+      const state = document.querySelector('.external-member .relay-state'); if (state) state.textContent = payload.relay?.status || 'PENDING_RELAY';
+      closeModal(); showToast(`relay 冻结包已记录：${toAgent} · 等待 ACK`);
+    } catch (error) { showToast(`relay 未生成：${apiErrorCode(error)}（外部目标需先批准范围）`); }
+    return;
+  }
+  const relay = { relay_id: newClientId('relay'), to_agent_id: toAgent, task_id: taskId, target_kind: targetKind, status: 'PENDING_RELAY', source: 'SIMULATED' };
+  eventRows.push({ event_id: relay.relay_id, seq: eventRows.length + 1, timestamp: new Date().toISOString(), actor_id: 'owner', type: 'RELAY', payload: relay });
+  const state = document.querySelector('.external-member .relay-state'); if (state) state.textContent = 'PENDING';
+  closeModal(); showToast(`已生成本地 relay 冻结包 · ${toAgent} · SIMULATED`);
+}
+
+function ensureComposerAttachmentRoot() {
+  let root = document.getElementById('composerAttachments');
+  if (root) return root;
+  const tools = document.querySelector('.composer-tools');
+  if (!tools) return null;
+  root = document.createElement('div');
+  root.id = 'composerAttachments';
+  root.className = 'composer-attachments';
+  tools.parentElement?.insertBefore(root, tools.nextSibling);
+  return root;
+}
+
+function renderComposerAttachments() {
+  const root = ensureComposerAttachmentRoot();
+  if (!root) return;
+  root.hidden = !localAttachments.length;
+  root.innerHTML = localAttachments.map((item, index) => `<span class="composer-attachment" title="${escapeHTML(item.name)} · ${escapeHTML(item.status)}"><span class="attachment-file-mark">件</span><span>${escapeHTML(item.name)}</span><small>${escapeHTML(kbFormatBytes(item.size))} · ${escapeHTML(item.status)}</small><button type="button" data-remove-attachment="${index}" aria-label="移除 ${escapeHTML(item.name)}">×</button></span>`).join('');
+}
+
+function openAttachmentPicker() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.multiple = true;
+  // Materials can include the short IP/video references used during a
+  // modeling briefing.  The picker still stores metadata only; it never
+  // claims that a binary was uploaded to the local API.
+  input.accept = '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.mp4,.webm,.mov';
+  input.setAttribute('aria-label', '选择要暂存的材料');
+  input.addEventListener('change', () => {
+    const files = [...(input.files || [])].slice(0, 8);
+    if (!files.length) return;
+    const known = new Set(localAttachments.map(item => `${item.name}:${item.size}`));
+    files.forEach(file => {
+      const key = `${file.name}:${file.size}`;
+      if (known.has(key)) return;
+      localAttachments.push({ name: file.name, size: file.size, type: file.type || 'application/octet-stream', status: LIVE_API ? 'LOCAL_PENDING · 未上传' : 'LOCAL_ONLY · 暂存', lastModified: file.lastModified });
+    });
+    renderComposerAttachments();
+    showToast(`${files.length} 个材料已暂存；发送前仍不会伪称已上传`);
+    input.remove();
+  });
+  input.style.position = 'fixed'; input.style.left = '-10000px'; input.style.width = '1px'; input.style.height = '1px';
+  document.body.appendChild(input);
+  input.click();
+}
+
+function attachmentSummary() {
+  return localAttachments.length ? `\n\n附件（${localAttachments.length} 个，仅元数据）：${localAttachments.map(item => `${item.name} [${item.status}]`).join('、')}` : '';
+}
 
 function memberModal(member) {
   showModal(member.name, `<p>${escapeHTML(member.title)}</p><div class="modal-grid"><div class="stat-box"><strong>当前模型</strong><span>${escapeHTML(member.model)}</span></div><div class="stat-box"><strong>当前任务</strong><span>${escapeHTML(member.task || '未分配')}</span></div><div class="stat-box"><strong>权限边界</strong><span>只读题面与批准工件；写入专属目录</span></div><div class="stat-box"><strong>状态</strong><span>${escapeHTML(member.state || '在线')} · lease 还剩 18 分钟</span></div></div><h3>角色验收</h3><ul><li>每个主张必须标注 observed / derived / hypothesis。</li><li>不得修改其他 Agent 的写集，也不能自行改变验收条件。</li><li>失败或数据不足时发送 BLOCKED，而不是补造事实。</li></ul>`);
 }
 
 function taskModal(task) {
+  if (!task) { showToast('任务不存在或已从当前快照移除'); return; }
   const stateText = { verified: 'VERIFIED · 可进入集成', accepted: 'ACCEPTED · 已获 Owner 范围批准', released: 'RELEASED · 已通过发布门', active: 'IN_PROGRESS · 进行中', review: 'READY_FOR_REVIEW · 待独立复核', produced: 'PRODUCED · 不等于 VERIFIED', wait: 'QUEUED · 等待依赖 / 审批', blocked: 'BLOCKED · 有关键风险' }[task.state] || task.status || task.state;
-  showModal(`${task.id} · ${task.title}`, `<p>任务负责人：<strong>${escapeHTML(task.owner)}</strong> · <span class="tag ${task.state === 'blocked' ? 'rose' : 'amber'}">${escapeHTML(stateText)}</span></p><div class="modal-grid"><div class="stat-box"><strong>输入 revision</strong><span>${escapeHTML(runtimeContext.inputRevision || 'UNVERIFIED')}</span></div><div class="stat-box"><strong>控制 revision</strong><span>${escapeHTML(runtimeContext.controlRevision || 'UNVERIFIED')}</span></div><div class="stat-box"><strong>写集</strong><span>artifacts/${escapeHTML(task.id)}/*</span></div><div class="stat-box"><strong>验收</strong><span>命令、证据、独立复核；${escapeHTML(task.subproblemId || '共享节点')}</span></div><div class="stat-box"><strong>来源</strong><span>${escapeHTML(runtimeContext.sourceLabel || 'UNVERIFIED')}</span></div><div class="stat-box"><strong>下一步</strong><span>${escapeHTML(task.meta)}</span></div></div><h3>群主可执行动作</h3><p><button class="approve-button" onclick="window.showToast('DEMO_ONLY：已生成催办草稿，未写入服务端'); window.closeModal()">生成催办草稿 →</button> <button class="decision-more" onclick="window.showToast('DEMO_ONLY：已生成只读审查快照'); window.closeModal()">生成审查快照</button></p>`);
+  const blocked = ['blocked', 'failed', 'timeout'].includes(String(task.state || task.status || '').toLowerCase());
+  const raw = task.rawTask || task;
+  showModal(`${task.id} · ${task.title}`, `<p>任务负责人：<strong>${escapeHTML(task.owner || raw.owner_id || 'Coordinator')}</strong> · <span class="tag ${blocked ? 'rose' : 'amber'}">${escapeHTML(stateText)}</span></p><div class="modal-grid"><div class="stat-box"><strong>输入 revision</strong><span>${escapeHTML(raw.input_revision || runtimeContext.inputRevision || 'UNVERIFIED')}</span></div><div class="stat-box"><strong>控制 revision</strong><span>${escapeHTML(runtimeContext.controlRevision || 'UNVERIFIED')}</span></div><div class="stat-box"><strong>写集</strong><span>${escapeHTML((raw.write_set || [`artifacts/${task.id}`]).join(' · '))}</span></div><div class="stat-box"><strong>验收</strong><span>${escapeHTML((raw.acceptance || ['命令、证据、独立复核']).join(' · '))} · ${escapeHTML(task.subproblemId || '共享节点')}</span></div><div class="stat-box"><strong>来源</strong><span>${escapeHTML(task.source === 'local_ui' ? 'LOCAL_UI · 未写入服务端' : runtimeContext.sourceLabel || 'UNVERIFIED')}</span></div><div class="stat-box"><strong>下一步</strong><span>${escapeHTML(task.meta || '等待状态同步')}</span></div></div><h3>群主可执行动作</h3><div class="task-modal-actions"><button type="button" class="approve-button" data-task-nudge="${escapeHTML(task.id)}">生成催办草稿</button><button type="button" class="decision-more" data-task-snapshot="${escapeHTML(task.id)}">生成审查快照</button>${blocked ? `<button type="button" class="decision-more" data-task-requeue="${escapeHTML(task.id)}">重新排队</button>` : ''}</div><p class="form-note">催办和审查快照会先在本地生成可复制文本；重新排队在 LIVE 模式写入服务端并保留 CAS/幂等校验。</p>`);
+}
+
+function taskNudge(taskId) {
+  const task = tasks.find(item => item.id === taskId);
+  if (!task) return;
+  const text = `请 ${task.owner || '负责人'} 更新 ${task.id}：${task.title}。回执需包含当前 revision、验收命令、结果 hash 和未解决风险。`;
+  if (LIVE_API) {
+    if (collaborationPaused) { showToast('协作已暂停；催办草稿未发送'); return; }
+    postLiveMessage(text, 'lite', [], { taskId }).then(ok => { if (ok) closeModal(); });
+  } else {
+    closeModal();
+    addOwnerMessage(text, [], { taskId, subproblemId: task.subproblemId || window.selectedSubproblem || 'Q2' });
+    showToast('催办已加入本地演示群聊 · SIMULATED');
+  }
+}
+
+function taskAuditSnapshot(taskId) {
+  const task = tasks.find(item => item.id === taskId);
+  if (!task) return;
+  const raw = task.rawTask || task;
+  const snapshot = [`task_id: ${task.id}`, `status: ${task.status || task.state || 'UNVERIFIED'}`, `owner: ${task.owner || raw.owner_id || 'UNVERIFIED'}`, `input_revision: ${raw.input_revision || runtimeContext.inputRevision || 'UNVERIFIED'}`, `control_revision: ${runtimeContext.controlRevision || 'UNVERIFIED'}`, `write_set: ${(raw.write_set || []).join(', ') || 'UNVERIFIED'}`, `source: ${task.source === 'local_ui' ? 'LOCAL_UI' : contextModeLabel()}`, `next_action: ${task.meta || 'UNVERIFIED'}`].join('\n');
+  showModal(`审查快照 · ${task.id}`, `<p>以下是只读、可复制的当前投影；它不会替代 worker result 或独立 review。</p><pre>${escapeHTML(snapshot)}</pre><button type="button" class="approve-button" data-copy-text="${escapeHTML(snapshot)}">复制快照</button>`);
+}
+
+function handleMessageAction(action, messageId) {
+  const message = messages.find(item => item.id === messageId);
+  const normalized = String(action || '').trim();
+  if (normalized.includes('原文映射')) { window.selectedSubproblem = message?.subproblemId || 'Q1'; renderModelingOverview(); selectRightPanel('modeling'); showToast(`已定位 ${window.selectedSubproblem} 的题面映射`); return; }
+  if (normalized.includes('打开 evidence') || normalized.includes('证据')) { selectRightPanel('evidence'); if (message?.evidenceRefs?.[0]) evidenceModal(message.evidenceRefs[0]); else showToast('该消息没有可打开的 evidence ref，保持 UNVERIFIED'); return; }
+  if (normalized.includes('比较 A/B')) { routeCompareModal(); return; }
+  if (normalized.includes('公式')) { chainNodeModal('route'); return; }
+  if (normalized.includes('反驳线程')) { threadRoots = [...new Set([...threadRoots, messageId])]; openThreadsModal(messageId); return; }
+  if (normalized.includes('claim')) { openSearch(normalized.match(/claim\s+(.+)/i)?.[1] || 'claim:C-17'); return; }
+  if (message?.taskId) { taskModal(tasks.find(item => item.id === message.taskId)); return; }
+  showToast(`已执行消息动作：${normalized}`);
 }
 
 function evidenceModal(name) {
@@ -2138,7 +2840,7 @@ function evidenceModal(name) {
 }
 
 function addOwnerMessage(text, evidenceRefs = [], metadata = {}) {
-  messages.push(normalizeProvenance({ id: `owner-${Date.now()}`, member: 'owner', time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }), kind: '群主', text: escapeHTML(text), tags: [['Owner 指令', 'blue']], status: 'PRODUCED', claimClass: 'hypothesis', taskId: 'G9', subproblemId: window.selectedSubproblem || 'Q2', modelProfile: 'Human Owner', targetRevision: runtimeContext.controlRevision, evidenceRefs, ...metadata }, 'fixture'));
+  messages.push(normalizeProvenance({ id: newClientId('owner'), member: 'owner', time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }), kind: metadata.kind || '群主', text: escapeHTML(text), tags: [['Owner 指令', 'blue']], status: 'PRODUCED', claimClass: 'hypothesis', taskId: metadata.taskId || metadata.task_id || 'G9', subproblemId: metadata.subproblemId || metadata.subproblem_id || window.selectedSubproblem || 'Q2', modelProfile: 'Human Owner', targetRevision: runtimeContext.controlRevision, evidenceRefs, channel: metadata.channel || activeChannel, attachments: metadata.attachments || [], ...metadata }, 'fixture'));
   renderMessages();
 }
 
@@ -2196,13 +2898,9 @@ function simulateAgentReply(text, mode) {
 async function postLiveMessage(text, mode, evidenceRefs = [], metadata = {}) {
   const endpoint = `${LIVE_API}/api/projects/${LIVE_PROJECT}/messages`;
   const selected = subproblems.find(item => item.id === (window.selectedSubproblem || 'Q2')) || subproblems[1];
+  if (collaborationPaused) { showToast('协作已暂停；消息保留在编辑区，恢复后再发送'); return false; }
   try {
-    const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, mode, sender_id: 'owner', channel: 'main', claim_class: 'hypothesis', task_id: 'G9', subproblem_id: selected.id, evidence_refs: evidenceRefs, target_revision: runtimeContext.inputRevision, base_revision: liveRevision, assembly_revision: metadata.assemblyRevision || metadata.assembly_revision || undefined, capability_revision: metadata.capabilityRevision || metadata.capability_revision || undefined, idempotency_key: `ui-${Date.now()}` }) });
-    const payload = await response.json();
-    if (!response.ok) {
-      const code = typeof payload.detail === 'object' ? payload.detail.code : payload.detail;
-      throw new Error(code || 'API_ERROR');
-    }
+    const payload = await fetchJson(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, mode, sender_id: 'owner', channel: metadata.channel || (activeChannel === '主议事群' ? 'main' : activeChannel), claim_class: 'hypothesis', task_id: metadata.taskId || metadata.task_id || 'G9', subproblem_id: metadata.subproblemId || metadata.subproblem_id || selected.id, evidence_refs: evidenceRefs, target_revision: runtimeContext.inputRevision, base_revision: liveRevision, assembly_revision: metadata.assemblyRevision || metadata.assembly_revision || undefined, capability_revision: metadata.capabilityRevision || metadata.capability_revision || undefined, idempotency_key: metadata.idempotencyKey || newClientId('message') }) });
     liveRevision = payload.revision;
     setRuntimeContext({ controlRevision: payload.revision });
     ingestLiveEvent(payload.event, LIVE_API);
@@ -2220,21 +2918,22 @@ async function postLiveMessage(text, mode, evidenceRefs = [], metadata = {}) {
         showToast('事件源版本已变化；快照刷新失败，请稍后重试');
       }
     } else {
-      addLocalPendingMessage(text, evidenceRefs);
+    addLocalPendingMessage(text, evidenceRefs, metadata);
       showToast(`实时写入失败（${error.message}）；已标记为 LOCAL_PENDING，不生成伪造回执`);
     }
     return false;
   }
 }
 
-function addLocalPendingMessage(text, evidenceRefs = []) {
-  messages.push({ id: `local-${Date.now()}`, member: 'owner', time: timeFromTimestamp(), kind: '待同步', text: escapeHTML(text), tags: [['LOCAL_PENDING', 'amber'], ['未写入事实源', 'rose']], source: 'local_pending', sourceLabel: 'LOCAL_PENDING', status: 'UNVERIFIED', claimClass: 'hypothesis', taskId: 'unassigned', subproblemId: window.selectedSubproblem || 'Q2', modelProfile: 'Human Owner', targetRevision: runtimeContext.controlRevision, evidenceRefs: sanitizeEvidenceRefs(evidenceRefs) });
+function addLocalPendingMessage(text, evidenceRefs = [], metadata = {}) {
+  messages.push({ id: newClientId('local'), member: 'owner', time: timeFromTimestamp(), kind: '待同步', text: escapeHTML(text), tags: [['LOCAL_PENDING', 'amber'], ['未写入事实源', 'rose']], source: 'local_pending', sourceLabel: 'LOCAL_PENDING', status: 'UNVERIFIED', claimClass: 'hypothesis', taskId: metadata.taskId || metadata.task_id || 'unassigned', subproblemId: metadata.subproblemId || metadata.subproblem_id || window.selectedSubproblem || 'Q2', modelProfile: 'Human Owner', targetRevision: runtimeContext.controlRevision, evidenceRefs: sanitizeEvidenceRefs(evidenceRefs), attachments: metadata.attachments || [] });
   renderMessages();
 }
 
 function appendLiveEvent(payload) {
   if (!payload || !payload.event_id || seenLiveEvents.has(payload.event_id)) return;
   seenLiveEvents.add(payload.event_id);
+  if (!eventRows.some(row => row && row.event_id === payload.event_id)) eventRows.push(payload);
   const eventSeq = Number(payload.seq || 0);
   const advancesCursor = eventSeq >= liveSeq;
   liveSeq = Math.max(liveSeq, eventSeq);
@@ -2250,6 +2949,11 @@ function appendLiveEvent(payload) {
     member,
     time: timeFromTimestamp(payload.timestamp),
     kind,
+    // Preserve the authoritative event channel in the UI projection.  Without
+    // this field a message sent from a non-main channel was re-inferred from
+    // its text/actor and could disappear from the channel it was just written
+    // to (a successful write with no visible feedback).
+    channel: payload.channel || body.channel || 'main',
     text: escapeHTML(eventText(body)),
     tags: [['LIVE EVENT', 'teal'], [payload.event_id, 'blue']],
     status: body.status || body.provenance_status || payload.status || payload.provenance_status,
@@ -2420,8 +3124,13 @@ function applyLiveSnapshot(snapshot) {
     if (!id || seenSnapshotMessages.has(id) || seenLiveEvents.has(id)) return;
     seenSnapshotMessages.add(id);
     const member = memberForActor(record.sender_id);
-    messages.push(normalizeProvenance({ id, member, time: timeFromTimestamp(record.timestamp), kind: record.sender_id === 'owner' ? '群主' : '群聊', text: escapeHTML(record.text || ''), tags: [['SNAPSHOT', 'teal'], [record.channel || 'main', 'blue']], status: record.status, claimClass: record.claim_class, taskId: record.task_id || 'unassigned', subproblemId: record.subproblem_id || '—', modelProfile: record.model_profile || getMember(member).shortModel, targetRevision: record.target_revision || snapshot.revision, evidenceRefs: record.evidence_refs || [], assemblyRevision: record.assembly_revision, capabilityRevision: record.capability_revision }, 'snapshot'));
+    messages.push(normalizeProvenance({ id, member, time: timeFromTimestamp(record.timestamp), kind: record.sender_id === 'owner' ? '群主' : '群聊', channel: record.channel || 'main', text: escapeHTML(record.text || ''), tags: [['SNAPSHOT', 'teal'], [record.channel || 'main', 'blue']], status: record.status, claimClass: record.claim_class, taskId: record.task_id || 'unassigned', subproblemId: record.subproblem_id || '—', modelProfile: record.model_profile || getMember(member).shortModel, targetRevision: record.target_revision || snapshot.revision, evidenceRefs: record.evidence_refs || [], assemblyRevision: record.assembly_revision, capabilityRevision: record.capability_revision }, 'snapshot'));
   });
+  if (Array.isArray(snapshot.events)) {
+    snapshot.events.forEach(event => {
+      if (event?.event_id && !eventRows.some(row => row.event_id === event.event_id)) eventRows.push(event);
+    });
+  }
   mergeSnapshotTasks(snapshot.tasks);
   projectLiveSnapshotCollections(snapshot);
   renderMessages();
@@ -2496,8 +3205,13 @@ function sendMessage() {
   const input = document.getElementById('messageInput');
   const text = input.value.trim();
   if (!text) return;
+  if (collaborationPaused) {
+    showToast('协作已暂停；消息仍保留在编辑区，点击顶部“继续协作”后发送');
+    return;
+  }
   const mode = document.getElementById('composerMode').value;
   const evidenceRefs = [...knowledgePendingRefs];
+  const attachments = localAttachments.map(item => ({ ...item }));
   // A bare @知识库 command is a local retrieval action.  Once a result has
   // been cited, the pending kbdoc ref makes the same text a normal auditable
   // group message instead of silently swallowing the owner's challenge.
@@ -2517,13 +3231,18 @@ function sendMessage() {
     }
     input.value = '';
     input.style.height = 'auto';
-    postLiveMessage(text, mode, evidenceRefs);
+    const outboundText = text + attachmentSummary();
+    postLiveMessage(outboundText, mode, evidenceRefs, { attachments, taskId: 'G9', channel: activeChannel === '主议事群' ? 'main' : activeChannel }).then(ok => {
+      if (ok) { localAttachments = []; renderComposerAttachments(); }
+    });
   } else {
     input.value = '';
     input.style.height = 'auto';
     knowledgePendingRefs = [];
     renderPendingKbCitations();
-    addOwnerMessage(text, evidenceRefs);
+    addOwnerMessage(text + attachmentSummary(), evidenceRefs, { attachments, channel: activeChannel });
+    localAttachments = [];
+    renderComposerAttachments();
     simulateAgentReply(text, mode);
   }
 }
@@ -2561,16 +3280,17 @@ function exemplarStudyModal() {
 }
 
 function bindEvents() {
-  document.querySelectorAll('.channel-item').forEach(channel => channel.addEventListener('click', () => {
-    document.querySelectorAll('.channel-item').forEach(item => item.classList.remove('active'));
-    channel.classList.add('active');
-    const title = document.querySelector('.chat-title-wrap h2');
-    const subtitle = document.querySelector('.chat-title-wrap span');
-    title.textContent = channel.dataset.channel;
-    subtitle.textContent = channel.dataset.channel === '总控' || channel.dataset.channel === '主议事群' ? '所有关键结论都必须留下证据' : `频道摘要 · ${channel.dataset.channel} 的任务与证据`;
-    if (channel.dataset.openKnowledge === 'true') openKnowledgePanel();
-    showToast(`已切换到 #${channel.dataset.channel}`);
-  }));
+  document.querySelectorAll('.conversation-tab').forEach((tab, index) => {
+    const filter = tab.dataset.filter || ['all', 'group', 'private', 'mentions'][index] || 'all';
+    tab.dataset.filter = filter;
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-selected', String(filter === activeConversationFilter));
+    tab.addEventListener('click', () => setActiveConversationFilter(filter));
+  });
+  document.querySelectorAll('.channel-item').forEach(channel => channel.addEventListener('click', () => setActiveChannel(channel.dataset.channel || '主议事群')));
+  const initialChannel = allChannelLabels().includes(activeChannel) ? activeChannel : '主议事群';
+  setActiveChannel(initialChannel, { silent: true });
+  setActiveConversationFilter(activeConversationFilter);
   document.querySelectorAll('[data-dag-task]').forEach(node => node.addEventListener('click', () => {
     const targetId = node.dataset.dagTask;
     const target = tasks.find(item => item.id === targetId) || tasks.find(item => item.id === 'G6-A');
@@ -2619,13 +3339,19 @@ function bindEvents() {
   const panelBackdrop = document.getElementById('panelBackdrop');
   if (panelBackdrop) panelBackdrop.addEventListener('click', () => setPanelDrawerOpen(false));
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && document.body.classList.contains('panel-drawer-open')) setPanelDrawerOpen(false);
+    if (event.key === 'Escape') {
+      const modal = document.getElementById('modalBackdrop');
+      if (modal && !modal.hidden) { closeModal(); return; }
+      if (document.body.classList.contains('panel-drawer-open')) setPanelDrawerOpen(false);
+    }
   });
   document.getElementById('decisionList').addEventListener('click', event => {
     const action = event.target.closest('[data-action]'); if (!action) return;
     const card = action.closest('[data-decision]');
-    if (action.dataset.action === 'approve') { card.style.opacity = '.45'; action.textContent = '已批准'; action.disabled = true; showToast(`已记录 Owner 审批：${card.querySelector('h4').textContent}`); }
-    else showModal('审批所需证据', `<p>${escapeHTML(card.querySelector('p').textContent)}</p><pre>approval_required: true\nowner: user\ncritical_findings: 3\nexternal_transfer: pending\nnext_gate: independent_review</pre>`);
+    if (!card) return;
+    const item = decisions.find(row => row.id === card.dataset.decision);
+    if (action.dataset.action === 'approve' || action.dataset.action === 'reject') recordDecision(card.dataset.decision, action.dataset.action);
+    else if (item) showModal('审批所需证据', `<p>${escapeHTML(item.body)}</p><pre>scope: ${escapeHTML(decisionScope(item))}\nowner: owner\ncurrent_revision: ${escapeHTML(runtimeContext.controlRevision || 'UNVERIFIED')}\ncritical_findings: ${item.id === 'dec-1' ? 'open' : 'check required'}\nexternal_transfer: ${item.id === 'dec-3' ? 'requires explicit approval' : 'not requested'}\nnext_gate: independent_review</pre>`);
   });
   document.querySelectorAll('.right-tab').forEach(tab => tab.addEventListener('click', () => {
     selectRightPanel(tab.dataset.panel);
@@ -2648,25 +3374,34 @@ function bindEvents() {
   document.getElementById('draftProblemContractBtn').addEventListener('click', draftProblemContract);
   document.querySelectorAll('.toolbar-button').forEach(button => button.addEventListener('click', () => {
     document.querySelectorAll('.toolbar-button').forEach(item => item.classList.remove('active')); button.classList.add('active');
-    if (button.dataset.view === 'events') showModal('事件流 · append-only', '<p>事件流是协作事实源，群聊只是它的可读投影。</p><pre>14:31  EVIDENCE  validator  target=route_B  exit_code=0\n14:32  TASK      owner      G7=hold  reason=P1-open\n14:32  APPROVAL  owner      merge=false\n14:33  RELAY     antigravity status=PENDING_RELAY</pre>');
-    if (button.dataset.view === 'threads') showToast('线程视图已准备：4 个未闭合讨论');
+    if (button.dataset.view === 'events') openEventsModal();
+    if (button.dataset.view === 'threads') openThreadsModal();
+    if (button.dataset.view === 'chat') { setActiveChannel(activeChannel, { silent: true }); showToast('已回到群聊视图'); }
   }));
-  document.getElementById('pauseBtn').addEventListener('click', event => { const button = event.currentTarget; button.classList.toggle('paused'); const paused = button.classList.contains('paused'); button.querySelector('span:last-child').textContent = paused ? '继续协作' : '暂停协作'; showToast(paused ? '已暂停新任务派发，现有 Agent 保留只读心跳' : '已恢复任务派发'); });
-  document.getElementById('newTaskBtn').addEventListener('click', () => showModal('新建协作任务', '<p>群主定义目标后，Coordinator 会自动生成 task envelope。</p><textarea style="width:100%;min-height:90px;padding:10px;border:1px solid #e2e8f0;border-radius:8px" placeholder="描述一个有明确边界的子任务…"></textarea><p><button class="approve-button" onclick="window.showToast(\'已加入任务草稿，等待 Coordinator 拆解\'); window.closeModal()">创建任务 →</button></p>'));
-  document.getElementById('approveAllBtn').addEventListener('click', () => showModal('群主审批队列', '<p>当前有 3 项需要你决定。审批不会自动发布或提交外部平台。</p><ul><li>路线 B 是否成为主线（P1 外推风险未闭合）</li><li>参数先验范围是否进入模型</li><li>是否向 Antigravity 发送冻结快照</li></ul><p><span class="tag amber">外部动作需要再次确认</span></p>'));
+  const pauseButton = document.getElementById('pauseBtn');
+  const syncPauseButton = () => {
+    if (!pauseButton) return;
+    pauseButton.classList.toggle('paused', collaborationPaused);
+    pauseButton.setAttribute('aria-pressed', String(collaborationPaused));
+    pauseButton.title = collaborationPaused ? '本地暂停：恢复后可发送/派发' : '暂停本地出站动作';
+    const label = pauseButton.querySelector('span:last-child'); if (label) label.textContent = collaborationPaused ? '继续协作' : '暂停协作';
+  };
+  syncPauseButton();
+  pauseButton?.addEventListener('click', () => { collaborationPaused = !collaborationPaused; localStoreSet('qingjia.collaborationPaused', collaborationPaused); syncPauseButton(); showToast(collaborationPaused ? '已暂停本地出站动作；仍接收事件与快照' : '已恢复本地出站动作'); });
+  document.getElementById('newTaskBtn')?.addEventListener('click', openNewTaskModal);
+  document.getElementById('approveAllBtn')?.addEventListener('click', openApprovalQueue);
   document.getElementById('protocolBtn').addEventListener('click', () => showModal('agent-collab/v1', '<p>所有 Agent 使用统一 task/result/review/relay envelope；版本、哈希、身份、能力和证据必须可追溯。</p><pre>submit → poll → fetch_output → send_followup → cancel</pre>'));
   document.getElementById('settingsBtn').addEventListener('click', () => showModal('群组设置', '<h3>默认门禁</h3><ul><li>Coordinator：当前 Codex 根任务</li><li>最大 Agent：8 · 最大并行：4 · 深度：1</li><li>敏感数据：默认禁止外传</li><li>P0/P1 未关闭：禁止 ACCEPTED / RELEASED</li></ul>'));
-  document.getElementById('inviteBtn').addEventListener('click', () => showModal('邀请协作成员', '<p>选择能力而不是盲目增加模型：</p><div class="modal-grid"><div class="stat-box"><strong>视觉 / OCR</strong><span>读取扫描题面、表格、公式</span></div><div class="stat-box"><strong>领域专家</strong><span>按题型临时启用</span></div><div class="stat-box"><strong>独立挑战</strong><span>不同供应商 / 不同上下文</span></div><div class="stat-box"><strong>发布审计</strong><span>清洁环境重跑与提交检查</span></div></div>'));
-  document.getElementById('notificationBtn').addEventListener('click', () => showToast('3 条通知：P1 质疑、数据审计进展、外部 relay 等待授权'));
+  document.getElementById('inviteBtn')?.addEventListener('click', openInviteModal);
+  document.getElementById('notificationBtn')?.addEventListener('click', openNotifications);
   document.getElementById('ownerMenuBtn').addEventListener('click', () => memberModal(getMember('owner')));
-  const openSearch = () => showModal('搜索群聊与证据', '<input autofocus style="width:100%;padding:11px;border:1px solid #e2e8f0;border-radius:8px" placeholder="搜索 claim、task_id、文件名或 Agent…"><p>支持：claim:C-17 · task:G7 · status:P1 · agent:Critic</p>');
-  document.getElementById('searchBtn').addEventListener('click', openSearch);
+  document.getElementById('searchBtn').addEventListener('click', () => openSearch());
   const globalSearch = document.getElementById('globalSearchBtn');
-  if (globalSearch) globalSearch.addEventListener('click', openSearch);
+  if (globalSearch) globalSearch.addEventListener('click', () => openSearch());
   document.addEventListener('keydown', event => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); openSearch(); }
   });
-  document.getElementById('attachBtn').addEventListener('click', openKnowledgePanel);
+  document.getElementById('attachBtn').addEventListener('click', openAttachmentPicker);
   document.getElementById('mentionBtn').addEventListener('click', () => { const input = document.getElementById('messageInput'); input.value += '@'; input.focus(); });
   document.getElementById('kbRefreshBtn').addEventListener('click', async () => { await loadKnowledgeSummary(true); await runKnowledgeSearch(document.getElementById('kbSearchInput')?.value || ''); showToast('已刷新本地资料索引快照'); });
   document.getElementById('kbSearchForm').addEventListener('submit', event => { event.preventDefault(); runKnowledgeSearch(); });
@@ -2681,6 +3416,67 @@ function bindEvents() {
     if (action.dataset.kbAction === 'view') openKnowledgeDocument(card.dataset.kbDoc, item);
     if (action.dataset.kbAction === 'cite') citeKnowledgeItem(item);
   });
+  const conversationMore = document.querySelector('.conversation-more');
+  conversationMore?.addEventListener('click', openConversationManager);
+  document.querySelector('.channel-settings')?.addEventListener('click', openChannelSettings);
+  document.getElementById('mobileMoreBtn')?.addEventListener('click', openMobileMoreModal);
+  document.getElementById('chatFeed')?.addEventListener('click', event => {
+    const action = event.target.closest('[data-message-action]');
+    if (action) { handleMessageAction(action.dataset.messageAction, action.closest('[data-message-id]')?.dataset.messageId); return; }
+  });
+  document.getElementById('modalBody')?.addEventListener('submit', event => {
+    event.preventDefault();
+    const form = event.target;
+    if (form.id === 'globalSearchForm') { renderSearchResults(form.elements.q.value); return; }
+    if (form.id === 'newTaskForm') { submitNewTask(form); return; }
+    if (form.id === 'threadReplyForm') { submitThreadReply(form); return; }
+    if (form.id === 'inviteForm') { submitInvite(form); return; }
+    if (form.id === 'newChannelForm') { addLocalChannel(form.elements.channel.value); return; }
+  });
+  document.getElementById('modalBody')?.addEventListener('click', event => {
+    const cancel = event.target.closest('[data-modal-cancel]'); if (cancel) { closeModal(); return; }
+    const mobileAction = event.target.closest('[data-mobile-more-action]');
+    if (mobileAction) {
+      const action = mobileAction.dataset.mobileMoreAction;
+      closeModal();
+      if (action === 'threads') openThreadsModal();
+      if (action === 'events') openEventsModal();
+      if (action === 'filter') openConversationManager();
+      if (action === 'channels') openChannelSettings();
+      return;
+    }
+    const filterButton = event.target.closest('[data-manage-filter]');
+    if (filterButton) { setActiveConversationFilter(filterButton.dataset.manageFilter); return; }
+    const selectChannel = event.target.closest('[data-channel-manage-select], [data-channel-settings-select]');
+    if (selectChannel) { setActiveChannel(selectChannel.dataset.channelManageSelect || selectChannel.dataset.channelSettingsSelect); closeModal(); return; }
+    const approvalAction = event.target.closest('[data-approval-action]');
+    if (approvalAction) {
+      const row = approvalAction.closest('[data-approval-decision]');
+      if (!row) return;
+      if (approvalAction.dataset.approvalAction === 'inspect') {
+        const item = decisions.find(entry => entry.id === row.dataset.approvalDecision);
+        if (item) showModal('审批证据', `<p>${escapeHTML(item.body)}</p><pre>scope: ${escapeHTML(decisionScope(item))}\nrevision: ${escapeHTML(runtimeContext.controlRevision || 'UNVERIFIED')}\nstatus: ${escapeHTML(decisionState(item) || 'PENDING')}</pre>`);
+      } else recordDecision(row.dataset.approvalDecision, approvalAction.dataset.approvalAction);
+      return;
+    }
+    const taskNudgeButton = event.target.closest('[data-task-nudge]'); if (taskNudgeButton) { taskNudge(taskNudgeButton.dataset.taskNudge); return; }
+    const taskSnapshotButton = event.target.closest('[data-task-snapshot]'); if (taskSnapshotButton) { taskAuditSnapshot(taskSnapshotButton.dataset.taskSnapshot); return; }
+    const taskRequeueButton = event.target.closest('[data-task-requeue]'); if (taskRequeueButton) { requeueTask(tasks.find(item => item.id === taskRequeueButton.dataset.taskRequeue)); return; }
+    const searchKb = event.target.closest('[data-search-kb]'); if (searchKb) { closeModal(); openKnowledgePanel(); runKnowledgeSearch(searchKb.dataset.searchKb || '', true); return; }
+    const searchTarget = event.target.closest('[data-search-message], [data-search-task], [data-search-evidence], [data-search-kb-doc], [data-search-event]');
+    if (searchTarget) {
+      if (searchTarget.dataset.searchMessage) { closeModal(); focusMessage(searchTarget.dataset.searchMessage); return; }
+      if (searchTarget.dataset.searchTask) { taskModal(tasks.find(item => item.id === searchTarget.dataset.searchTask)); return; }
+      if (searchTarget.dataset.searchEvidence) { evidenceModal(searchTarget.dataset.searchEvidence); return; }
+      if (searchTarget.dataset.searchKbDoc) { const row = knowledgeState.results.find(item => String(item.doc_id || item.docId || item.id) === searchTarget.dataset.searchKbDoc); if (row) openKnowledgeDocument(searchTarget.dataset.searchKbDoc, row); return; }
+      if (searchTarget.dataset.searchEvent) { const row = eventRows.find(item => item.event_id === searchTarget.dataset.searchEvent); if (row) showModal(`事件 ${row.event_id}`, `<pre>${escapeHTML(JSON.stringify(row, null, 2))}</pre>`); return; }
+    }
+    const copyButton = event.target.closest('[data-copy-text]');
+    if (copyButton) { navigator.clipboard?.writeText(copyButton.dataset.copyText || '').then(() => showToast('已复制到剪贴板')).catch(() => showToast('当前浏览器未授权剪贴板，请手动复制')); return; }
+    const removeAttachment = event.target.closest('[data-remove-attachment]');
+    if (removeAttachment) { localAttachments.splice(Number(removeAttachment.dataset.removeAttachment), 1); renderComposerAttachments(); return; }
+  });
+  document.getElementById('channelMuteToggle')?.addEventListener('change', event => localStoreSet(`qingjia.muted.${activeChannel}`, event.target.checked));
   document.getElementById('modalClose').addEventListener('click', closeModal); document.getElementById('modalBackdrop').addEventListener('click', event => { if (event.target.id === 'modalBackdrop') closeModal(); });
 
   document.querySelectorAll('.nav-rail-item').forEach(item => item.addEventListener('click', () => {
@@ -2706,7 +3502,7 @@ window.runWorkspaceSearch = runWorkspaceSearch;
 window.isSafeWorkspaceRef = isSafeWorkspaceRef;
 window.selectedSubproblem = 'Q2';
 initDragonMotion();
-renderRuntimeContext(); renderMembers(); renderTasks(); renderDecisions(); renderEvidence(); renderModelingOverview(); renderMessages(); renderPendingKbCitations(); renderWorkspaceMount(null); bindEvents(); initTemplateShell(); connectLiveTransport();
+renderRuntimeContext(); renderMembers(); renderTasks(); renderDecisions(); renderEvidence(); renderModelingOverview(); renderMessages(); renderPendingKbCitations(); renderWorkspaceMount(null); renderComposerAttachments(); renderLocalChannels(); bindEvents(); setActiveChannel(activeChannel, { silent: true }); initTemplateShell(); connectLiveTransport();
 if (LIVE_API) loadKnowledgeSummary();
 if (LIVE_API) loadCapabilityCatalog();
 if (LIVE_API) loadWorkspaceCatalog();

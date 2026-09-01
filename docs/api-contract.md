@@ -94,6 +94,7 @@ POST /api/tasks/{id}/result            # 持有者提交 READY_FOR_REVIEW/FAILED
 POST /api/tasks/{id}/heartbeat         # 续租，拒绝过期/旧 epoch
 POST /api/tasks/{id}/handoff            # 在持有者之间显式交接
 POST /api/tasks/{id}/review             # accept/revise/reject 状态门
+POST /api/tasks/{id}/requeue            # Owner/协调者将 BLOCKED/FAILED/TIMEOUT 显式回队
 GET  /api/tasks/{id}/findings           # 查看 P0/P1/P2 finding
 POST /api/tasks/{id}/findings/{fid}/close # 用证据关闭 finding
 POST /api/projects/{id}/approvals       # 仅 Owner 记录审批，不自动执行
@@ -134,7 +135,35 @@ acceptance:
 lease: {ttl_seconds: 1800, fencing_epoch: 7}
 ```
 
+`write_set` 是实际的能力边界，不是展示字段。开发服务只接受
+`artifacts/`、`models/`、`experiments/`、`paper/`、`viz/`、
+`runtime/artifacts/`，以及专门的 `.collab/artifacts/`、`.collab/evidence/`、
+`.collab/reviews/` 子目录；目录通配符只允许放在末尾（如
+`artifacts/solver/Q2/**`）。源码、`AGENTS.md`/`README.md`、`.env`、运行时
+journal、隐藏目录、敏感名称、绝对路径和符号链接均会返回
+`422 INVALID_WRITE_SET`。这样即使未来接入真实 worker，也不能把任务 envelope
+当成覆盖仓库控制面的授权。
+
 回执必须同时提供：`status`、`target_worktree_revision`、changed paths、artifact hash、claim/evidence、命令/退出码、环境、假设、未完成项、风险和下一动作。开发 API 的 `result` 至少要求 `artifact_refs`、`evidence_refs`、`commands`、`result_hash`、`fencing_epoch` 和当前控制 `target_revision`；显式建模回执还要提供 `problem_type`、至少两个不同 `validation_checks`（每项含 `scope/threshold/exit_code=0/result_hash`）。`artifact_manifest`、`paper_claims` 和 `provenance_gate` 用于把文件与论文数字绑定；没有 `READY_FOR_REVIEW`、数值验证门或 manifest provenance 的回执不能 accept。
+
+任务进入 `BLOCKED`、`FAILED` 或 `TIMEOUT` 后不能直接 claim，必须先调用
+`POST /api/tasks/{id}/requeue`：
+
+```json
+{
+  "actor_id": "owner",
+  "reason": "补齐边界条件后重跑",
+  "evidence_refs": ["artifact:boundary-note"],
+  "target_revision": "manifest:<64 hex>",
+  "idempotency_key": "G7/requeue/attempt-2"
+}
+```
+
+服务端以 `target_revision` 做控制面 CAS，并校验 evidence ref；actor 必须是
+Owner/协调者、任务 owner 或指定 reviewer。成功后任务为 `QUEUED`，旧 lease 与
+当前 result 被清除（旧结果保存在 `previous_result`），返回完整 task 和
+`TASK_REQUEUED` 事件。相同幂等 key 返回第一次事件，不会重复回队；状态不在上述
+三类时返回 `409 TASK_REQUEUE_STATE_INVALID`。
 
 ## 6. Review 与 Owner 审批
 
@@ -161,6 +190,11 @@ if approval.scope does not cover action:
 ```
 
 Owner 审批记录 `approval_id、scope、snapshot、decision、created_at、expires_at、revoked_at`。外部 relay 必须引用一条未过期、scope 匹配、target revision 匹配的 `approve` 记录；`accept_risk` 只用于显式风险豁免。Agent 评分仅作为 decision support。
+
+关闭 finding 也是状态变更：调用者必须是 Owner、Coordinator、该任务的 owner 或
+指定 reviewer（匿名 `user` 不具备关闭权限），并且 `evidence_ref` 必须已经出现
+在该任务的 result/previous result 或任务关联事件中；仅格式像
+`artifact:...` 的陌生字符串会被拒绝为 `422 FINDING_EVIDENCE_UNKNOWN`。
 
 ## 7. ModelGateway
 

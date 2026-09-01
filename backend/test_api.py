@@ -6,6 +6,8 @@ Owner approvals and explicit external relay state.
 """
 
 import asyncio
+import hashlib
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -95,6 +97,25 @@ def test_workspace_repo_citation_is_bounded_and_accepted(client):
     assert not api.valid_evidence_ref("repo:backend/.env")
 
 
+@pytest.mark.parametrize("path", [
+    "/.git/config",
+    "/.collab/manifest.sha256",
+    "/.env.example",
+    "/backend/app.py",
+    "/README.md",
+    "/docs/api-contract.md",
+])
+def test_static_server_does_not_expose_checkout_or_control_files(client, path):
+    response = client.get(path)
+    assert response.status_code == 404
+
+
+def test_static_server_keeps_allowlisted_ui_assets_available(client):
+    assert client.get("/index.html").status_code == 200
+    assert client.get("/styles.css").status_code == 200
+    assert client.get("/assets/ip/xiao-qinglong-mark-v1.png").status_code == 200
+
+
 def test_idempotency_key_cannot_change_request(client):
     base = snapshot(client)["revision"]
     first = client.post(f"/api/projects/{api.PROJECT_ID}/messages", json={"text": "A", "base_revision": base, "idempotency_key": "same"})
@@ -125,6 +146,45 @@ def test_dispatch_validates_write_set_and_registers_envelope(client):
         "write_set": ["../outside"], "input_revision": VALID_MANIFEST, "idempotency_key": "dispatch-2",
     })
     assert bad.status_code == 422
+
+
+def test_dispatch_accepts_explicit_evidence_roots_and_normalises_directory_glob(client):
+    response = client.post(f"/api/projects/{api.PROJECT_ID}/dispatch", json={
+        "task_id": "T-evidence-root", "title": "证据目录任务", "owner_id": "solver-1", "objective": "写入审查证据",
+        "write_set": [".collab\\evidence\\T-evidence-root\\**", "runtime\\artifacts\\T-evidence-root"],
+        "input_revision": VALID_MANIFEST, "idempotency_key": "dispatch-evidence-root",
+    })
+    assert response.status_code == 200
+    assert response.json()["task"]["write_set"] == [".collab/evidence/T-evidence-root", "runtime/artifacts/T-evidence-root"]
+
+
+@pytest.mark.parametrize("unsafe_path", [
+    ".env",
+    ".env.example",
+    "AGENTS.md",
+    "backend/app.py",
+    ".collab/charter.yaml",
+    ".collab/events.jsonl",
+    "runtime/collab-state.json",
+    "secrets/key.txt",
+    "paper/.hidden-result.json",
+    "artifacts/../backend/app.py",
+    "artifacts/result/*.json",
+    "artifacts/out\x00.txt",
+    "artifacts/CON",
+    "artifacts/result.json:secret",
+    "artifacts/result.json.",
+    "artifacts/result.json ",
+    "artifacts/AGENTS.md.",
+])
+def test_dispatch_rejects_control_hidden_sensitive_and_non_artifact_write_sets(client, unsafe_path):
+    response = client.post(f"/api/projects/{api.PROJECT_ID}/dispatch", json={
+        "task_id": "T-unsafe-" + str(abs(hash(unsafe_path))), "title": "越界任务", "owner_id": "solver-1", "objective": "x",
+        "write_set": [unsafe_path], "input_revision": VALID_MANIFEST,
+        "idempotency_key": "dispatch-unsafe-" + str(abs(hash(unsafe_path))),
+    })
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "INVALID_WRITE_SET"
 
 
 def test_dispatch_rejects_unknown_dependency_and_overlapping_write_set(client):
@@ -164,6 +224,24 @@ def test_lease_and_fencing_gate(client):
     assert stale.json()["detail"]["code"] == "STALE_FENCING_EPOCH"
 
 
+def test_first_claim_is_bound_to_dispatch_owner(client):
+    dispatch = client.post(f"/api/projects/{api.PROJECT_ID}/dispatch", json={
+        "task_id": "T-owner-bound", "title": "首领认领约束", "owner_id": "solver-1", "objective": "只允许指定 worker 首次认领",
+        "input_revision": VALID_MANIFEST, "idempotency_key": "dispatch-owner-bound",
+    })
+    assert dispatch.status_code == 200
+    foreign = client.post("/api/tasks/T-owner-bound/claim", json={
+        "agent_id": "solver-2", "base_revision": dispatch.json()["revision"], "idempotency_key": "claim-owner-bound-foreign",
+    })
+    assert foreign.status_code == 403
+    assert foreign.json()["detail"]["code"] == "TASK_OWNER_MISMATCH"
+    owned = client.post("/api/tasks/T-owner-bound/claim", json={
+        "agent_id": "solver-1", "base_revision": dispatch.json()["revision"], "idempotency_key": "claim-owner-bound-owner",
+    })
+    assert owned.status_code == 200
+    assert owned.json()["task"]["claimed_by"] == "solver-1"
+
+
 def test_expired_lease_can_be_reclaimed_with_a_new_epoch(client):
     dispatch = client.post(f"/api/projects/{api.PROJECT_ID}/dispatch", json={
         "task_id": "T-reclaim", "title": "可抢占任务", "owner_id": "solver-1", "objective": "x",
@@ -186,6 +264,25 @@ def test_expired_lease_can_be_reclaimed_with_a_new_epoch(client):
     })
     assert stale.status_code == 409
     assert stale.json()["detail"]["code"] == "STALE_FENCING_EPOCH"
+
+
+@pytest.mark.parametrize("terminal_status", ["FAILED", "TIMEOUT"])
+def test_failed_or_timed_out_task_requires_explicit_requeue_before_claim(client, terminal_status):
+    dispatch = client.post(f"/api/projects/{api.PROJECT_ID}/dispatch", json={
+        "task_id": f"T-direct-claim-{terminal_status.lower()}", "title": "失败重试状态门",
+        "owner_id": "solver-1", "objective": "先回队再认领", "input_revision": VALID_MANIFEST,
+        "idempotency_key": f"dispatch-direct-claim-{terminal_status.lower()}",
+    })
+    assert dispatch.status_code == 200
+    task_id = dispatch.json()["task"]["id"]
+    api.store.tasks[task_id]["status"] = terminal_status
+    rejected = client.post(f"/api/tasks/{task_id}/claim", json={
+        "agent_id": "solver-1", "base_revision": snapshot(client)["revision"],
+        "idempotency_key": f"claim-direct-{terminal_status.lower()}",
+    })
+    assert rejected.status_code == 409
+    assert rejected.json()["detail"]["code"] == "TASK_NOT_CLAIMABLE"
+    assert rejected.json()["detail"]["status"] == terminal_status
 
 
 def test_result_submission_moves_claimed_task_to_review_and_replays_safely(client):
@@ -266,6 +363,53 @@ def test_critical_finding_must_close_before_accept(client):
     accepted = client.post("/api/tasks/G7/review", json={"reviewer_id": "validator", "verdict": "accept", "summary": "复核通过", "independence_basis": "clean snapshot", "check_logs": ["clean-run", "sensitivity"], "evidence_refs": ["artifact:counterexample-v2"], "target_revision": next_revision, "idempotency_key": "review-g7-accepted"})
     assert accepted.status_code == 200
     assert accepted.json()["task"]["status"] == "VERIFIED"
+
+
+def test_finding_close_rejects_unknown_evidence_and_unauthorized_actor(client):
+    # The reference is registered by the task result, but no arbitrary caller
+    # should be able to close a P1 finding or introduce a new artifact pointer.
+    api.store.tasks["G7"]["result"] = {
+        "status": "READY_FOR_REVIEW",
+        "artifact_refs": ["artifact:registered-finding-evidence"],
+        "evidence_refs": ["artifact:registered-finding-evidence"],
+    }
+    base = snapshot(client)["revision"]
+    denied = client.post("/api/tasks/G7/findings/F-G7-01/close", json={
+        "actor_id": "random-agent", "evidence_ref": "artifact:registered-finding-evidence",
+        "target_revision": base, "idempotency_key": "close-finding-unauthorized",
+    })
+    assert denied.status_code == 403
+    assert denied.json()["detail"]["code"] == "FINDING_CLOSE_FORBIDDEN"
+
+    user_alias = client.post("/api/tasks/G7/findings/F-G7-01/close", json={
+        "actor_id": "user", "evidence_ref": "artifact:registered-finding-evidence",
+        "target_revision": base, "idempotency_key": "close-finding-user-alias",
+    })
+    assert user_alias.status_code == 403
+
+    unknown = client.post("/api/tasks/G7/findings/F-G7-01/close", json={
+        "actor_id": "critic", "evidence_ref": "artifact:unregistered-finding-evidence",
+        "target_revision": base, "idempotency_key": "close-finding-unknown-ref",
+    })
+    assert unknown.status_code == 422
+    assert unknown.json()["detail"]["code"] == "FINDING_EVIDENCE_UNKNOWN"
+
+
+def test_finding_close_accepts_task_scoped_event_evidence(client):
+    base = snapshot(client)["revision"]
+    message = client.post(f"/api/projects/{api.PROJECT_ID}/messages", json={
+        "text": "记录待复核证据指针", "task_id": "G7",
+        "evidence_refs": ["artifact:event-registered"],
+        "target_revision": VALID_MANIFEST, "base_revision": base,
+        "idempotency_key": "message-finding-evidence-event",
+    })
+    assert message.status_code == 200
+    closed = client.post("/api/tasks/G7/findings/F-G7-01/close", json={
+        "actor_id": "critic", "evidence_ref": "artifact:event-registered",
+        "target_revision": message.json()["revision"], "idempotency_key": "close-finding-event-ref",
+    })
+    assert closed.status_code == 200
+    assert closed.json()["finding"]["evidence_ref"] == "artifact:event-registered"
 
 
 def test_external_relay_requires_owner_approval(client):
@@ -461,6 +605,114 @@ def test_legacy_result_is_unverified_and_review_accept_is_blocked(client):
     assert review.json()["detail"]["code"] == "VALIDATION_GATE_BLOCKED"
 
 
+def test_revise_requeue_then_claim_is_explicit_and_idempotent(client):
+    dispatch = client.post(f"/api/projects/{api.PROJECT_ID}/dispatch", json={
+        "task_id": "T-requeue", "title": "显式重试", "owner_id": "solver-1", "reviewer_id": "validator",
+        "objective": "先复核再重新排队", "input_revision": VALID_MANIFEST,
+        "idempotency_key": "dispatch-requeue",
+    })
+    assert dispatch.status_code == 200
+    claimed = client.post("/api/tasks/T-requeue/claim", json={
+        "agent_id": "solver-1", "base_revision": dispatch.json()["revision"], "idempotency_key": "claim-requeue",
+    })
+    assert claimed.status_code == 200
+    lease = claimed.json()["task"]["lease"]
+    result = client.post("/api/tasks/T-requeue/result", json={
+        "agent_id": "solver-1", "fencing_epoch": lease["fencing_epoch"], "status": "READY_FOR_REVIEW",
+        "summary": "等待独立复核", "artifact_refs": ["artifact:retry-v1"], "evidence_refs": ["run:retry-v1"],
+        "commands": ["python retry.py"], "result_hash": "sha256:" + "0" * 64,
+        "target_revision": claimed.json()["revision"], "idempotency_key": "result-requeue",
+    })
+    assert result.status_code == 200
+    review = client.post("/api/tasks/T-requeue/review", json={
+        "reviewer_id": "validator", "verdict": "revise", "summary": "补充边界样本",
+        "independence_basis": "independent rerun", "check_logs": ["review.log"],
+        "evidence_refs": ["artifact:retry-v1"], "target_revision": result.json()["revision"],
+        "idempotency_key": "review-requeue",
+    })
+    assert review.status_code == 200
+    assert review.json()["task"]["status"] == "BLOCKED"
+    requeue_payload = {
+        "actor_id": "owner", "reason": "补充边界样本后重跑", "evidence_refs": ["artifact:boundary-note"],
+        "target_revision": review.json()["revision"], "idempotency_key": "requeue-1",
+    }
+    requeued = client.post("/api/tasks/T-requeue/requeue", json=requeue_payload)
+    assert requeued.status_code == 200
+    body = requeued.json()
+    assert body["event"]["type"] == "TASK_REQUEUED"
+    assert body["task"]["status"] == "QUEUED"
+    assert body["task"]["lease"] is None and body["task"]["claimed_by"] is None
+    assert body["task"]["requeue_count"] == 1
+    assert body["task"]["previous_result"]["status"] == "READY_FOR_REVIEW"
+    replay = client.post("/api/tasks/T-requeue/requeue", json=requeue_payload)
+    assert replay.status_code == 200
+    assert replay.json()["event"]["event_id"] == body["event"]["event_id"]
+    claim_again = client.post("/api/tasks/T-requeue/claim", json={
+        "agent_id": "solver-1", "base_revision": body["revision"], "idempotency_key": "claim-requeue-again",
+    })
+    assert claim_again.status_code == 200
+    assert claim_again.json()["task"]["status"] == "IN_PROGRESS"
+
+
+def test_requeue_rejects_unauthorized_actor_and_invalid_state(client):
+    dispatch = client.post(f"/api/projects/{api.PROJECT_ID}/dispatch", json={
+        "task_id": "T-requeue-auth", "title": "重试权限", "owner_id": "solver-1", "objective": "x",
+        "input_revision": VALID_MANIFEST, "idempotency_key": "dispatch-requeue-auth",
+    })
+    assert dispatch.status_code == 200
+    api.store.tasks["T-requeue-auth"]["status"] = "BLOCKED"
+    denied = client.post("/api/tasks/T-requeue-auth/requeue", json={
+        "actor_id": "solver-2", "reason": "抢占", "evidence_refs": ["artifact:reason"],
+        "target_revision": api.store.revision, "idempotency_key": "requeue-auth-denied",
+    })
+    assert denied.status_code == 403
+    assert denied.json()["detail"]["code"] == "TASK_REQUEUE_FORBIDDEN"
+    api.store.tasks["T-requeue-auth"]["status"] = "QUEUED"
+    invalid_state = client.post("/api/tasks/T-requeue-auth/requeue", json={
+        "actor_id": "owner", "reason": "重复入队", "evidence_refs": ["artifact:reason"],
+        "target_revision": api.store.revision, "idempotency_key": "requeue-auth-invalid-state",
+    })
+    assert invalid_state.status_code == 409
+    assert invalid_state.json()["detail"]["code"] == "TASK_REQUEUE_STATE_INVALID"
+
+
+def test_artifact_gate_hashes_local_file_and_rejects_fake_paths(client):
+    artifact_path = api.ROOT / "paper" / "t14-artifact.bin"
+    artifact_path.write_bytes(b"t14 provenance")
+    empty_hash = "sha256:" + hashlib.sha256(b"").hexdigest()
+    try:
+        artifact_hash = "sha256:" + hashlib.sha256(b"t14 provenance").hexdigest()
+        valid = api.artifact_provenance_gate({
+            "artifact_refs": ["artifact:paper-t14"], "evidence_refs": [],
+            "target_revision": VALID_MANIFEST,
+            "artifact_manifest": [{"ref": "artifact:paper-t14", "path": "paper/t14-artifact.bin",
+                                    "sha256": artifact_hash, "command": "python write_artifact.py", "exit_code": 0,
+                                    "target_revision": VALID_MANIFEST}],
+        }, task_record={"write_set": ["paper"]})
+        assert valid["ready"] is True
+        assert valid["entry_checks"][0]["status"] == "VERIFIED_BYTES"
+        mismatch = api.artifact_provenance_gate({
+            "artifact_refs": ["artifact:paper-t14"], "evidence_refs": [], "target_revision": VALID_MANIFEST,
+            "artifact_manifest": [{"ref": "artifact:paper-t14", "path": "paper/t14-artifact.bin",
+                                    "sha256": "sha256:" + "0" * 64, "command": "python write_artifact.py", "exit_code": 0,
+                                    "target_revision": VALID_MANIFEST}],
+        })
+        assert mismatch["ready"] is False
+        assert "manifest_hash_mismatch" in mismatch["reasons"]
+    finally:
+        artifact_path.unlink(missing_ok=True)
+
+    fabricated = api.artifact_provenance_gate({
+        "artifact_refs": ["artifact:fake"], "evidence_refs": [], "target_revision": VALID_MANIFEST,
+        "artifact_manifest": [{"ref": "artifact:fake", "path": "C:/Windows/System32/not-here.bin",
+                                "sha256": empty_hash, "command": "echo fabricated", "exit_code": 0,
+                                "target_revision": VALID_MANIFEST}],
+    }, task_record={"write_set": ["paper"]})
+    assert fabricated["ready"] is False
+    assert "manifest_path_untrusted" in fabricated["reasons"]
+
+
+
 def test_optional_json_journal_survives_restart():
     path = __import__("pathlib").Path(__file__).with_name("_test_collab_state.json")
     if path.exists():
@@ -479,3 +731,18 @@ def test_optional_json_journal_survives_restart():
     finally:
         if path.exists():
             path.unlink()
+
+
+def test_projection_digest_detects_out_of_band_edit(tmp_path):
+    path = tmp_path / "collab-state.json"
+    first = api.EventStore(str(path))
+
+    async def write_once():
+        return await first.append(actor_id="owner", event_type="MESSAGE", payload={"text": "integrity"}, idempotency_key="projection-1")
+
+    asyncio.run(write_once())
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    raw["tasks"]["G1"]["title"] = "tampered outside event log"
+    path.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="projection integrity"):
+        api.EventStore(str(path))

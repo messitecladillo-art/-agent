@@ -436,6 +436,252 @@ def valid_evidence_ref(value: str) -> bool:
     return all(part not in {"", ".", ".."} and not part.startswith(".") and not sensitive.search(part) for part in parts)
 
 
+def _collect_evidence_refs(value: Any) -> Set[str]:
+    """Collect exact evidence references from a task/event projection.
+
+    Finding closure must not turn a syntactically valid, arbitrary string into
+    proof.  The local adapter has no external evidence registry, so the safe
+    compatibility boundary is an exact reference already present in this task's
+    result/previous result or an associated event payload.  Free-form prose is
+    intentionally ignored; only fields whose values are structured evidence
+    pointers are traversed.
+    """
+    refs: Set[str] = set()
+    container_keys = {
+        "evidence_ref", "evidence_refs", "artifact_ref", "artifact_refs", "citation_ref",
+        "ref", "source_ref", "manifest_ref", "artifact_manifest", "paper_claims",
+        "result", "previous_result", "task", "payload",
+    }
+
+    def visit(node: Any, *, field: Optional[str] = None) -> None:
+        if isinstance(node, str):
+            candidate = node.strip()
+            if field in container_keys and valid_evidence_ref(candidate):
+                refs.add(candidate)
+            return
+        if isinstance(node, Mapping):
+            for key, child in node.items():
+                key_text = str(key)
+                # Traverse structured containers; do not inspect arbitrary
+                # summary/note text for strings that merely resemble a ref.
+                if key_text in container_keys:
+                    visit(child, field=key_text)
+            return
+        if isinstance(node, (list, tuple, set)):
+            for child in node:
+                visit(child, field=field)
+
+    visit(value)
+    return refs
+
+
+def _known_finding_evidence_refs(task_id: str) -> Set[str]:
+    """Return exact refs already registered for one task in local state."""
+    refs: Set[str] = set()
+    task = store.tasks.get(task_id) if "store" in globals() else None
+    if isinstance(task, Mapping):
+        refs.update(_collect_evidence_refs(task))
+    for event in getattr(store, "events", []):
+        event_task_id = event.task_id
+        if event_task_id is None and isinstance(event.payload, Mapping):
+            # MESSAGE events keep the task link in their payload (the event
+            # envelope remains channel-scoped), while task transitions use the
+            # envelope field.  Treat either explicit form as task-scoped; do
+            # not make evidence from an unrelated channel globally reusable.
+            event_task_id = event.payload.get("task_id")
+            if event_task_id is None and isinstance(event.payload.get("task"), Mapping):
+                event_task_id = event.payload["task"].get("id") or event.payload["task"].get("task_id")
+        if str(event_task_id or "") == task_id:
+            refs.update(_collect_evidence_refs(event.payload))
+    return refs
+
+
+# Result manifests are deliberately stricter than ordinary evidence refs.
+# A ref in a chat message can point at an external/future artifact, whereas a
+# manifest is the assertion that a concrete, reproducible file exists.  Keep
+# that assertion inside explicit local output roots and verify the bytes before
+# allowing it to participate in a paper/release gate.  ``.collab`` is hidden
+# from the static server, but is an intentional local evidence store; it is
+# listed explicitly here rather than opening all hidden paths.
+ARTIFACT_ALLOWED_PREFIXES = (
+    PurePosixPath("artifacts"),
+    PurePosixPath("models"),
+    PurePosixPath("experiments"),
+    PurePosixPath("paper"),
+    PurePosixPath("viz"),
+    PurePosixPath("runtime", "artifacts"),
+    PurePosixPath(".collab", "artifacts"),
+    PurePosixPath(".collab", "evidence"),
+    PurePosixPath(".collab", "reviews"),
+)
+ARTIFACT_MAX_BYTES = 256 * 1024 * 1024
+
+# A task's write set is a capability grant, not just a display label.  Keep it
+# narrower than the general repository/catalog allow-list: workers may create
+# outputs in the explicit artifact roots only, never source, control, runtime
+# journal, hidden, or credential-looking paths.  The optional ``.collab``
+# roots are for evidence/review artifacts; the rest of that control directory
+# remains coordinator-owned.
+WRITE_SET_ALLOWED_PREFIXES = ARTIFACT_ALLOWED_PREFIXES
+WRITE_SET_CONTROL_NAMES = frozenset({
+    ".git", ".collab", ".env", ".env.example", "agents.md", "tasks.md", "readme.md",
+    "docker-compose.yml", "backend", "docs", "skills", "notes", "workflows", "scripts",
+    "data", "assets", "manifest.sha256", "charter.yaml", "tasks.yaml",
+    "events.jsonl", "collab-state.json", "app.py", "app.js", "index.html", "styles.css",
+})
+WRITE_SET_SENSITIVE_PART = re.compile(
+    r"(?:^|[._-])(secret|secrets|credential|credentials|password|passwd|token|api[_-]?key|private[_-]?key)(?:[._-]|$)",
+    flags=re.IGNORECASE,
+)
+
+
+def _normalise_write_set_path(raw_path: Any) -> str:
+    """Validate and canonicalise one worker write-set capability.
+
+    ``canonical_path`` provides the common traversal/absolute-path checks used
+    by the orchestrator.  This second fence binds the result to an explicit
+    output root and rejects control files.  A trailing ``/**`` is accepted as
+    the protocol's directory notation and reduced to the directory prefix so
+    conflict detection and artifact-manifest matching have the same semantics.
+    """
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        raise ValueError("write path must be a non-empty string")
+    if raw_path != raw_path.strip():
+        raise ValueError("leading/trailing whitespace is not allowed in a write set")
+    raw_value = raw_path
+    if len(raw_value) > 500 or any(ord(char) < 32 or ord(char) == 127 for char in raw_value):
+        raise ValueError("write path contains a control character or is too long")
+    # A colon in a descendant component can address an NTFS alternate data
+    # stream (for example ``artifacts/result.json:secret``) even though the
+    # apparent path remains under an approved root.  Reject it everywhere;
+    # artifact names do not need drive letters or stream syntax.
+    if ":" in raw_value:
+        raise ValueError("alternate data stream or drive syntax is not allowed")
+    normalized = canonical_path(raw_value)
+    if normalized.endswith("/**"):
+        normalized = normalized[:-3].rstrip("/")
+    if not normalized:
+        raise ValueError("write path must not be empty")
+    path = PurePosixPath(normalized)
+    parts = list(path.parts)
+    if not parts or any(part in {"", ".", ".."} for part in parts):
+        raise ValueError("path traversal is not allowed")
+    if any("*" in part or "?" in part for part in parts):
+        raise ValueError("only a trailing /** wildcard is allowed")
+
+    folded = tuple(part.casefold() for part in parts)
+    matched_prefix = None
+    for prefix in WRITE_SET_ALLOWED_PREFIXES:
+        candidate = tuple(part.casefold() for part in prefix.parts)
+        if len(folded) >= len(candidate) and folded[: len(candidate)] == candidate:
+            matched_prefix = prefix
+            break
+    if matched_prefix is None:
+        raise ValueError(
+            "write path must be under an approved artifact root: "
+            "artifacts/, models/, experiments/, paper/, viz/, runtime/artifacts/, "
+            ".collab/{artifacts,evidence,reviews}/"
+        )
+
+    for index, part in enumerate(parts):
+        folded_part = part.casefold()
+        # Windows silently trims trailing dots/spaces from path components;
+        # refusing them prevents an apparently harmless artifact name from
+        # aliasing a different control file on disk.
+        if part != part.rstrip(" ."):
+            raise ValueError("trailing dots/spaces are not allowed in a write set")
+        # ``.collab`` is allowed only as the first component of the three
+        # explicit evidence roots.  Every other dot-prefixed component is
+        # hidden/control state and is therefore denied.
+        if part.startswith(".") and not (index == 0 and folded_part == ".collab"):
+            raise ValueError("hidden/control paths are not allowed in a write set")
+        if folded_part in WRITE_SET_CONTROL_NAMES and not (index == 0 and folded_part == ".collab"):
+            raise ValueError("control paths are not allowed in a write set")
+        if WRITE_SET_SENSITIVE_PART.search(part):
+            raise ValueError("sensitive-looking paths are not allowed in a write set")
+        # Windows device names are not ordinary artifact files and can make a
+        # nominally relative path address a console/device instead of the
+        # worker's output directory.
+        device_name = part.rstrip(" .").split(".", 1)[0].casefold()
+        if device_name in {"con", "prn", "aux", "nul"} or (len(device_name) == 4 and device_name[:3] in {"com", "lpt"} and device_name[3].isdigit()):
+            raise ValueError("reserved device names are not allowed in a write set")
+
+    # Existing symlink/junction components are rejected.  Non-existent output
+    # directories are fine; the worker may create them inside its lease.
+    current = ROOT
+    for part in parts:
+        current = current / part
+        try:
+            if current.is_symlink():
+                raise ValueError("symlink paths are not allowed in a write set")
+        except OSError as error:
+            raise ValueError("write path could not be inspected") from error
+
+    # Canonicalise the approved root spelling (important on Windows where the
+    # filesystem is case-insensitive) while preserving user-facing descendant
+    # names.  This keeps ``ARTIFACTS/foo`` and ``artifacts/foo`` in one scope.
+    prefix_parts = list(matched_prefix.parts)
+    parts[: len(prefix_parts)] = prefix_parts
+    return "/".join(parts)
+
+
+def _safe_artifact_path(raw_path: Any) -> Optional[Path]:
+    """Resolve a manifest path under an explicit local artifact root.
+
+    This helper never creates or opens a file.  It rejects drive-qualified,
+    traversal, hidden (outside the explicit ``.collab`` roots), symlinked and
+    oversized paths.  The caller still hashes the returned path immediately
+    before accepting the manifest, so a changed file fails closed.
+    """
+    if not isinstance(raw_path, str):
+        return None
+    value = raw_path.strip()
+    if not value or len(value) > 500 or "\x00" in value:
+        return None
+    # Backslashes are rejected rather than normalised here.  A manifest is a
+    # portable protocol envelope; accepting both separators would make the
+    # displayed path and the verified path ambiguous on Windows.
+    if "\\" in value or value.startswith("/") or re.match(r"^[A-Za-z]:", value):
+        return None
+    path = PurePosixPath(value)
+    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+        return None
+    if any(part.startswith(".") for part in path.parts if part != ".collab"):
+        return None
+    if not any(path == prefix or prefix in path.parents for prefix in ARTIFACT_ALLOWED_PREFIXES):
+        return None
+    candidate = ROOT.joinpath(*path.parts)
+    current = ROOT
+    for part in path.parts:
+        current = current / part
+        try:
+            if current.is_symlink():
+                return None
+        except OSError:
+            return None
+    try:
+        resolved = candidate.resolve(strict=True)
+        resolved.relative_to(ROOT)
+        stat = resolved.stat()
+    except (OSError, ValueError):
+        return None
+    if not resolved.is_file() or stat.st_size > ARTIFACT_MAX_BYTES:
+        return None
+    return resolved
+
+
+def _hash_local_file(path: Path) -> Optional[str]:
+    """Return a ``sha256:`` digest, or ``None`` when the file changes/read fails."""
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except (OSError, PermissionError):
+        return None
+    return "sha256:" + digest.hexdigest()
+
+
 def modeling_provenance(message: MessageIn) -> Dict[str, Any]:
     """Project message provenance without guessing missing claims or evidence."""
     complete = bool(message.claim_class and message.evidence_refs and message.target_revision)
@@ -447,7 +693,7 @@ def modeling_provenance(message: MessageIn) -> Dict[str, Any]:
     }
 
 
-def artifact_provenance_gate(result_record: Dict[str, Any]) -> Dict[str, Any]:
+def artifact_provenance_gate(result_record: Dict[str, Any], *, task_record: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Check that result/evidence/claim refs resolve to a frozen manifest.
 
     This is intentionally separate from the numerical validation gate: a
@@ -458,6 +704,7 @@ def artifact_provenance_gate(result_record: Dict[str, Any]) -> Dict[str, Any]:
     refs = set(result_record.get("artifact_refs") or []) | set(result_record.get("evidence_refs") or [])
     target_revision = result_record.get("target_revision")
     reasons: List[str] = []
+    entry_checks: List[Dict[str, Any]] = []
     if not entries:
         reasons.append("artifact_manifest_missing")
     entry_refs: Set[str] = set()
@@ -467,14 +714,66 @@ def artifact_provenance_gate(result_record: Dict[str, Any]) -> Dict[str, Any]:
             continue
         ref = str(entry.get("ref", "")).strip()
         entry_refs.add(ref)
+        entry_result: Dict[str, Any] = {
+            "ref": ref,
+            "path": str(entry.get("path", "")),
+            "status": "UNVERIFIED",
+            "path_status": "UNVERIFIED",
+            "hash_status": "UNVERIFIED",
+        }
         if not valid_evidence_ref(ref):
             reasons.append("manifest_ref_invalid")
         if not re.fullmatch(r"sha256:[0-9a-fA-F]{64}", str(entry.get("sha256", ""))):
             reasons.append("manifest_hash_invalid")
+        expected_hash = str(entry.get("sha256", "")).lower()
+        local_path = _safe_artifact_path(entry.get("path"))
+        if local_path is None:
+            reasons.append("manifest_path_untrusted")
+            entry_result["path_status"] = "UNTRUSTED"
+        else:
+            entry_result["path_status"] = "LOCAL_FILE"
+            actual_hash = _hash_local_file(local_path)
+            if actual_hash is None:
+                reasons.append("manifest_file_unreadable")
+                entry_result["hash_status"] = "UNREADABLE"
+            elif actual_hash.lower() != expected_hash:
+                reasons.append("manifest_hash_mismatch")
+                entry_result["hash_status"] = "MISMATCH"
+                entry_result["actual_sha256"] = actual_hash
+            else:
+                entry_result["hash_status"] = "MATCH"
+                entry_result["actual_sha256"] = actual_hash
+            # A worker may only claim files inside its declared write set.  An
+            # empty write set is allowed for a legacy/read-only task, but an
+            # explicitly bounded set is enforced here as another provenance
+            # fence (not merely a UI convention).
+            write_set = list((task_record or {}).get("write_set") or [])
+            if write_set:
+                path_text = PurePosixPath(str(entry.get("path"))).as_posix().rstrip("/")
+                try:
+                    in_write_set = any(
+                        path_text == canonical_path(item).rstrip("/")
+                        or path_text.startswith(canonical_path(item).rstrip("/") + "/")
+                        for item in write_set
+                    )
+                except (TypeError, ValueError):
+                    in_write_set = False
+                if not in_write_set:
+                    reasons.append("manifest_path_outside_write_set")
+                    entry_result["path_status"] = "OUTSIDE_WRITE_SET"
         if entry.get("exit_code") != 0:
             reasons.append("manifest_exit_code_nonzero")
         if target_revision and entry.get("target_revision") != target_revision:
             reasons.append("manifest_target_revision_mismatch")
+        if (
+            entry_result.get("path_status") == "LOCAL_FILE"
+            and entry_result.get("hash_status") == "MATCH"
+            and entry.get("exit_code") == 0
+            and valid_evidence_ref(ref)
+            and (not target_revision or entry.get("target_revision") == target_revision)
+        ):
+            entry_result["status"] = "VERIFIED_BYTES"
+        entry_checks.append(entry_result)
     if refs and not refs.issubset(entry_refs):
         reasons.append("result_ref_not_in_manifest")
     # A syntactically valid KB citation is still unresolved until the current
@@ -516,11 +815,12 @@ def artifact_provenance_gate(result_record: Dict[str, Any]) -> Dict[str, Any]:
         "ready": not reasons,
         "manifest_count": len(entries),
         "linked_ref_count": len(refs.intersection(entry_refs)),
+        "entry_checks": entry_checks,
         "reasons": reasons,
     }
 
 
-def validation_gate(result_record: Dict[str, Any]) -> Dict[str, Any]:
+def validation_gate(result_record: Dict[str, Any], *, task_record: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Compute a read-only, fail-closed validation gate for a task result.
 
     A legacy result with no modeling fields is represented as UNVERIFIED.  It
@@ -551,7 +851,7 @@ def validation_gate(result_record: Dict[str, Any]) -> Dict[str, Any]:
     # Preserve order while avoiding an unreadable duplicate reason list.
     reasons = list(dict.fromkeys(reasons))
     ready = not reasons
-    provenance = artifact_provenance_gate(result_record)
+    provenance = artifact_provenance_gate(result_record, task_record=task_record)
     return {
         "status": "READY" if ready else "UNVERIFIED",
         "ready": ready,
@@ -642,6 +942,16 @@ class MessageIn(BaseModel):
 class ClaimRequest(BaseModel):
     agent_id: str = Field(min_length=1, max_length=120)
     base_revision: str = Field(min_length=1, max_length=200)
+    idempotency_key: str = Field(min_length=1, max_length=200)
+
+
+class RequeueIn(BaseModel):
+    """Owner/coordinator request to reopen a blocked or failed task."""
+
+    actor_id: str = Field(min_length=1, max_length=120)
+    reason: str = Field(min_length=1, max_length=2000)
+    evidence_refs: List[str] = Field(default_factory=list, max_length=50)
+    target_revision: str = Field(min_length=1, max_length=200)
     idempotency_key: str = Field(min_length=1, max_length=200)
 
 
@@ -945,6 +1255,11 @@ class EventStore:
         self.seen_idempotency: Set[str] = set()
         self.idempotency_fingerprints: Dict[str, str] = {}
         self.chain_valid: bool = True
+        # Projection integrity complements the append-only event hash chain:
+        # the chain can remain valid even when a persisted tasks/messages
+        # projection is edited out of band.  New journals carry a digest;
+        # legacy journals are readable but explicitly marked unverified.
+        self.projection_integrity: str = "UNAVAILABLE"
         self.connections: Set[WebSocket] = set()
         self._lock: Optional[asyncio.Lock] = None
         self._lock_loop: Optional[asyncio.AbstractEventLoop] = None
@@ -995,6 +1310,15 @@ class EventStore:
             # derive a conservative one from the event envelope when possible.
             for event in self.events:
                 self.idempotency_fingerprints.setdefault(event.idempotency_key, revision_for({"actor_id": event.actor_id, "event_type": event.type, "channel": event.channel, "task_id": event.task_id, "base_revision": event.base_revision, "payload": event.payload}))
+            declared_projection = raw.get("projection_revision")
+            actual_projection = self.revision
+            if declared_projection:
+                if declared_projection != actual_projection:
+                    self.projection_integrity = "FAILED"
+                    raise RuntimeError("collaboration projection integrity check failed")
+                self.projection_integrity = "VERIFIED"
+            else:
+                self.projection_integrity = "LEGACY_UNVERIFIED"
         except (OSError, ValueError, TypeError) as error:
             raise RuntimeError(f"cannot load collaboration state: {error}")
 
@@ -1016,8 +1340,9 @@ class EventStore:
         if not self.state_file:
             return
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
+        self.projection_integrity = "VERIFIED"
         payload = {
-            "version": 3,
+            "version": 4,
             "tasks": self.tasks,
             "messages": self.messages,
             "approvals": self.approvals,
@@ -1026,6 +1351,7 @@ class EventStore:
             "findings": self.findings,
             "events": [event.model_dump() for event in self.events],
             "idempotency_fingerprints": self.idempotency_fingerprints,
+            "projection_revision": self.revision,
         }
         temp = self.state_file.with_name(self.state_file.name + ".tmp")
         serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2)
@@ -1121,6 +1447,52 @@ class EventStore:
 store = EventStore(os.getenv("COLLAB_STATE_FILE"))
 app = FastAPI(title="G-CUP MAS Local API", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:4173", "http://127.0.0.1:4173"], allow_credentials=False, allow_methods=["GET", "POST"], allow_headers=["*"])
+
+# The API process also serves the small vanilla front end.  Keep that surface
+# explicit: a broad ``/{asset_path:path}`` handler must never turn the project
+# checkout into a source browser (especially for .git, .collab, .env, runtime
+# journals, backend code, or user-provided material).  Dynamic knowledge files
+# continue to go through the doc-id fenced route above.
+STATIC_ROOT_FILES = {"index.html", "styles.css", "app.js", "favicon.ico", "manifest.webmanifest"}
+STATIC_ROOT_DIRS = {"assets"}
+STATIC_SENSITIVE_PART = re.compile(
+    r"(?:^|[._-])(secret|secrets|credential|credentials|password|passwd|token|api[_-]?key|private[_-]?key)(?:[._-]|$)",
+    flags=re.IGNORECASE,
+)
+
+
+def _safe_static_file(asset_path: str) -> Optional[Path]:
+    """Resolve only public UI assets; return ``None`` for every other path."""
+    if not isinstance(asset_path, str) or not asset_path or len(asset_path) > 400:
+        return None
+    normalized = asset_path.replace("\\", "/")
+    if normalized.startswith("/") or "\x00" in normalized:
+        return None
+    parts = PurePosixPath(normalized).parts
+    if not parts or any(part in {"", ".", ".."} or part.startswith(".") or STATIC_SENSITIVE_PART.search(part) for part in parts):
+        return None
+    if len(parts) == 1 and parts[0] in STATIC_ROOT_FILES:
+        pass
+    elif parts[0] in STATIC_ROOT_DIRS:
+        pass
+    else:
+        return None
+    candidate = ROOT.joinpath(*parts)
+    # Refuse symlinked/junction-like components even when their resolved target
+    # happens to remain under ROOT; static serving is an allowlist, not a link
+    # traversal mechanism.
+    current = ROOT
+    for part in parts:
+        current = current / part
+        if current.is_symlink():
+            return None
+    try:
+        resolved = candidate.resolve()
+    except OSError:
+        return None
+    if ROOT not in resolved.parents or not resolved.is_file():
+        return None
+    return resolved
 
 
 def source_integrity_snapshot() -> Dict[str, Any]:
@@ -1973,6 +2345,7 @@ async def snapshot(project_id: str) -> Dict[str, Any]:
                 "worktree_revision": INPUT_REVISION,
                 "control_revision": store.revision,
                 "event_chain_valid": store.chain_valid,
+                "projection_integrity": store.projection_integrity,
                 "source_integrity": integrity,
             },
             "tasks": copy.deepcopy(list(store.tasks.values())),
@@ -1998,6 +2371,7 @@ async def snapshot(project_id: str) -> Dict[str, Any]:
             "next_seq": store.events[-1].seq if store.events else 0,
             "agent_sync": {"antigravity": "PENDING_RELAY"},
             "event_chain_valid": store.chain_valid,
+            "projection_integrity": store.projection_integrity,
             "source_integrity": integrity,
         }
 
@@ -2038,10 +2412,7 @@ async def dispatch_task(project_id: str, request: DispatchIn) -> Dict[str, Any]:
     normalized_write_set: List[str] = []
     try:
         for path in request.write_set:
-            normalized = canonical_path(path)
-            if not normalized:
-                raise ValueError("empty write path")
-            normalized_write_set.append(normalized)
+            normalized_write_set.append(_normalise_write_set_path(path))
     except ValueError as error:
         raise HTTPException(status_code=422, detail={"code": "INVALID_WRITE_SET", "message": str(error)})
     task_record = {
@@ -2161,7 +2532,13 @@ async def claim_task(task_id: str, request: ClaimRequest) -> Dict[str, Any]:
     def apply_claim(_: Event) -> None:
         current = store.tasks[task_id]
         status = current.get("status")
-        if status not in {"QUEUED", "IN_PROGRESS", "FAILED", "TIMEOUT"}:
+        # Failed and timed-out attempts must be explicitly requeued by the
+        # Owner/coordinator before another worker can claim them.  Keeping
+        # retry as a visible state transition preserves the prior result,
+        # increments the audit trail, and prevents a direct claim from
+        # bypassing the retry authorization/CAS gate.  An expired lease is
+        # still reclaimable because its task remains IN_PROGRESS.
+        if status not in {"QUEUED", "IN_PROGRESS"}:
             raise HTTPException(status_code=409, detail={"code": "TASK_NOT_CLAIMABLE", "status": status})
         for dependency in current.get("depends_on") or []:
             dependency_task = store.tasks.get(dependency)
@@ -2171,6 +2548,15 @@ async def claim_task(task_id: str, request: ClaimRequest) -> Dict[str, Any]:
         existing_holder = current.get("claimed_by") or (existing_lease or {}).get("holder")
         if status == "IN_PROGRESS" and existing_holder not in {None, request.agent_id} and not lease_expired(existing_lease):
             raise HTTPException(status_code=409, detail={"code": "TASK_LEASE_HELD", "holder": existing_holder, "expires_at": (existing_lease or {}).get("expires_at")})
+        # A queued task is already assigned by the coordinator's envelope.  A
+        # different worker must arrive through the explicit handoff/requeue
+        # path; otherwise any caller of this local (unauthenticated) API could
+        # silently take another agent's write set.  Coordinator/owner-created
+        # placeholder assignments remain claimable by a local adapter.
+        assigned_owner = str(current.get("owner") or "").strip()
+        open_assignment = {"", "unassigned", "coordinator", "codex/root", "owner", "user"}
+        if status != "IN_PROGRESS" and assigned_owner.lower() not in open_assignment and request.agent_id != assigned_owner:
+            raise HTTPException(status_code=403, detail={"code": "TASK_OWNER_MISMATCH", "owner": assigned_owner, "agent_id": request.agent_id})
         # A claim on an expired lease is an explicit reclaim.  ``new_lease``
         # increments the fencing epoch, so writes from the old worker are
         # rejected even if they arrive after the reclaim race.
@@ -2205,7 +2591,7 @@ async def submit_task_result(task_id: str, result: ResultIn) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail="task not found")
     submitted: Dict[str, Any] = {}
     result_payload = result.model_dump()
-    result_gate = validation_gate(result_payload)
+    result_gate = validation_gate(result_payload, task_record=store.tasks.get(task_id))
     # Explicit modeling submissions are strict at ingress.  Legacy payloads
     # without these fields remain readable as UNVERIFIED so old adapters can
     # migrate, but they are blocked later by the review acceptance gate.
@@ -2213,7 +2599,7 @@ async def submit_task_result(task_id: str, result: ResultIn) -> Dict[str, Any]:
     if result.status == "READY_FOR_REVIEW" and explicit_contract and not result_gate["ready"]:
         raise HTTPException(status_code=422, detail={"code": "VALIDATION_STRUCTURE_INVALID", "gate": result_gate})
     result_payload["validation_gate"] = result_gate
-    result_payload["provenance_gate"] = artifact_provenance_gate(result_payload)
+    result_payload["provenance_gate"] = artifact_provenance_gate(result_payload, task_record=store.tasks.get(task_id))
 
     def apply_result(_: Event) -> None:
         current = store.tasks[task_id]
@@ -2248,8 +2634,8 @@ async def submit_task_result(task_id: str, result: ResultIn) -> Dict[str, Any]:
             "artifact_manifest": [item.model_dump() for item in result.artifact_manifest],
             "paper_claims": [item.model_dump() for item in result.paper_claims],
             "target_revision": result.target_revision,
-            "validation_gate": result_gate,
-            "provenance_gate": artifact_provenance_gate(result_payload),
+            "validation_gate": validation_gate(result_payload, task_record=current),
+            "provenance_gate": artifact_provenance_gate(result_payload, task_record=current),
             "submitted_at": _.timestamp,
         }
         current["result"] = result_record
@@ -2397,14 +2783,14 @@ async def review_task(task_id: str, review: ReviewIn) -> Dict[str, Any]:
         if review.verdict == "accept" and acceptance_blocked(open_severities, accepted_risk=risk_approved):
             raise HTTPException(status_code=409, detail={"code": "CRITICAL_FINDINGS_OPEN", "severities": open_severities})
         if review.verdict == "accept":
-            gate = validation_gate(current.get("result") or {})
+            gate = validation_gate(current.get("result") or {}, task_record=current)
             # Results written through this API always carry a gate projection.
             # Older in-memory/journal records without that marker are allowed
             # to complete their migration path without changing legacy state.
             if "validation_gate" in (current.get("result") or {}) and not gate["ready"]:
                 raise HTTPException(status_code=409, detail={"code": "VALIDATION_GATE_BLOCKED", "gate": gate})
-            if "validation_gate" in (current.get("result") or {}) and not artifact_provenance_gate(current.get("result") or {})["ready"]:
-                raise HTTPException(status_code=409, detail={"code": "ARTIFACT_PROVENANCE_BLOCKED", "gate": artifact_provenance_gate(current.get("result") or {})})
+            if "validation_gate" in (current.get("result") or {}) and not artifact_provenance_gate(current.get("result") or {}, task_record=current)["ready"]:
+                raise HTTPException(status_code=409, detail={"code": "ARTIFACT_PROVENANCE_BLOCKED", "gate": artifact_provenance_gate(current.get("result") or {}, task_record=current)})
             current["status"] = "VERIFIED"
         elif review.verdict in {"revise", "reject"}:
             current["status"] = "BLOCKED"
@@ -2423,6 +2809,93 @@ async def review_task(task_id: str, review: ReviewIn) -> Dict[str, Any]:
     return {"accepted": True, "task": copy.deepcopy(store.tasks[task_id]), "event": event.model_dump(), "revision": event.revision or store.revision}
 
 
+@app.post("/api/tasks/{task_id}/requeue")
+async def requeue_task(task_id: str, request: RequeueIn) -> Dict[str, Any]:
+    """Re-open a blocked/failed task for an explicit, auditable retry.
+
+    Requeue is deliberately not an implicit claim.  It clears the previous
+    lease and result projection, records the old state and evidence in the
+    event, and returns a fresh ``QUEUED`` task.  The CAS target is the current
+    control-plane revision, so a stale retry cannot silently resurrect a task
+    after another review or owner decision.
+    """
+    if task_id not in store.tasks:
+        raise HTTPException(status_code=404, detail="task not found")
+    validate_target_revision(request.target_revision)
+    invalid_refs = [ref for ref in request.evidence_refs if not valid_evidence_ref(ref)]
+    if invalid_refs:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_EVIDENCE_REF", "refs": invalid_refs[:5]})
+    requeued: Dict[str, Any] = {}
+    payload: Dict[str, Any] = {
+        "task_id": task_id,
+        "actor_id": request.actor_id,
+        "reason": request.reason,
+        "evidence_refs": list(request.evidence_refs),
+    }
+
+    def apply_requeue(_: Event) -> None:
+        current = store.tasks[task_id]
+        status = str(current.get("status") or "")
+        if status not in {"BLOCKED", "FAILED", "TIMEOUT"}:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "TASK_REQUEUE_STATE_INVALID", "status": status, "required": ["BLOCKED", "FAILED", "TIMEOUT"]},
+            )
+        # Only the owner/coordinator (or the task's assigned worker/reviewer)
+        # may reopen a task.  This is an identity boundary even in the local
+        # unauthenticated development adapter; production must add OIDC/RBAC.
+        owner = str(current.get("owner") or "").strip()
+        reviewer = str(current.get("reviewer") or "").strip()
+        local_owners = {"owner", "user", "coordinator", "codex/root"}
+        if request.actor_id not in local_owners and request.actor_id not in {owner, reviewer}:
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "TASK_REQUEUE_FORBIDDEN", "actor_id": request.actor_id, "owner": owner},
+            )
+        previous_result = current.pop("result", None)
+        current.update(
+            {
+                "status": "QUEUED",
+                "claimed_by": None,
+                "lease": None,
+                "requeue_count": int(current.get("requeue_count", 0) or 0) + 1,
+                "last_requeue": {
+                    "actor_id": request.actor_id,
+                    "reason": request.reason,
+                    "evidence_refs": list(request.evidence_refs),
+                    "from_status": status,
+                    "at": _.timestamp,
+                },
+                "last_blocked_status": status,
+            }
+        )
+        # Preserve the prior result for inspection without allowing it to be
+        # mistaken for the new attempt's result.  The release gate only reads
+        # the active ``result`` field.
+        if previous_result is not None:
+            current["previous_result"] = previous_result
+        payload["from_status"] = status
+        payload["task"] = copy.deepcopy(current)
+        requeued.update(copy.deepcopy(current))
+
+    event = await store.append(
+        actor_id=request.actor_id,
+        event_type="TASK_REQUEUED",
+        task_id=task_id,
+        base_revision=request.target_revision,
+        idempotency_key=request.idempotency_key,
+        payload=payload,
+        state_mutator=apply_requeue,
+    )
+    if not requeued:
+        original_task = event.payload.get("task") if isinstance(event.payload, dict) else None
+        if isinstance(original_task, dict):
+            requeued.update(copy.deepcopy(original_task))
+        else:
+            requeued.update(copy.deepcopy(store.tasks[task_id]))
+    return {"accepted": True, "task": requeued, "event": event.model_dump(), "revision": event.revision or store.revision}
+
+
 @app.get("/api/tasks/{task_id}/findings")
 async def task_findings(task_id: str) -> Dict[str, Any]:
     if task_id not in store.tasks:
@@ -2435,16 +2908,53 @@ async def close_finding(task_id: str, finding_id: str, request: FindingCloseIn) 
     if task_id not in store.tasks:
         raise HTTPException(status_code=404, detail="task not found")
     validate_revision(request.target_revision, "target_revision")
-    if request.actor_id in {"owner", "user"}:
-        raise HTTPException(status_code=403, detail={"code": "FINDING_CLOSER_MUST_BE_AGENT"})
+    current_task = store.tasks[task_id]
+    actor_id = request.actor_id.strip()
+    task_owner = str(current_task.get("owner") or "").strip()
+    task_reviewer = str(current_task.get("reviewer") or "").strip()
+    # Closing a finding changes the release gate.  Only the human Owner or
+    # coordinator, or an explicitly assigned task owner/reviewer, may perform
+    # that transition.  The generic ``user`` alias is intentionally rejected:
+    # the UI's Owner identity is ``owner`` and must not be confused with an
+    # arbitrary unauthenticated caller.
+    authorized = actor_id in {"owner", "coordinator", "codex/root"} or (
+        actor_id not in {"", "user"} and actor_id in {task_owner, task_reviewer}
+    )
+    if not authorized:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "FINDING_CLOSE_FORBIDDEN",
+                "actor_id": actor_id,
+                "owner": task_owner,
+                "reviewer": task_reviewer or None,
+            },
+        )
     if not valid_evidence_ref(request.evidence_ref):
         raise HTTPException(status_code=422, detail={"code": "INVALID_EVIDENCE_REF", "reference": request.evidence_ref})
+    if request.evidence_ref not in _known_finding_evidence_refs(task_id):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "FINDING_EVIDENCE_UNKNOWN",
+                "evidence_ref": request.evidence_ref,
+                "message": "evidence_ref must already be registered in this task result or event payload",
+            },
+        )
     closed: Dict[str, Any] = {}
 
     def apply_close(_: Event) -> None:
         finding = next((item for item in store.findings.get(task_id, []) if item.get("finding_id") == finding_id), None)
         if finding is None:
             raise HTTPException(status_code=404, detail="finding not found")
+        # Re-check the evidence while holding the event-store lock.  This keeps
+        # a concurrent result/requeue update from turning a preflight check into
+        # a stale closure.
+        if request.evidence_ref not in _known_finding_evidence_refs(task_id):
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "FINDING_EVIDENCE_STALE", "evidence_ref": request.evidence_ref},
+            )
         if finding.get("status") == "closed":
             closed.update(finding)
             return
@@ -2738,10 +3248,8 @@ async def index() -> FileResponse:
 
 @app.get("/{asset_path:path}", include_in_schema=False)
 async def assets(asset_path: str) -> FileResponse:
-    candidate = (ROOT / asset_path).resolve()
-    if ROOT not in candidate.parents and candidate != ROOT:
-        raise HTTPException(status_code=404, detail="asset not found")
-    if not candidate.is_file():
+    candidate = _safe_static_file(asset_path)
+    if candidate is None:
         raise HTTPException(status_code=404, detail="asset not found")
     return FileResponse(candidate)
 
