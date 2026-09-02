@@ -64,7 +64,16 @@ def _prompt_items(text: str, words: Sequence[str]) -> List[str]:
 
 def _segments(text: str) -> List[tuple[str, str]]:
     # Numbered headings are boundaries; retain the heading in the observed excerpt.
-    marks = list(re.finditer(r"(?im)(?<!\w)(?:问题\s*[一二三四五六七八九十百]+|(?:Q|Question)\s*\d+|[（(]\s*[1-9]\d*\s*[）)])\s*[：:.)、-]?", text))
+    # Chinese prompts commonly mix ``问题四`` and ``问题 4`` (sometimes with a
+    # space before the Arabic numeral).  Treat both forms as the same heading
+    # family so the dynamic contract does not silently drop a later subquestion.
+    explicit_pattern = r"(?im)(?<!\w)(?:问题\s*(?:[一二三四五六七八九十百]+|\d+)|(?:Q|Question)\s*\d+)\s*[：:.)、-]?"
+    marks = list(re.finditer(explicit_pattern, text))
+    # Parenthesised numbers are often sub-items within a question (for
+    # example, the three business assumptions in Q3).  Use them as top-level
+    # boundaries only when the prompt has no explicit ``问题``/``Q`` headings.
+    if not marks:
+        marks = list(re.finditer(r"(?im)(?<!\w)[（(]\s*[1-9]\d*\s*[）)]\s*[：:.)、-]?", text))
     if not marks:
         return [("Q1", text.strip())] if text.strip() else []
     out: List[tuple[str, str]] = []

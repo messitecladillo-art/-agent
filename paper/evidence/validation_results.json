@@ -1,0 +1,105 @@
+{
+  "schema": "validation-results/v1",
+  "input_revision": "manifest:sha256:a00eeef8c3b163f2bd6ffdc2a897da6f8119b509a51aa3e441277ee4c6fb622a",
+  "checks": [
+    {
+      "id": "val:input-audit",
+      "kind": "data-audit",
+      "scope": "CSV 编码、行列、重复、缺失和标签域",
+      "threshold": "无重复客户编码；结构性空值规则可回放",
+      "command": "python -X utf8 models/solve_b_problem.py --input <附件> --output runtime/solo-test/b_solution_v3 --seed 42",
+      "exit_code": 0,
+      "result_hash": "sha256:3820f6b74f4fb985910e79207224a290eb9068d30b52e2dce99ebe3c1967019b",
+      "findings": [],
+      "status": "VERIFIED"
+    },
+    {
+      "id": "val:solver-smoke",
+      "kind": "reproducibility",
+      "scope": "全量求解器运行",
+      "threshold": "脚本返回 PASS 且输出聚合文件和图表",
+      "command": "python -X utf8 models/solve_b_problem.py --input <附件> --output runtime/solo-test/b_solution_v3 --seed 42",
+      "exit_code": 0,
+      "result_hash": "sha256:92c791ca9e46bfd44b4d9087c53c8b48e4e30e07cc9f049e692f680b6ed1611c",
+      "findings": [],
+      "status": "VERIFIED"
+    },
+    {
+      "id": "val:holdout",
+      "kind": "holdout",
+      "scope": "分层 20% 留出集",
+      "threshold": "ROC-AUC 可计算且不低于 0.80",
+      "command": "python -X utf8 models/solve_b_problem.py --input <附件> --output runtime/solo-test/b_solution_v3 --seed 42",
+      "exit_code": 0,
+      "result_hash": "sha256:92c791ca9e46bfd44b4d9087c53c8b48e4e30e07cc9f049e692f680b6ed1611c",
+      "findings": ["Logistic AUC=0.842171"],
+      "status": "VERIFIED"
+    },
+    {
+      "id": "val:crossval",
+      "kind": "cross-validation",
+      "scope": "分层五折 OOF",
+      "threshold": "AUC 均值和标准差输出；OOF 无缺失",
+      "command": "python -X utf8 models/solve_b_problem.py --input <附件> --output runtime/solo-test/b_solution_v3 --seed 42",
+      "exit_code": 0,
+      "result_hash": "sha256:92c791ca9e46bfd44b4d9087c53c8b48e4e30e07cc9f049e692f680b6ed1611c",
+      "findings": ["mean=0.845033,std=0.013521"],
+      "status": "VERIFIED"
+    },
+    {
+      "id": "val:calibration",
+      "kind": "calibration",
+      "scope": "OOF 概率十分位分箱",
+      "threshold": "10 个分箱均有观测值且输出预测/观测率",
+      "command": "python -X utf8 models/solve_b_problem.py --input <附件> --output runtime/solo-test/b_solution_v3 --seed 42",
+      "exit_code": 0,
+      "result_hash": "sha256:1d5f926da99ef5e2a1357a290fae6f5f708b516d351af4f3bfc0bdcb3278bbe5",
+      "findings": [],
+      "status": "VERIFIED"
+    },
+    {
+      "id": "val:sensitivity",
+      "kind": "sensitivity",
+      "scope": "Q3 经济参数和 Q4 情景参数",
+      "threshold": "输出参数组合及策略收益，下界可计算",
+      "command": "python -X utf8 models/solve_b_problem.py --input <附件> --output runtime/solo-test/b_solution_v3 --seed 42",
+      "exit_code": 0,
+      "result_hash": "sha256:35bac65a4a0f149113c5eb7a973c28689e35140db4e272bd36217f101aa8fc1b",
+      "findings": [],
+      "status": "VERIFIED"
+    },
+    {
+      "id": "val:scenario",
+      "kind": "sensitivity",
+      "scope": "基准、竞争降价、宏观下行、复合压力",
+      "threshold": "每个情景输出概率、成本、成功率和正收益人数",
+      "command": "python -X utf8 models/solve_b_problem.py --input <附件> --output runtime/solo-test/b_solution_v3 --seed 42",
+      "exit_code": 0,
+      "result_hash": "sha256:f66be9f2b60790d02a50ab8fcde79bd4c1637bb69e937e0b9f39375f02d79787",
+      "findings": ["外部冲击参数为显式假设，不作价格弹性事实"],
+      "status": "VERIFIED"
+    },
+    {
+      "id": "val:render",
+      "kind": "render",
+      "scope": "12 页 A4 PDF 全页 PNG 视觉检查",
+      "threshold": "XeLaTeX 双遍成功；无 undefined 引用、缺字、Overfull 或 LaTeX Error",
+      "command": "xelatex --enable-installer=f -interaction=nonstopmode -halt-on-error -file-line-error -output-directory runtime/solo-test/paper_build2 paper/b_problem_solution.tex (两遍); pdfinfo; pdftoppm",
+      "exit_code": 0,
+      "result_hash": "sha256:d9bc912667f02dba503bdea040cdffc5509d274f266ed6f3653e9794e7a8d6d4",
+      "findings": ["12 页，A4；全页视觉抽查通过；一条 Underfull hbox 为非阻断提示"],
+      "status": "VERIFIED"
+    },
+    {
+      "id": "val:api-e2e",
+      "kind": "integration",
+      "scope": "题面契约、能力目录、知识检索、路由预览、拼图组合、LaTeX 队列",
+      "threshold": "所有检查返回 PASS；事件链有效；LaTeX job SUCCEEDED",
+      "command": "python -X utf8 runtime/solo-test/api_e2e_t21.py",
+      "exit_code": 0,
+      "result_hash": "sha256:c8eaf93984d73876a74062cf426f16414968960087bcaf03c488b28fc937ed98",
+      "findings": ["Q1-Q4；13 blocks；54 methods；12 页 PDF；不写入客户级输出"],
+      "status": "VERIFIED"
+    }
+  ]
+}

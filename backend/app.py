@@ -298,8 +298,38 @@ def capability_catalog_snapshot(force_refresh: bool = False) -> Dict[str, Any]:
 
 
 def _capability_suggestions(query: str, catalog: Mapping[str, Any], limit: int = 8) -> Dict[str, Any]:
-    """Rank archetypes/method cards using transparent cue matches only."""
-    text = str(query or "").strip().lower()
+    """Rank archetypes/method cards using transparent cue matches only.
+
+    Queries often arrive as short domain phrases rather than complete prompt
+    sentences (for example ``客户流失 Logistic 压力测试``).  A literal
+    whitespace split makes Chinese phrases one token and silently falls back
+    to an unrelated archetype.  Keep the matcher conservative, but add a
+    small, inspectable alias expansion layer and return the expansion in the
+    response so the UI can explain why a card was surfaced.
+    """
+    original_text = str(query or "").strip().lower()
+    alias_expansions = {
+        "流失": ("分类", "预测", "风险", "决策"),
+        "churn": ("classification", "prediction", "risk", "decision"),
+        "logistic": ("逻辑回归", "分类", "概率"),
+        "逻辑回归": ("分类", "概率"),
+        "阈值": ("优化", "决策", "约束"),
+        "经济": ("成本", "收益", "决策"),
+        "挽留": ("策略", "决策", "影响"),
+        "压力测试": ("稳健", "情景", "风险"),
+        "外部冲击": ("情景", "风险", "动态"),
+    }
+    expansions: List[str] = []
+    for trigger, values in alias_expansions.items():
+        if trigger in original_text:
+            expansions.extend(values)
+    text = " ".join([original_text, *expansions]).strip()
+    # Preserve Chinese phrases and Latin method names as separate matching
+    # units.  The fallback to the whole text keeps the empty-query behavior
+    # deterministic and backward compatible.
+    query_tokens = re.findall(r"[a-z][a-z0-9_.+/-]*|[\u4e00-\u9fff]{2,}", text)
+    if not query_tokens and text:
+        query_tokens = [text]
     archetype_rows: List[Dict[str, Any]] = []
     for archetype in catalog.get("problem_archetypes", []):
         cues = [str(cue) for cue in archetype.get("cues", [])]
@@ -326,10 +356,11 @@ def _capability_suggestions(query: str, catalog: Mapping[str, Any], limit: int =
             str(method.get("title", "")), str(method.get("family", "")),
             " ".join(str(item) for item in method.get("applicability", [])),
         ]).lower()
-        cue_hits = sum(1 for token in text.split() if token and token in haystack)
+        matched_terms = sorted({token for token in query_tokens if token and token in haystack})
+        cue_hits = len(matched_terms)
         family_bonus = 1 if str(method.get("family", "")).lower() in selected_text else 0
         score = cue_hits + family_bonus
-        method_rows.append({**method, "suggestion_score": score, "claim_class": "hypothesis", "selection_note": "候选；需按题面/数据/验证门复核"})
+        method_rows.append({**method, "suggestion_score": score, "matched_terms": matched_terms, "claim_class": "hypothesis", "selection_note": "候选；需按题面/数据/验证门复核"})
     method_rows.sort(key=lambda row: (-row["suggestion_score"], row.get("id", "")))
     return {
         "query": str(query or ""),
@@ -337,6 +368,11 @@ def _capability_suggestions(query: str, catalog: Mapping[str, Any], limit: int =
         "recommended_blocks": preferred_blocks,
         "validation_kinds": validation_kinds,
         "methods": method_rows[:max(1, min(20, int(limit)))],
+        "matching": {
+            "mode": "substring_plus_domain_aliases",
+            "matched_aliases": sorted(set(expansions)),
+            "claim_class": "inferred",
+        },
         "warnings": [
             "这是透明 cue-match 建议，不是自动选模，也不代表资料中的模型正确或适合当前题目。",
             "没有题面、数据契约和独立验证时，建议状态保持 HYPOTHESIS/UNVERIFIED。",

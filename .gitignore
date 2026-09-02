@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 .pytest-tmp/
 .pytest-tmp-review/
+.pytest-tmp-*/
 pytest-of-zyy20/
 .env
 .env.*

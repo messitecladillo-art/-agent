@@ -89,3 +89,12 @@
 - 配置/数据：基线 `25f7782d6b80c60f316881c1d49deecc343bd074`；新增安全编译内核、编译器/API 测试、任务卡和接口文档；不向空的 `paper/` 写入示例论文。
 - 结果：本机工具链探测实际跳过不可运行的 `latexmk`（Perl 缺失），选中可运行 XeLaTeX；Poppler `pdfinfo/pdftoppm` 可定位；专用编译器/API 测试 `13 passed`，后端全量 `151 passed`。日志脱敏覆盖混合分隔符与 TeX 跨行路径夹具；API 对入口不存在、绝对路径、越界路径同步拒绝。当前无 `paper/main.tex`，未生成伪造 PDF；独立 Critic 判定本地受信源 MVP `PASS`（P1=0）。
 - 结论/下一步：已完成本地接入；生产部署仍需目标环境重新探测、staged source/OS 沙箱、持久化有界队列、OIDC/RBAC 与下载鉴权；编译成功不改变数学 claim 或 Owner 发布门。
+
+### 2026-09-03 · T-21 · 校赛 B 题完整求解与论文交付
+- 目的：用用户提供的 `校赛B题.docx` 与 `校赛B题附件.csv` 完成电信客户流失分析、判定、经济挽留和外部压力稳健性四问，并产出可复算论文与证据链。
+- 输入锁定：DOCX SHA-256 `c2049336b8ef6d85ba5d52fc943d9deb839e8a4a20d083807cc7b267a0c96c89`；CSV SHA-256 `7131cd7542bc248f090e26e1beb40d22b9e9f1ec32d8c8854d71377a94b8d858`；CSV `gb18030`、7043 行、21 列、无重复客户编码，11 个结构性空总费用按 0 月规则处理；原始文件未入库。
+- 实现：新增 `models/solve_b_problem.py`、`models/requirements-b.txt`、`paper/b_problem_contract.json`、`paper/b_problem_solution.tex`、12 页 `paper/b_problem_solution.pdf`、聚合证据/图表、`artifact_manifest.json` 与 `validation_results.json`。求解链为 Q1 关联画像 → Q2 Logistic/非线性对照/OOF 校准 → Q3 `p q L-C` 经济阈值 → Q4 显式 log-odds 压力和稳健下界。
+- 结果：流失率 `0.265370`；Logistic 留出 AUC `0.842171`、五折 OOF AUC `0.845001`；经济阈值 `0.214286`，OOF 阈值策略 3286 人、期望净收益 `630184.63` 元；复合压力预测流失率 `0.338910`，稳健正收益集合 3122 人、下界和 `506335.09` 元。Q1/Q2 保持关联边界，Q4 保持 `HYPOTHESIS`。
+- 系统修复：问题契约解析器覆盖 `问题 4`，并在显式问题标题存在时忽略 `(1)(2)(3)` 子项；能力建议器增加可解释领域别名和 `matched_terms`。新增回归测试 2 个。
+- 验证：求解器 clean-run exit 0；论文契约严格审计 PASS（14 variables/11 equations/10 claims/14 crossrefs/8 checks）；LaTeX 数学审计 PASS（36 labels/20 refs）；XeLaTeX 双遍 exit 0、PDF 12 页 A4、全页视觉检查通过；后端全量 `153 passed`；服务端 E2E `runtime/solo-test/api_e2e_t21.py` PASS（题面 Q1–Q4、能力目录 13 blocks/54 methods、知识检索、路由预览、拼图组合、LaTeX job）。
+- 结论/下一步：交付状态 `READY_FOR_REVIEW`，TASKS 标为待审；未自动合并/推送 main。官方投稿模板、匿名/页数规则、独立 Claude/Antigravity 数学复算和 Owner 发布审批仍待补齐。

@@ -63,6 +63,21 @@ def test_suggest_is_transparent_and_fail_closed(monkeypatch):
     assert body["warnings"]
 
 
+def test_suggest_expands_short_churn_domain_query_transparently(monkeypatch):
+    c = client(monkeypatch)
+    response = c.get(
+        f"/api/projects/{api.PROJECT_ID}/capabilities/suggest",
+        params={"q": "客户流失 Logistic 经济阈值 压力测试", "limit": 8},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    ids = [item["id"] for item in body["archetypes"]]
+    assert "prediction" in ids
+    assert "policy-decision" in ids
+    assert "分类" in body["matching"]["matched_aliases"]
+    assert any(item["id"] == "logistic-regression" for item in body["methods"])
+
+
 def _valid_payload(base_revision=None):
     return {
         "nodes": [
@@ -178,6 +193,18 @@ def test_problem_contract_route_keeps_dynamic_draft_unverified(monkeypatch):
     assert body["status"] == "DRAFT_UNVERIFIED"
     assert len(body["subproblems"]) == 2
     assert body["archetype_cue_suggestions"][0]["claim_class"] == "hypothesis"
+
+
+def test_problem_contract_recognises_spaced_arabic_question_heading(monkeypatch):
+    c = client(monkeypatch)
+    response = c.post(f"/api/projects/{api.PROJECT_ID}/capabilities/problem-contract", json={
+        "text": "问题1分析数据。\n问题 2综合因素判定。\n问题3设计策略。\n问题 4考虑外部冲击并动态调整。",
+        "source_refs": ["file:prompt.docx"],
+    })
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "DRAFT_UNVERIFIED"
+    assert [item["id"] for item in body["subproblems"]] == ["Q1", "Q2", "Q3", "Q4"]
 
 
 def test_innovation_card_is_hashed_audited_and_persisted_as_hypothesis(monkeypatch):

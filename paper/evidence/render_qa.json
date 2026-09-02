@@ -1,0 +1,18 @@
+{
+  "schema": "render-qa/v1",
+  "input_revision": "manifest:sha256:a00eeef8c3b163f2bd6ffdc2a897da6f8119b509a51aa3e441277ee4c6fb622a",
+  "engine": "XeLaTeX (MiKTeX 25.12)",
+  "command": "xelatex --enable-installer=f -interaction=nonstopmode -halt-on-error -file-line-error -output-directory runtime/solo-test/paper_build_final paper/b_problem_solution.tex (twice); pdfinfo; pdftoppm",
+  "pdf": {"path": "paper/b_problem_solution.pdf", "pages": 12, "page_size": "A4", "sha256": "d9bc912667f02dba503bdea040cdffc5509d274f266ed6f3653e9794e7a8d6d4"},
+  "checks": {
+    "compile_exit_code": 0,
+    "latex_math_audit_release": "PASS",
+    "paper_contract_strict": "PASS",
+    "undefined_references": 0,
+    "missing_character_messages": 0,
+    "overfull_box_messages": 0,
+    "page_png_render": "PASS",
+    "visual_review": "12/12 final-render pages inspected; equations, tables, figures and page boundaries readable"
+  },
+  "non_blocking_note": "MiKTeX reports one Underfull hbox in a table note; no clipping, missing glyph, unresolved reference or overfull box was observed."
+}

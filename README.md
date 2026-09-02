@@ -72,7 +72,7 @@ $env:COLLAB_STATE_FILE = "runtime/collab-state.json"
 
 这是单进程原子 JSON journal；Docker Compose 已把宿主端口绑定到 `127.0.0.1`，因为当前服务还没有 OIDC/RBAC，不应直接暴露到局域网。真实模型适配器和密钥不会放进前端。
 
-任务面板还提供 LaTeX/PDF 实时编译卡。它只在 Owner 点击“编译”后提交一个有界 job，并通过同一 WebSocket 广播 `QUEUED → RUNNING → SUCCEEDED/FAILED/TIMED_OUT`；入口限制为仓库内相对 `.tex`，产物隔离在 `runtime/latex/<job_id>/`。当前 `paper/` 只有占位文件，因此不会凭空生成论文或 PDF。完整接口、工具链探测和服务器安全边界见 [`docs/latex-pdf-live-compiler.md`](docs/latex-pdf-live-compiler.md)。
+任务面板还提供 LaTeX/PDF 实时编译卡。它只在 Owner 点击“编译”后提交一个有界 job，并通过同一 WebSocket 广播 `QUEUED → RUNNING → SUCCEEDED/FAILED/TIMED_OUT`；入口限制为仓库内相对 `.tex`，产物隔离在 `runtime/latex/<job_id>/`。当前仓库已包含校赛 B 题内部复核稿 `paper/b_problem_solution.tex`/`.pdf`，但默认入口仍是 Owner 明确选择的相对 `.tex`，系统不会凭空生成论文或把内部稿宣称为官方投稿件。完整接口、工具链探测和服务器安全边界见 [`docs/latex-pdf-live-compiler.md`](docs/latex-pdf-live-compiler.md)。
 
 ### 调用本地数学建模资料库
 

@@ -1,0 +1,166 @@
+{
+  "schema": "artifact-manifest/v1",
+  "input_revision": "manifest:sha256:a00eeef8c3b163f2bd6ffdc2a897da6f8119b509a51aa3e441277ee4c6fb622a",
+  "artifacts": [
+    {
+      "path": "backend/app.py",
+      "kind": "integration-code",
+      "sha256": "sha256:37b7a65aa171f02865c82663284f8bd5531e9e1a6dedae4c44420e5cf2030a6e",
+      "generated_by": "author",
+      "dependencies": ["backend/capability_catalog.py", "backend/knowledge_base.py"],
+      "status": "VERIFIED"
+    },
+    {
+      "path": "backend/problem_contract.py",
+      "kind": "parser-code",
+      "sha256": "sha256:9365da58b5cfb0e3e7ef9ad641e7fcac0d632eccc13c9c7b5995b8750bda4671",
+      "generated_by": "author",
+      "dependencies": ["校赛B题.docx"],
+      "status": "VERIFIED"
+    },
+    {
+      "path": "models/solve_b_problem.py",
+      "kind": "solver",
+      "sha256": "sha256:cf75efe6778acade1194410c603047687a2b17ef5d6bda98c467479b74060537",
+      "generated_by": "author",
+      "dependencies": ["校赛B题附件.csv", "models/requirements-b.txt"],
+      "status": "VERIFIED"
+    },
+    {
+      "path": "paper/b_problem_contract.json",
+      "kind": "contract",
+      "sha256": "sha256:9295a4c93087c699b27d176756bdfdc50be74271cee0849473cffbbb32784fc1",
+      "generated_by": "author",
+      "dependencies": ["校赛B题.docx", "校赛B题附件.csv"],
+      "status": "VERIFIED"
+    },
+    {
+      "path": "paper/b_problem_solution.tex",
+      "kind": "paper-source",
+      "sha256": "sha256:12794de353ef836e7c743df814bc41b446644498879f0b4ca844325f9f5694ae",
+      "generated_by": "models/solve_b_problem.py + author",
+      "dependencies": ["paper/evidence/", "paper/figures/"],
+      "status": "VERIFIED"
+    },
+    {
+      "path": "paper/b_problem_solution.pdf",
+      "kind": "paper-pdf",
+      "sha256": "sha256:d9bc912667f02dba503bdea040cdffc5509d274f266ed6f3653e9794e7a8d6d4",
+      "generated_by": "xelatex",
+      "dependencies": ["paper/b_problem_solution.tex", "paper/figures/"],
+      "status": "VERIFIED"
+    },
+    {
+      "path": "paper/evidence/data_quality.json",
+      "kind": "evidence",
+      "sha256": "sha256:3820f6b74f4fb985910e79207224a290eb9068d30b52e2dce99ebe3c1967019b",
+      "generated_by": "models/solve_b_problem.py",
+      "dependencies": ["校赛B题附件.csv"],
+      "status": "VERIFIED"
+    },
+    {
+      "path": "paper/evidence/associations.csv",
+      "kind": "evidence",
+      "sha256": "sha256:136bec4753c0812fc31856278e6ed84d82120688b7d81a88e00da366367b7775",
+      "generated_by": "models/solve_b_problem.py",
+      "dependencies": ["校赛B题附件.csv"],
+      "status": "VERIFIED"
+    },
+    {
+      "path": "paper/evidence/intersection_rates.csv",
+      "kind": "evidence",
+      "sha256": "sha256:7d44948788b16239efd5cdc000fd1f23b43043172daf9ac1cc5247defa6ececf",
+      "generated_by": "models/solve_b_problem.py",
+      "dependencies": ["校赛B题附件.csv"],
+      "status": "VERIFIED"
+    },
+    {
+      "path": "paper/evidence/model_metrics.json",
+      "kind": "validation",
+      "sha256": "sha256:92c791ca9e46bfd44b4d9087c53c8b48e4e30e07cc9f049e692f680b6ed1611c",
+      "generated_by": "models/solve_b_problem.py",
+      "dependencies": ["校赛B题附件.csv"],
+      "status": "VERIFIED"
+    },
+    {
+      "path": "paper/evidence/calibration.csv",
+      "kind": "validation",
+      "sha256": "sha256:1d5f926da99ef5e2a1357a290fae6f5f708b516d351af4f3bfc0bdcb3278bbe5",
+      "generated_by": "models/solve_b_problem.py",
+      "dependencies": ["校赛B题附件.csv"],
+      "status": "VERIFIED"
+    },
+    {
+      "path": "paper/evidence/policy_comparison.csv",
+      "kind": "decision-evidence",
+      "sha256": "sha256:0eaedaef77266c8eb50085b4465ca1dccc1d946ce4f0ca0b0da5b1f81b11aa2a",
+      "generated_by": "models/solve_b_problem.py",
+      "dependencies": ["paper/evidence/model_metrics.json"],
+      "status": "VERIFIED"
+    },
+    {
+      "path": "paper/evidence/policy_sensitivity.csv",
+      "kind": "validation",
+      "sha256": "sha256:35bac65a4a0f149113c5eb7a973c28689e35140db4e272bd36217f101aa8fc1b",
+      "generated_by": "models/solve_b_problem.py",
+      "dependencies": ["paper/evidence/model_metrics.json"],
+      "status": "VERIFIED"
+    },
+    {
+      "path": "paper/evidence/scenario_summary.csv",
+      "kind": "scenario-evidence",
+      "sha256": "sha256:f66be9f2b60790d02a50ab8fcde79bd4c1637bb69e937e0b9f39375f02d79787",
+      "generated_by": "models/solve_b_problem.py",
+      "dependencies": ["paper/evidence/model_metrics.json"],
+      "status": "HYPOTHESIS"
+    },
+    {
+      "path": "paper/evidence/robust_policy.csv",
+      "kind": "scenario-evidence",
+      "sha256": "sha256:044a2453913c34b73f252c850ac9cb8713c064b6d65ff113c9c9d1af75bb5e32",
+      "generated_by": "models/solve_b_problem.py",
+      "dependencies": ["paper/evidence/scenario_summary.csv"],
+      "status": "HYPOTHESIS"
+    },
+    {
+      "path": "paper/figures/fig_churn_groups.png",
+      "kind": "figure",
+      "sha256": "sha256:dcf2cf11bfeac22538a1673a7644e479ba90666b91534fbb94210a2c5ed34688",
+      "generated_by": "models/solve_b_problem.py",
+      "dependencies": ["paper/evidence/intersection_rates.csv"],
+      "status": "VERIFIED"
+    },
+    {
+      "path": "paper/figures/fig_roc.png",
+      "kind": "figure",
+      "sha256": "sha256:9f612000f020096a35de7d6c15bec3578207011aae21316a8f6b30a091cca0f7",
+      "generated_by": "models/solve_b_problem.py",
+      "dependencies": ["paper/evidence/model_metrics.json"],
+      "status": "VERIFIED"
+    },
+    {
+      "path": "paper/figures/fig_policy.png",
+      "kind": "figure",
+      "sha256": "sha256:06b2761bb03c48c3d6804602eb398dc01cc7092f5b72e7ed6322877003142914",
+      "generated_by": "models/solve_b_problem.py",
+      "dependencies": ["paper/evidence/policy_comparison.csv"],
+      "status": "VERIFIED"
+    },
+    {
+      "path": "paper/figures/fig_scenarios.png",
+      "kind": "figure",
+      "sha256": "sha256:1e21f656c647e81170ddc68506569a4bb4516cd5d4c9788054be4399729b80dc",
+      "generated_by": "models/solve_b_problem.py",
+      "dependencies": ["paper/evidence/scenario_summary.csv", "paper/evidence/robust_policy.csv"],
+      "status": "HYPOTHESIS"
+    },
+    {
+      "path": "paper/figures/fig_feature_effects.png",
+      "kind": "figure",
+      "sha256": "sha256:1ee0910baf74dbba19e9854f8996c1b6fb9bab440c57304bf8d95937e19d71e4",
+      "generated_by": "models/solve_b_problem.py",
+      "dependencies": ["paper/evidence/feature_effects.csv"],
+      "status": "VERIFIED"
+    }
+  ]
+}

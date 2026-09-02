@@ -1,0 +1,109 @@
+{
+  "rows": 7043,
+  "columns": 21,
+  "duplicate_rows": 0,
+  "duplicate_customer_ids": 0,
+  "target_count": {
+    "churn": 1869,
+    "stay": 5174
+  },
+  "churn_rate": 0.2653698707936959,
+  "blank_total_charges": 11,
+  "blank_total_imputed_as_zero": 11,
+  "remaining_total_imputed_as_median": 0,
+  "numeric_ranges": {
+    "tenure_months": {
+      "min": 0.0,
+      "max": 72.0,
+      "median": 29.0
+    },
+    "monthly_charges": {
+      "min": 18.25,
+      "max": 118.75,
+      "median": 70.35
+    },
+    "total_charges": {
+      "min": 0.0,
+      "max": 8684.8,
+      "median": 1394.55
+    }
+  },
+  "categorical_levels": {
+    "gender": [
+      "女",
+      "男"
+    ],
+    "senior": [
+      "否",
+      "是"
+    ],
+    "partner": [
+      "否",
+      "是"
+    ],
+    "dependents": [
+      "否",
+      "是"
+    ],
+    "phone_service": [
+      "否",
+      "是"
+    ],
+    "multiple_lines": [
+      "否",
+      "是",
+      "未开通电话服务"
+    ],
+    "internet_service": [
+      "DSL",
+      "Fiber optic",
+      "无"
+    ],
+    "online_security": [
+      "否",
+      "是",
+      "未开通互联网服务"
+    ],
+    "online_backup": [
+      "否",
+      "是",
+      "未开通互联网服务"
+    ],
+    "device_protection": [
+      "否",
+      "是",
+      "未开通互联网服务"
+    ],
+    "tech_support": [
+      "否",
+      "是",
+      "未开通互联网服务"
+    ],
+    "streaming_tv": [
+      "否",
+      "是",
+      "未开通互联网服务"
+    ],
+    "streaming_movies": [
+      "否",
+      "是",
+      "未开通互联网服务"
+    ],
+    "contract": [
+      "Month-to-month",
+      "One year",
+      "Two year"
+    ],
+    "paperless_billing": [
+      "否",
+      "是"
+    ],
+    "payment_method": [
+      "Bank transfer (automatic)",
+      "Credit card (automatic)",
+      "Electronic check",
+      "Mailed check"
+    ]
+  },
+  "encoding": "gb18030"
+}

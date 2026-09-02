@@ -1,0 +1,35 @@
+{
+  "schema": "artifact-provenance/v1",
+  "input_revision": "manifest:sha256:a00eeef8c3b163f2bd6ffdc2a897da6f8119b509a51aa3e441277ee4c6fb622a",
+  "source_inputs": [
+    {"kind": "problem_statement", "label": "校赛B题.docx", "sha256": "c2049336b8ef6d85ba5d52fc943d9deb839e8a4a20d083807cc7b267a0c96c89"},
+    {"kind": "data", "label": "校赛B题附件.csv", "sha256": "7131cd7542bc248f090e26e1beb40d22b9e9f1ec32d8c8854d71377a94b8d858"}
+  ],
+  "note": "源文件只以哈希锁定，不复制到仓库；canonical hash is in source_hashes.",
+  "source_hashes": {
+    "problem_statement": "c2049336b8ef6d85ba5d52fc943d9deb839e8a4a20d083807cc7b267a0c96c89",
+    "data": "7131cd7542bc248f090e26e1beb40d22b9e9f1ec32d8c8854d71377a94b8d858"
+  },
+  "run": {
+    "command": "python -X utf8 models/solve_b_problem.py --input <user-attachment>/校赛B题附件.csv --output runtime/solo-test/b_solution_v3 --seed 42",
+    "seed": 42,
+    "encoding_detected": "gb18030",
+    "python": "3.9.7",
+    "packages": {"pandas": "2.3.3", "numpy": "2.0.2", "scipy": "1.13.1", "scikit-learn": "1.4.2", "matplotlib": "3.9.4"},
+    "raw_customer_level_output": "local-only; not committed"
+  },
+  "artifacts": [
+    {"path": "models/solve_b_problem.py", "sha256": "cf75efe6778acade1194410c603047687a2b17ef5d6bda98c467479b74060537", "status": "VERIFIED"},
+    {"path": "paper/b_problem_contract.json", "sha256": "9295a4c93087c699b27d176756bdfdc50be74271cee0849473cffbbb32784fc1", "status": "VERIFIED"},
+    {"path": "paper/b_problem_solution.tex", "sha256": "12794de353ef836e7c743df814bc41b446644498879f0b4ca844325f9f5694ae", "status": "VERIFIED"},
+    {"path": "paper/b_problem_solution.pdf", "sha256": "d9bc912667f02dba503bdea040cdffc5509d274f266ed6f3653e9794e7a8d6d4", "status": "VERIFIED"},
+    {"path": "paper/evidence/artifact_manifest.json", "sha256": "53d52249f0f3ffcba4a8e67eb0e439b5e7b29676ed59f460e2a1e9e2b9c42db0", "status": "VERIFIED"},
+    {"path": "paper/evidence/validation_results.json", "sha256": "adf471e70f473c8ecb1d29ca8d4573ac64952906e5ad22aaede372e1acbd981a", "status": "VERIFIED"}
+  ],
+  "claims_boundary": {
+    "observed": ["数据质量、群体流失率、隔离模型指标"],
+    "inferred": ["经济阈值下的期望策略排序"],
+    "hypothesis": ["Q4外部冲击参数、压力情景和稳健下界"],
+    "official_pending": ["校赛官方论文格式、匿名细则和提交页数"]
+  }
+}
