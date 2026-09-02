@@ -1,0 +1,24 @@
+{
+  "replicates": 500,
+  "confidence": 0.95,
+  "policies": {
+    "economic_threshold": {
+      "selected_count": 3281,
+      "point": 628279.0392677826,
+      "lower": 608542.7360115945,
+      "upper": 651432.4314228877
+    },
+    "top_10_percent": {
+      "selected_count": 704,
+      "point": 250862.17098477506,
+      "lower": 233452.7760163663,
+      "upper": 268913.3949896293
+    },
+    "top_20_percent": {
+      "selected_count": 1408,
+      "point": 437095.3366742176,
+      "lower": 415523.463641666,
+      "upper": 456602.940251234
+    }
+  }
+}

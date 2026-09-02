@@ -1,0 +1,157 @@
+{
+  "bins": [
+    {
+      "bin": 1,
+      "n": 2631,
+      "mean_predicted": 0.034439078142557596,
+      "observed_rate": 0.039908779931584946,
+      "absolute_gap": 0.005469701789027351
+    },
+    {
+      "bin": 2,
+      "n": 991,
+      "mean_predicted": 0.15016695068380756,
+      "observed_rate": 0.15943491422805248,
+      "absolute_gap": 0.009267963544244917
+    },
+    {
+      "bin": 3,
+      "n": 775,
+      "mean_predicted": 0.24805266594611097,
+      "observed_rate": 0.23096774193548386,
+      "absolute_gap": 0.01708492401062711
+    },
+    {
+      "bin": 4,
+      "n": 541,
+      "mean_predicted": 0.34898894785130324,
+      "observed_rate": 0.34011090573012936,
+      "absolute_gap": 0.00887804212117388
+    },
+    {
+      "bin": 5,
+      "n": 552,
+      "mean_predicted": 0.44856845989803207,
+      "observed_rate": 0.39855072463768115,
+      "absolute_gap": 0.050017735260350915
+    },
+    {
+      "bin": 6,
+      "n": 527,
+      "mean_predicted": 0.550927757513897,
+      "observed_rate": 0.5578747628083491,
+      "absolute_gap": 0.0069470052944521354
+    },
+    {
+      "bin": 7,
+      "n": 573,
+      "mean_predicted": 0.6479484394731551,
+      "observed_rate": 0.6509598603839442,
+      "absolute_gap": 0.0030114209107890977
+    },
+    {
+      "bin": 8,
+      "n": 412,
+      "mean_predicted": 0.7417434961695142,
+      "observed_rate": 0.7718446601941747,
+      "absolute_gap": 0.030101164024660565
+    },
+    {
+      "bin": 9,
+      "n": 41,
+      "mean_predicted": 0.819987346628284,
+      "observed_rate": 0.926829268292683,
+      "absolute_gap": 0.10684192166439899
+    },
+    {
+      "bin": 10,
+      "n": 0,
+      "mean_predicted": null,
+      "observed_rate": null,
+      "absolute_gap": null
+    }
+  ],
+  "ece": 0.012977108956018939,
+  "max_calibration_error": 0.10684192166439899,
+  "quantile": {
+    "bins": [
+      {
+        "bin": 1,
+        "n": 705,
+        "mean_predicted": 0.005351457823047323,
+        "observed_rate": 0.014184397163120567,
+        "absolute_gap": 0.008832939340073245
+      },
+      {
+        "bin": 2,
+        "n": 705,
+        "mean_predicted": 0.018723115876799087,
+        "observed_rate": 0.02269503546099291,
+        "absolute_gap": 0.003971919584193823
+      },
+      {
+        "bin": 3,
+        "n": 705,
+        "mean_predicted": 0.04543699047058785,
+        "observed_rate": 0.04680851063829787,
+        "absolute_gap": 0.0013715201677100206
+      },
+      {
+        "bin": 4,
+        "n": 704,
+        "mean_predicted": 0.08802804480506522,
+        "observed_rate": 0.09375,
+        "absolute_gap": 0.0057219551949347774
+      },
+      {
+        "bin": 5,
+        "n": 704,
+        "mean_predicted": 0.15486557392865283,
+        "observed_rate": 0.16335227272727273,
+        "absolute_gap": 0.008486698798619907
+      },
+      {
+        "bin": 6,
+        "n": 704,
+        "mean_predicted": 0.23104783889206207,
+        "observed_rate": 0.22301136363636365,
+        "absolute_gap": 0.008036475255698422
+      },
+      {
+        "bin": 7,
+        "n": 704,
+        "mean_predicted": 0.33382017358155064,
+        "observed_rate": 0.32386363636363635,
+        "absolute_gap": 0.009956537217914285
+      },
+      {
+        "bin": 8,
+        "n": 704,
+        "mean_predicted": 0.4617946573618875,
+        "observed_rate": 0.4161931818181818,
+        "absolute_gap": 0.045601475543705694
+      },
+      {
+        "bin": 9,
+        "n": 704,
+        "mean_predicted": 0.5921939238827975,
+        "observed_rate": 0.5923295454545454,
+        "absolute_gap": 0.00013562157174795697
+      },
+      {
+        "bin": 10,
+        "n": 704,
+        "mean_predicted": 0.7233404443684559,
+        "observed_rate": 0.7585227272727273,
+        "absolute_gap": 0.03518228290427139
+      }
+    ],
+    "ece": 0.012726333094791443,
+    "max_calibration_error": 0.045601475543705694
+  },
+  "oof_probability_summary": {
+    "min": 0.0012532032968668742,
+    "max": 0.8541699840083933,
+    "mean": 0.26535701762626274
+  }
+}

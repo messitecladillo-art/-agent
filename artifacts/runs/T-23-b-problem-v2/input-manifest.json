@@ -1,0 +1,107 @@
+{
+  "schema_version": "input-manifest/v2",
+  "run_id": "T-23-b-problem-v2",
+  "data_classification": "OWNER_PRIVATE_INPUT",
+  "raw_inputs_immutable": true,
+  "files": [
+    {
+      "id": "source:problem-statement",
+      "kind": "problem_statement",
+      "label": "校赛B题.docx",
+      "path": "<owner-attachment>/校赛B题.docx",
+      "size_bytes": 20389,
+      "sha256": "sha256:c2049336b8ef6d85ba5d52fc943d9deb839e8a4a20d083807cc7b267a0c96c89",
+      "read_mode": "structure-only",
+      "status": "OBSERVED"
+    },
+    {
+      "id": "source:data",
+      "kind": "tabular_attachment",
+      "label": "校赛B题附件.csv",
+      "path": "<owner-attachment>/校赛B题附件.csv",
+      "size_bytes": 899429,
+      "sha256": "sha256:7131cd7542bc248f090e26e1beb40d22b9e9f1ec32d8c8854d71377a94b8d858",
+      "encoding": "gb18030",
+      "read_mode": "read-only",
+      "status": "OBSERVED"
+    }
+  ],
+  "docx_structure": {
+    "status": "STRUCTURE_EXTRACTED",
+    "paragraph_count": 13,
+    "nonempty_paragraph_count": 12,
+    "table_count": 0,
+    "paragraph_refs": [
+      {
+        "paragraph": 0,
+        "sha256": "3f1113fca4ca7b173deac4d0e07cb6e2dacadcc38de2beaf0f9a682fe551d95e",
+        "excerpt": "2026华中师范大学数学建模竞赛题目"
+      },
+      {
+        "paragraph": 2,
+        "sha256": "f175e1e86c372502a5861e8e4977d321ccd9eccc73a09971d1fb0ee6e1027582",
+        "excerpt": "B题 电信客户流失分析与挽留策略"
+      },
+      {
+        "paragraph": 3,
+        "sha256": "017b8eff84c8a7e92d8220e779708b5b274f50d3f7a8c482d52fd1abad581ae1",
+        "excerpt": "随着电信市场普及率趋于饱和，运营商之间的竞争已从增量用户的争夺转向存量用户的维系。行业经验表明，获取一名新客户的营销成本通常是挽留一名老客户成本的5至8倍，客户流失也因此成为侵蚀运营商利润的首"
+      },
+      {
+        "paragraph": 4,
+        "sha256": "dc4d6ef7bd79703668b153ad7ff58db9e9329bf97f865591eeae1ce15e9bd452",
+        "excerpt": "附件给出某观测期内存量客户的档案数据。请根据附件和实际情况建立数学模型解决以下问题："
+      },
+      {
+        "paragraph": 5,
+        "sha256": "0a6946c75aff01e091a9f5ba2569f3fbd522dc0aeef6865c0ccc2741ace09311",
+        "excerpt": "问题1分析哪些客户群体更易发生流失，探究各因素与客户流失之间的关系，归纳流失客户的主要特征。"
+      },
+      {
+        "paragraph": 6,
+        "sha256": "38b3af994cf43a0f869ec7ae313324ba1a04f6aec3e60032bb1113af72ccadb9",
+        "excerpt": "问题2综合考虑合同类型、在网时长、月费用、增值服务等相关因素，给出客户流失的判定方法。"
+      },
+      {
+        "paragraph": 7,
+        "sha256": "b903cc3a0e839e2f9e72fb0084692075dcfe9704ff8e7aaf4e028967b3e07230",
+        "excerpt": "问题3为支持决策建模，电信运营商进一步给出如下经营信息："
+      },
+      {
+        "paragraph": 8,
+        "sha256": "749ff5f3c437e063edd88fc3c67e6acbee4ecdb5db77670ee9f12f2e77ed9bd0",
+        "excerpt": "(1) 挽留措施（客服专员外呼并赠送专属优惠组合）的实施成本约为150元/人；"
+      },
+      {
+        "paragraph": 9,
+        "sha256": "839c5d05afc984241ac033ec22215feda1811a72cf70680e2d8df83fb764e1ca",
+        "excerpt": "(2) 根据历史挽留记录，该措施的平均挽留成功率为35%；"
+      },
+      {
+        "paragraph": 10,
+        "sha256": "0f3fb38b4dc1ea6ab7072761884a2a90eed26f25396829de49622b701f0b9d3d",
+        "excerpt": "(3) 一名客户流失造成的平均损失约为2000元。"
+      },
+      {
+        "paragraph": 11,
+        "sha256": "203c5817bbde0fab7f76a0d4de819f7fb266233a8ed3495ddd38829117df7364",
+        "excerpt": "在此前提下，设计客户挽留策略。"
+      },
+      {
+        "paragraph": 12,
+        "sha256": "6cbd74bb81d2fea412215959990bc78ead69608220696b10a572b241f7d0125c",
+        "excerpt": "问题 4电信市场处于动态竞争环境中，竞争对手降价、宏观经济变化等外部因素，会对不同客户群体的流失行为产生差异化影响。请考虑外部环境变化带来的冲击，评估问题3所设计挽留策略的稳健性，并给出对应的"
+      }
+    ],
+    "visual_render": {
+      "status": "PENDING",
+      "reason": "LibreOffice was unavailable in the source-review runtime"
+    }
+  },
+  "source_materials": {
+    "skill_source_manifest_sha256": "a3eb5ea717a45dee3b280afc506b37df3026e7142a9f3411e5bdafe3bc4306a",
+    "skill_source_ledger": "skills/source-provenance.json",
+    "transfer_policy": "abstracted rules only; no full source/template copied"
+  },
+  "input_revision": "manifest:f262819cfcab8f94d70ac27648b7bdde688d133867760acf47020b9418da7619"
+}

@@ -1,0 +1,345 @@
+{
+  "schema_version": "data-contract/v2",
+  "dataset_id": "school-b-telecom-churn",
+  "input_revision": "manifest:f262819cfcab8f94d70ac27648b7bdde688d133867760acf47020b9418da7619",
+  "raw_assets": [
+    {
+      "path": "owner-attachment/校赛B题附件.csv",
+      "sha256": "sha256:7131cd7542bc248f090e26e1beb40d22b9e9f1ec32d8c8854d71377a94b8d858",
+      "immutable": true,
+      "source_ref": "attachment:school-b#raw"
+    }
+  ],
+  "fields": [
+    {
+      "name": "churn",
+      "role": "response",
+      "dtype": "binary",
+      "unit": "0/1",
+      "time_grain": "label-window-unknown",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#是否流失",
+      "missing_policy": "quarantine",
+      "outlier_policy": "not-applicable",
+      "transform": "map(是=1,否=0)",
+      "transform_source_ref": "attachment:school-b#是否流失"
+    },
+    {
+      "name": "contract",
+      "role": "input",
+      "dtype": "category",
+      "unit": "category",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#合同类型",
+      "missing_policy": "quarantine-unknown-level",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "customer_id",
+      "role": "index",
+      "dtype": "string",
+      "unit": "identifier",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#客户编码",
+      "missing_policy": "quarantine",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "dependents",
+      "role": "input",
+      "dtype": "category",
+      "unit": "category",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#是否有家属",
+      "missing_policy": "quarantine-unknown-level",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "device_protection",
+      "role": "input",
+      "dtype": "category",
+      "unit": "category",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#是否开通设备保护",
+      "missing_policy": "quarantine-unknown-level",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "gender",
+      "role": "input",
+      "dtype": "category",
+      "unit": "category",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#性别",
+      "missing_policy": "quarantine-unknown-level",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "internet_service",
+      "role": "input",
+      "dtype": "category",
+      "unit": "category",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#互联网服务类型",
+      "missing_policy": "quarantine-unknown-level",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "monthly_charges",
+      "role": "input",
+      "dtype": "float",
+      "unit": "CNY/month",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#月费用",
+      "missing_policy": "quarantine",
+      "outlier_policy": "range-review[18.25,118.75]",
+      "transform": "identity"
+    },
+    {
+      "name": "multiple_lines",
+      "role": "input",
+      "dtype": "category",
+      "unit": "category",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#是否开通多条线路",
+      "missing_policy": "quarantine-unknown-level",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "online_backup",
+      "role": "input",
+      "dtype": "category",
+      "unit": "category",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#是否开通在线备份",
+      "missing_policy": "quarantine-unknown-level",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "online_security",
+      "role": "input",
+      "dtype": "category",
+      "unit": "category",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#是否开通在线安全",
+      "missing_policy": "quarantine-unknown-level",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "paperless_billing",
+      "role": "input",
+      "dtype": "category",
+      "unit": "category",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#是否使用电子账单",
+      "missing_policy": "quarantine-unknown-level",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "partner",
+      "role": "input",
+      "dtype": "category",
+      "unit": "category",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#是否有伴侣",
+      "missing_policy": "quarantine-unknown-level",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "payment_method",
+      "role": "input",
+      "dtype": "category",
+      "unit": "category",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#支付方式",
+      "missing_policy": "quarantine-unknown-level",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "phone_service",
+      "role": "input",
+      "dtype": "category",
+      "unit": "category",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#是否开通电话服务",
+      "missing_policy": "quarantine-unknown-level",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "senior",
+      "role": "input",
+      "dtype": "category",
+      "unit": "category",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#是否为老年人",
+      "missing_policy": "quarantine-unknown-level",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "streaming_movies",
+      "role": "input",
+      "dtype": "category",
+      "unit": "category",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#是否开通电影流媒体",
+      "missing_policy": "quarantine-unknown-level",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "streaming_tv",
+      "role": "input",
+      "dtype": "category",
+      "unit": "category",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#是否开通电视流媒体",
+      "missing_policy": "quarantine-unknown-level",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "tech_support",
+      "role": "input",
+      "dtype": "category",
+      "unit": "category",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#是否开通技术支持",
+      "missing_policy": "quarantine-unknown-level",
+      "outlier_policy": "not-applicable",
+      "transform": "identity"
+    },
+    {
+      "name": "tenure_months",
+      "role": "input",
+      "dtype": "float",
+      "unit": "month",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#在网时长（月）",
+      "missing_policy": "quarantine",
+      "outlier_policy": "range-review[0,72]",
+      "transform": "identity"
+    },
+    {
+      "name": "total_charges",
+      "role": "input",
+      "dtype": "float",
+      "unit": "CNY",
+      "time_grain": "snapshot",
+      "spatial_grain": "customer",
+      "source_ref": "attachment:school-b#总费用",
+      "missing_policy": "structural-zero-if-tenure=0",
+      "outlier_policy": "range-review[0,8684.8]",
+      "transform": "piecewise-structural-zero",
+      "transform_source_ref": "eq:data-clean"
+    }
+  ],
+  "splits": {
+    "strategy": "stratified-holdout+repeated-stratified-kfold",
+    "train_refs": [
+      "split:train-folds"
+    ],
+    "validation_refs": [
+      "split:oof-3x5"
+    ],
+    "test_refs": [
+      "split:holdout-20pct"
+    ],
+    "time_cutoff": "",
+    "group_key": "customer_id",
+    "leakage_checks": [
+      {
+        "id": "customer-id-uniqueness",
+        "status": "PASS",
+        "evidence_ref": "results/summary_v2.json"
+      },
+      {
+        "id": "preprocess-fit-within-fold",
+        "status": "PASS",
+        "evidence_ref": "models/solve_b_problem_v2.py"
+      },
+      {
+        "id": "future-information",
+        "status": "PASS",
+        "evidence_ref": "problem-contract.json",
+        "details": "离线横截面附件没有未来特征；标签仅作为响应变量，不进入特征生成"
+      }
+    ]
+  },
+  "quality": {
+    "row_count_reconciliation": {
+      "status": "PASS",
+      "rows": 7043,
+      "columns": 21
+    },
+    "duplicate_check": {
+      "status": "PASS",
+      "duplicate_rows": 0,
+      "duplicate_customer_ids": 0
+    },
+    "range_checks": [
+      {
+        "field": "tenure_months",
+        "min": 0,
+        "max": 72,
+        "status": "PASS"
+      },
+      {
+        "field": "monthly_charges",
+        "min": 18.25,
+        "max": 118.75,
+        "status": "PASS"
+      },
+      {
+        "field": "total_charges",
+        "min": 0,
+        "max": 8684.8,
+        "status": "PASS"
+      }
+    ],
+    "missing_report": {
+      "status": "PASS",
+      "total_charges_blank": 11,
+      "structural_zero_count": 11,
+      "remaining_missing": 0
+    },
+    "anomaly_report": {
+      "status": "PASS",
+      "unknown_categories": 0,
+      "out_of_range": 0
+    }
+  },
+  "status": "CONTRACTED"
+}

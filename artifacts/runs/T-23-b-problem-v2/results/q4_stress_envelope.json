@@ -1,0 +1,108 @@
+{
+  "schema": "stress-envelope/v1",
+  "assumptions": {
+    "competitor_logit_range": [
+      0.0,
+      0.5
+    ],
+    "macro_logit_range": [
+      0.0,
+      0.3
+    ],
+    "success_rate_range": [
+      0.25,
+      0.35
+    ],
+    "cost_range": [
+      150.0,
+      180.0
+    ],
+    "loss_range": [
+      1800.0,
+      2200.0
+    ],
+    "contract_multiplier": {
+      "Month-to-month": 1.0,
+      "One year": 0.5,
+      "Two year": 0.2
+    },
+    "short_tenure_extra_multiplier": "0.75 + 0.25*I(tenure<12)",
+    "status": "HYPOTHESIS"
+  },
+  "sampling": {
+    "method": "latin-hypercube",
+    "samples": 256,
+    "seed": 446,
+    "dimensions": [
+      "u",
+      "m",
+      "q",
+      "C",
+      "L"
+    ]
+  },
+  "representative_scenarios": [
+    {
+      "scenario_id": "lhs-001",
+      "competitor_logit_intensity": 0.4575915932332581,
+      "macro_logit_intensity": 0.036991561922431554,
+      "success_rate": 0.2718464858082523,
+      "cost": 155.23154588370642,
+      "loss": 2194.2583606585517,
+      "predicted_churn_rate": 0.3260704886479759,
+      "positive_net_count": 3547,
+      "total_positive_net": 652343.2265611509
+    },
+    {
+      "scenario_id": "lhs-129",
+      "competitor_logit_intensity": 0.13483434454050586,
+      "macro_logit_intensity": 0.2053504870639631,
+      "success_rate": 0.34124603051940006,
+      "cost": 154.2509760325696,
+      "loss": 1911.0297454571237,
+      "predicted_churn_rate": 0.3062863211014807,
+      "positive_net_count": 3566,
+      "total_positive_net": 686320.0005283736
+    },
+    {
+      "scenario_id": "lhs-256",
+      "competitor_logit_intensity": 0.3229711859917932,
+      "macro_logit_intensity": 0.12769610459867578,
+      "success_rate": 0.2614644006202804,
+      "cost": 162.83272360630087,
+      "loss": 2193.5503869020768,
+      "predicted_churn_rate": 0.3202777312712221,
+      "positive_net_count": 3303,
+      "total_positive_net": 558726.2428574879
+    },
+    {
+      "scenario_id": "worst-corner",
+      "competitor_logit_intensity": 0.0,
+      "macro_logit_intensity": 0.0,
+      "success_rate": 0.25,
+      "cost": 180.0,
+      "loss": 1800.0,
+      "predicted_churn_rate": 0.26535701762626274,
+      "positive_net_count": 2105,
+      "total_positive_net": 182898.43898636464
+    }
+  ],
+  "robust_policy": {
+    "selected_count": 2105,
+    "selected_rate": 0.29887831889819677,
+    "lower_bound_sum_min_person_net": 182898.43898636464,
+    "minimum_person_net_all_customers": -179.4360585164099,
+    "median_person_net_lower_bound": -93.3178374723965
+  },
+  "counterexample_boundary": {
+    "worst_case_threshold": 0.4,
+    "interpretation": "在给定的最不利参数角点，p低于该值时不应自动干预；此为边界计算，不是市场事实。"
+  },
+  "exact_worst_corner": {
+    "included_in_robust_score": true,
+    "scenario_id": "worst-corner",
+    "positive_net_count": 2105,
+    "total_positive_net": 182898.43898636464,
+    "reason": "单客净收益对正向logit冲击、q、L单调增加，对C单调减少；该角点是声明盒约束下的精确最坏角点。"
+  }
+}

@@ -1,0 +1,351 @@
+{
+  "schema": "artifact-manifest/v2",
+  "input_revision": "manifest:f262819cfcab8f94d70ac27648b7bdde688d133867760acf47020b9418da7619",
+  "skill_registry_revision": "skill:3d5f0dd4b8bbe91925aca161ff76bb5d5f847516108bcfa1cce91d99dce3bd4e",
+  "source_material_manifest_sha256": "a3eb5ea717a45dee3b280afc506b37df3026e7142a9f3411e5bdafe3bc4306a",
+  "raw_inputs_not_copied": true,
+  "artifacts": [
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/assembly.json",
+      "kind": "replay-evidence",
+      "sha256": "sha256:4df9ae1d9433b5e750a35da65c5048563a2d3d79a3e26bf253cd3e3048166d1c",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/data-contract.json",
+      "kind": "replay-evidence",
+      "sha256": "sha256:0a486f36714b737eaaa2487937478ffcf6c2fb8d3c4dfebf57d85a9a0cd19ba5",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/derivation-registry.json",
+      "kind": "replay-evidence",
+      "sha256": "sha256:1bcbee376539a54376f8493058f4ccdd792fce722e9c874f9f5ee1247c3d62a0",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/input-manifest.json",
+      "kind": "replay-evidence",
+      "sha256": "sha256:b5fe61e058c98ade270b6d17937e096de47f4f5f6932ddf8535e4c069f47278b",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/paper-contract-v2.json",
+      "kind": "replay-evidence",
+      "sha256": "sha256:07c6c5f696f2bb0a0b9a680b55afbeee34ed1fe39829a0e15633b9a8adccc78f",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/problem-contract.json",
+      "kind": "replay-evidence",
+      "sha256": "sha256:39243ce615a15bd6abaaa34628fdb0076068487fc68370a34b00ada2d6f28d22",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/question-map.json",
+      "kind": "replay-evidence",
+      "sha256": "sha256:e2293120e95925d449548c1af49ffccda0cd5ef5fea2c076390143a51f9cdcf4",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/imputation_ablation.json",
+      "kind": "replay-evidence",
+      "sha256": "sha256:19b80fb0c030a4516aa52e801aeb91dc5ac1289f4add03bd87ed85b3dc8d17b6",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/model_route.json",
+      "kind": "replay-evidence",
+      "sha256": "sha256:8e56fc27611afbb63f0e8dc4b1d2682180e5836bd62c396b9f70e2bdcdfcdd51",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q1_categorical_effects.csv",
+      "kind": "replay-evidence",
+      "sha256": "sha256:545e3299b72692986994b0352fac990ae93bde7d10e3e139238042aad394d7a0",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "text/csv"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q1_effect_sizes.png",
+      "kind": "replay-evidence",
+      "sha256": "sha256:8124b110d65e6f6b4a7eb4b2848855ffa57caff9317a18c1c16d64c60ddb5920",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "image/png"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q1_group_rates_ci.csv",
+      "kind": "replay-evidence",
+      "sha256": "sha256:00e90f4aaf6ccb147cbd17b417f0eef1dd773f7bc34ca290f89e36b6445ca270",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "text/csv"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q1_intersections.csv",
+      "kind": "replay-evidence",
+      "sha256": "sha256:7d44948788b16239efd5cdc000fd1f23b43043172daf9ac1cc5247defa6ececf",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "text/csv"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q1_numeric_effects.csv",
+      "kind": "replay-evidence",
+      "sha256": "sha256:a7e27717f47fae35a2156c30829d4cb64e56a86341b07719d26847ebc1286f57",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "text/csv"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q2_calibration.json",
+      "kind": "replay-evidence",
+      "sha256": "sha256:e182b2dca749cde6a4135a35bfd9cccc626a510b071d444962fce53f2f7a1188",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q2_calibration.png",
+      "kind": "replay-evidence",
+      "sha256": "sha256:f99313c59826fb6860cef0dab09db9a577fdce1a56739f12b2fc672d4a33c673",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "image/png"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q2_core_fold_metrics.csv",
+      "kind": "replay-evidence",
+      "sha256": "sha256:fcd8f6bcddab652d651d7720f0924ba6beea377cfa676966947d0d67e7274c15",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "text/csv"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q2_full_fold_metrics.csv",
+      "kind": "replay-evidence",
+      "sha256": "sha256:b1487fd18d65abd9abb0b5bc1955a59db781a991b69948389406b1c7f3df0fa4",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "text/csv"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q3_independent_arithmetic_check.json",
+      "kind": "replay-evidence",
+      "sha256": "sha256:d2b0b3b00bc375991c3de85d1e67aa19faf160ae51ac49c889a6b02297ed146b",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q3_policy_bootstrap.json",
+      "kind": "replay-evidence",
+      "sha256": "sha256:151bb128f6bfeec008b94cbb60ec1c192453ea2bde0ddea04525d3ff7e2dc0a9",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q3_policy_curve.png",
+      "kind": "replay-evidence",
+      "sha256": "sha256:c3b7082731dabc1b319fb7e70df4adbc95a2baf6df64c688ecd1b6aa395a8f17",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "image/png"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q3_policy_table.csv",
+      "kind": "replay-evidence",
+      "sha256": "sha256:1dab8bc04c3a40945692f2a3aa6a0e434750e4d503dc3fa42cbebcf0fc500760",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "text/csv"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q4_stress_envelope.json",
+      "kind": "replay-evidence",
+      "sha256": "sha256:d1f0c52b4cb69572e4332300f6f628ef82cbde6a8b4c8ede50409c33dda688ba",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q4_stress_envelope.png",
+      "kind": "replay-evidence",
+      "sha256": "sha256:8a652a67f8aba9db55fe0c4cbc932926c0f2fa6281c6d27d2f04ced0eeff6dfc",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "image/png"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/summary_v2.json",
+      "kind": "replay-evidence",
+      "sha256": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "application/json"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/solver.stderr.txt",
+      "kind": "replay-evidence",
+      "sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "text/plain"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/solver.stdout.txt",
+      "kind": "replay-evidence",
+      "sha256": "sha256:56b1e87f600f555c521b99482fa769eecbba20eda93821e9a5d4670a6b2f37c6",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "text/plain"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/validation-report.json",
+      "kind": "replay-evidence",
+      "sha256": "sha256:afc04dd8b06a2c3d62606f2e36c7f1cdf422ed56938c66e9aad86a49fc5a5bce",
+      "generated_by": "scripts/build_b_replay_artifacts.py",
+      "dependencies": [
+        "models/solve_b_problem_v2.py"
+      ],
+      "status": "VERIFIED",
+      "media_type": "application/json"
+    },
+    {
+      "path": "paper/b_problem_solution_v2.tex",
+      "kind": "paper",
+      "sha256": "sha256:36a2a413ad4b021fab450674b5cd78ed6a04d16781cc49bb18928a69ba351c0e",
+      "generated_by": "XeLaTeX / paper steward",
+      "dependencies": [
+        "artifacts/runs/T-23-b-problem-v2"
+      ],
+      "status": "VERIFIED",
+      "media_type": "text/plain"
+    },
+    {
+      "path": "paper/b_problem_solution_v2.pdf",
+      "kind": "paper",
+      "sha256": "sha256:16ef068bfc0fa4139af8e0c47dde7e92476e40dc99e13192c61557b383d9f715",
+      "generated_by": "XeLaTeX / paper steward",
+      "dependencies": [
+        "artifacts/runs/T-23-b-problem-v2"
+      ],
+      "status": "VERIFIED",
+      "media_type": "application/pdf"
+    },
+    {
+      "path": "paper/render_qa_v2.json",
+      "kind": "paper",
+      "sha256": "sha256:8f6090ea0d6b5b411470779d2b58ee5130b74b1fa210e27c4bce71819d9867e5",
+      "generated_by": "XeLaTeX / paper steward",
+      "dependencies": [
+        "artifacts/runs/T-23-b-problem-v2"
+      ],
+      "status": "VERIFIED",
+      "media_type": "text/plain"
+    }
+  ],
+  "status": "READY_FOR_REVIEW"
+}

@@ -1,0 +1,183 @@
+{
+  "schema_version": "question-map/v2",
+  "problem_id": "B",
+  "input_revision": "manifest:f262819cfcab8f94d70ac27648b7bdde688d133867760acf47020b9418da7619",
+  "questions": [
+    {
+      "id": "Q1",
+      "statement_refs": [
+        "statement:p5"
+      ],
+      "objective": "用效应量而非仅显著性识别高风险群体并描述因素关系",
+      "inputs": [
+        "data:customer-profile",
+        "data:churn-label"
+      ],
+      "outputs": [
+        "result:q1-categorical-effects",
+        "result:q1-numeric-effects",
+        "result:q1-intersections"
+      ],
+      "dependencies": [
+        "scope-lock",
+        "data-contract"
+      ],
+      "baseline": "descriptive-statistical-baseline",
+      "primary_route": "chi-square+Cramer's V+Mann-Whitney+BH+Wilson",
+      "fallback_route": "group-summary-reconcile",
+      "validation_requirements": [
+        "row-count",
+        "multiple-comparison",
+        "denominator",
+        "association-boundary"
+      ],
+      "owner": "Scope/Data Steward",
+      "status": "VERIFIED"
+    },
+    {
+      "id": "Q2",
+      "statement_refs": [
+        "statement:p6"
+      ],
+      "objective": "用题面指定核心字段和完整画像输出可校准的客户级流失关联概率",
+      "inputs": [
+        "data:customer-profile",
+        "data:churn-label",
+        "split:repeated-stratified"
+      ],
+      "outputs": [
+        "result:q2-core-full",
+        "result:q2-holdout",
+        "result:q2-calibration",
+        "result:q2-effects"
+      ],
+      "dependencies": [
+        "Q1",
+        "data-contract"
+      ],
+      "baseline": "majority-class",
+      "primary_route": "reference-coded-logistic+repeated-OOF",
+      "fallback_route": "gradient-boosting-or-conservative-baseline",
+      "validation_requirements": [
+        "holdout",
+        "3x5-OOF",
+        "bootstrap95",
+        "calibration",
+        "imputation-ablation"
+      ],
+      "owner": "Route/Solver",
+      "status": "VERIFIED"
+    },
+    {
+      "id": "Q3",
+      "statement_refs": [
+        "statement:p8-p11"
+      ],
+      "objective": "将概率、成功率、损失和成本转化为逐人经济决策并处理容量",
+      "inputs": [
+        "result:q2-oof-probability",
+        "parameter:C",
+        "parameter:q",
+        "parameter:L"
+      ],
+      "outputs": [
+        "result:q3-threshold",
+        "result:q3-policy-curve",
+        "result:q3-uncertainty"
+      ],
+      "dependencies": [
+        "Q2"
+      ],
+      "baseline": "all-or-none-policy",
+      "primary_route": "separable-economic-threshold+capacity-ranking",
+      "fallback_route": "risk-ranking",
+      "validation_requirements": [
+        "unit-check",
+        "independent-arithmetic",
+        "policy-bootstrap",
+        "parameter-sensitivity"
+      ],
+      "owner": "Decision/Solver",
+      "status": "VERIFIED"
+    },
+    {
+      "id": "Q4",
+      "statement_refs": [
+        "statement:p12"
+      ],
+      "objective": "在无外部时间序列时以显式不确定集合做压力和稳健边界分析",
+      "inputs": [
+        "result:q2-oof-probability",
+        "scenario:external-pressure"
+      ],
+      "outputs": [
+        "result:q4-envelope",
+        "result:q4-robust-set",
+        "result:q4-counterexample"
+      ],
+      "dependencies": [
+        "Q2",
+        "Q3"
+      ],
+      "baseline": "one-factor-scenarios",
+      "primary_route": "latin-hypercube-scenario-simulation+robust-optimization",
+      "fallback_route": "conservative-baseline",
+      "validation_requirements": [
+        "uncertainty-set-sweep",
+        "boundary-check",
+        "assumption-red-team"
+      ],
+      "owner": "Critic/Challenger",
+      "status": "HYPOTHESIS_BOUND"
+    }
+  ],
+  "edges": [
+    [
+      "Q1",
+      "Q2"
+    ],
+    [
+      "Q2",
+      "Q3"
+    ],
+    [
+      "Q2",
+      "Q4"
+    ],
+    [
+      "Q3",
+      "Q4"
+    ]
+  ],
+  "coverage": [
+    {
+      "statement_ref": "statement:p5",
+      "question_id": "Q1",
+      "artifact": "results/q1_*",
+      "paper_section": "Q1",
+      "status": "COVERED"
+    },
+    {
+      "statement_ref": "statement:p6",
+      "question_id": "Q2",
+      "artifact": "results/q2_*",
+      "paper_section": "Q2",
+      "status": "COVERED"
+    },
+    {
+      "statement_ref": "statement:p8-p11",
+      "question_id": "Q3",
+      "artifact": "results/q3_*",
+      "paper_section": "Q3",
+      "status": "COVERED"
+    },
+    {
+      "statement_ref": "statement:p12",
+      "question_id": "Q4",
+      "artifact": "results/q4_*",
+      "paper_section": "Q4",
+      "status": "COVERED_WITH_HYPOTHESIS_BOUNDARY"
+    }
+  ],
+  "status": "VERIFIED"
+}

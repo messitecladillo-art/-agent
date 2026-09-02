@@ -1,0 +1,234 @@
+{
+  "schema_version": "validation-report/v2",
+  "target_id": "school-b-replay-v2",
+  "input_revision": "manifest:f262819cfcab8f94d70ac27648b7bdde688d133867760acf47020b9418da7619",
+  "run_id": "T-23-b-problem-v2",
+  "checks": [
+    {
+      "id": "val:data-quality",
+      "kind": "data-audit",
+      "method": "schema-provenance-audit",
+      "threshold": "rows=7043, duplicates=0, structural blank replay",
+      "observed": "rows=7043;duplicates=0;blank=11",
+      "unit": "records",
+      "status": "VERIFIED",
+      "evidence_refs": [
+        "results/summary_v2.json"
+      ]
+    },
+    {
+      "id": "val:q1-multiple-testing",
+      "kind": "effect-size",
+      "method": "chi-square+Cramer's V+BH",
+      "threshold": "effect size and FDR both reported",
+      "observed": "16 categorical fields; BH q-values present",
+      "unit": "dimensionless",
+      "status": "VERIFIED",
+      "evidence_refs": [
+        "results/q1_categorical_effects.csv"
+      ]
+    },
+    {
+      "id": "val:q1-denominator",
+      "kind": "denominator",
+      "method": "group-summary-reconcile",
+      "threshold": "all reported groups have n and Wilson interval",
+      "observed": "intersection table regenerated",
+      "unit": "records",
+      "status": "VERIFIED",
+      "evidence_refs": [
+        "results/q1_group_rates_ci.csv",
+        "results/q1_intersections.csv"
+      ]
+    },
+    {
+      "id": "val:q2-oof",
+      "kind": "cross-validation",
+      "method": "3x5 repeated stratified OOF",
+      "threshold": "OOF missing=0; fold variability recorded",
+      "observed": "AUC=0.845120; fold std=0.011572",
+      "unit": "AUC",
+      "status": "VERIFIED",
+      "evidence_refs": [
+        "results/q2_full_fold_metrics.csv",
+        "results/summary_v2.json"
+      ]
+    },
+    {
+      "id": "val:q2-holdout",
+      "kind": "holdout",
+      "method": "stratified 20% holdout",
+      "threshold": "AUC is reported without tuning on holdout",
+      "observed": "AUC=0.842171",
+      "unit": "AUC",
+      "status": "VERIFIED",
+      "evidence_refs": [
+        "results/summary_v2.json"
+      ]
+    },
+    {
+      "id": "val:q2-calibration",
+      "kind": "calibration",
+      "method": "fixed-bin and quantile OOF calibration",
+      "threshold": "ECE, maximum gap and bins reported",
+      "observed": "ECE=0.012977; quantile ECE=0.012726",
+      "unit": "probability",
+      "status": "VERIFIED",
+      "evidence_refs": [
+        "results/q2_calibration.json"
+      ]
+    },
+    {
+      "id": "val:q2-imputation",
+      "kind": "ablation",
+      "method": "structural-zero vs median comparator",
+      "threshold": "11 structural blanks explicitly tested",
+      "observed": "AUC difference recorded",
+      "unit": "AUC",
+      "status": "VERIFIED",
+      "evidence_refs": [
+        "results/imputation_ablation.json"
+      ]
+    },
+    {
+      "id": "val:q3-arithmetic",
+      "kind": "unit-and-reproduction",
+      "method": "independent arithmetic check",
+      "threshold": "threshold and net agree within 1e-6",
+      "observed": "count=3281;net=628279.039268",
+      "unit": "元",
+      "status": "VERIFIED",
+      "evidence_refs": [
+        "results/q3_independent_arithmetic_check.json"
+      ]
+    },
+    {
+      "id": "val:q3-bootstrap",
+      "kind": "uncertainty",
+      "method": "500-row bootstrap",
+      "threshold": "95% interval reported for threshold/top-k policies",
+      "observed": "3 policy intervals",
+      "unit": "元",
+      "status": "VERIFIED",
+      "evidence_refs": [
+        "results/q3_policy_bootstrap.json"
+      ]
+    },
+    {
+      "id": "val:q4-envelope",
+      "kind": "sensitivity",
+      "method": "Latin-hypercube scenario sweep",
+      "threshold": "256 samples with seed and bounds",
+      "observed": "samples=256;robust positive=2105",
+      "unit": "情景/客户",
+      "status": "VERIFIED",
+      "evidence_refs": [
+        "results/q4_stress_envelope.json"
+      ]
+    },
+    {
+      "id": "val:q4-counterexample",
+      "kind": "counterexample",
+      "method": "worst-corner boundary search",
+      "threshold": "boundary is stated and not generalized",
+      "observed": "worst-case threshold=0.400",
+      "unit": "probability",
+      "status": "VERIFIED",
+      "evidence_refs": [
+        "results/q4_stress_envelope.json"
+      ]
+    },
+    {
+      "id": "val:paper-render",
+      "kind": "render",
+      "method": "XeLaTeX+pdfinfo+pdftoppm",
+      "threshold": "two-pass compile and visual QA",
+      "observed": "paper render manifest present",
+      "unit": "pages",
+      "status": "VERIFIED",
+      "evidence_refs": [
+        "paper/b_problem_solution_v2.pdf",
+        "paper/render_qa_v2.json"
+      ]
+    }
+  ],
+  "sensitivity": [
+    {
+      "id": "sens:imputation",
+      "parameter": "structural blank handling",
+      "range": "zero vs non-zero median",
+      "observation": "AUC and Brier nearly unchanged",
+      "status": "VERIFIED"
+    },
+    {
+      "id": "sens:economics",
+      "parameter": "q,L,C",
+      "range": "q=.25-.45; L=1500-2500; C=150",
+      "observation": "threshold and coverage move monotonically",
+      "status": "VERIFIED"
+    },
+    {
+      "id": "sens:q4-envelope",
+      "parameter": "u,m,q,C,L",
+      "range": "as recorded in stress contract",
+      "observation": "robust set shrinks under joint adverse corner",
+      "status": "HYPOTHESIS_BOUND"
+    }
+  ],
+  "counterexamples": [
+    {
+      "id": "ce:no-uplift",
+      "claim_at_risk": "risk probability equals treatment effect",
+      "minimal_case": "same p but q=0 for all customers",
+      "consequence": "intervention has no benefit",
+      "status": "OPEN_BOUNDARY"
+    },
+    {
+      "id": "ce:future-drift",
+      "claim_at_risk": "random OOF generalizes to future months",
+      "minimal_case": "contract mix or price regime shifts",
+      "consequence": "calibration can fail",
+      "status": "OPEN_BOUNDARY"
+    },
+    {
+      "id": "ce:q4-range",
+      "claim_at_risk": "stress envelope represents market truth",
+      "minimal_case": "actual shock outside declared bounds",
+      "consequence": "robust guarantee does not extend",
+      "status": "OPEN_BOUNDARY"
+    }
+  ],
+  "independent_reproduction": {
+    "status": "PARTIAL",
+    "method": "fresh v2 rerun plus independent Q3 arithmetic implementation",
+    "not_claimed": "full independent model reimplementation",
+    "evidence_refs": [
+      "results/q3_independent_arithmetic_check.json",
+      "run-manifest.json"
+    ]
+  },
+  "blockers": [
+    {
+      "id": "B1",
+      "severity": "P1",
+      "statement": "校赛当届官方论文格式/匿名/页数未提供",
+      "status": "OPEN",
+      "owner_action": "提交前补充官方通知"
+    },
+    {
+      "id": "B2",
+      "severity": "P1",
+      "statement": "横截面无时间外推与随机干预标签",
+      "status": "OPEN",
+      "owner_action": "补做时间回测和随机挽留实验"
+    },
+    {
+      "id": "B3",
+      "severity": "P2",
+      "statement": "Q4压力区间为假设",
+      "status": "DISCLOSED",
+      "owner_action": "获取竞争价格/宏观序列后重新识别"
+    }
+  ],
+  "status": "READY_FOR_REVIEW"
+}

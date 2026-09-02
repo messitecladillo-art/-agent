@@ -1,0 +1,254 @@
+{
+  "schema_version": "model-route/v2",
+  "status": "VERIFIED",
+  "routes": [
+    {
+      "question_id": "Q1",
+      "structural_cues": [
+        "二元标签",
+        "类别分组",
+        "需要因素关系和画像"
+      ],
+      "baseline": {
+        "method_id": "descriptive-statistical-baseline",
+        "rationale": "先给总体率、分母和分组率",
+        "assumptions": [
+          "同一截面标签口径一致"
+        ],
+        "metrics": [
+          "rate",
+          "Wilson95"
+        ]
+      },
+      "primary": {
+        "method_id": "schema-provenance-audit + chi-square + Cramer's V + Mann-Whitney",
+        "rationale": "同时报告显著性与效应量，避免大样本只看p值",
+        "assumptions": [
+          "类别/数值字段的观测粒度一致"
+        ],
+        "equations": [
+          "q1-group-rate",
+          "q1-cramers"
+        ],
+        "constraints": [
+          "不写因果"
+        ],
+        "expected_outputs": [
+          "BH校正表",
+          "Wilson区间",
+          "交叉画像"
+        ]
+      },
+      "fallbacks": [
+        {
+          "method_id": "group-summary-reconcile",
+          "trigger": "字段域或样本量不足"
+        }
+      ],
+      "prohibited_shortcuts": [
+        "只按p值排序",
+        "把群体差异写成干预效果"
+      ],
+      "validation_plan": [
+        "row-count-reconcile",
+        "multiple-comparison",
+        "denominator-check"
+      ],
+      "evidence_refs": [
+        "src-review-2023",
+        "src-prize-paper-school-2026"
+      ]
+    },
+    {
+      "question_id": "Q2",
+      "structural_cues": [
+        "有标签",
+        "客户级风险判定",
+        "题面指定合同/在网/费用/增值服务"
+      ],
+      "baseline": {
+        "method_id": "majority-class + core-rule",
+        "rationale": "提供可解释下界并作为消融对照",
+        "assumptions": [
+          "部署只使用画像字段"
+        ],
+        "metrics": [
+          "ROC-AUC",
+          "AP",
+          "Brier",
+          "log-loss"
+        ]
+      },
+      "primary": {
+        "method_id": "generalized-linear-model (reference-coded logistic)",
+        "rationale": "与题面变量对应、输出概率且可解释；重复OOF隔离预处理",
+        "assumptions": [
+          "横截面关联模型",
+          "训练折内插补/缩放"
+        ],
+        "equations": [
+          "q2-logistic",
+          "q2-fit"
+        ],
+        "constraints": [
+          "无时间字段，不能宣称时间外推"
+        ],
+        "solver_config": {
+          "C": 1.0,
+          "solver": "lbfgs",
+          "max_iter": 4000,
+          "repeated_stratified_folds": "3x5"
+        },
+        "expected_outputs": [
+          "core/full对照",
+          "bootstrap95",
+          "calibration",
+          "effect directions"
+        ]
+      },
+      "fallbacks": [
+        {
+          "method_id": "gradient-boosting",
+          "trigger": "非线性残差显著且通过隔离验证"
+        },
+        {
+          "method_id": "conservative-baseline",
+          "trigger": "未来批次漂移或校准失败"
+        }
+      ],
+      "prohibited_shortcuts": [
+        "用全样本拟合概率评估自己",
+        "用0.5替代经济阈值",
+        "将系数写成因果"
+      ],
+      "validation_plan": [
+        "repeated-cross-validation",
+        "holdout",
+        "calibration-coverage-check",
+        "imputation-ablation"
+      ],
+      "evidence_refs": [
+        "src-review-2021",
+        "src-review-2023",
+        "src-algorithm-index"
+      ]
+    },
+    {
+      "question_id": "Q3",
+      "structural_cues": [
+        "成本/成功率/损失已给定",
+        "二元干预决策",
+        "可分离收益"
+      ],
+      "baseline": {
+        "method_id": "all-or-none-policy",
+        "rationale": "全员/不干预是透明运营基线",
+        "assumptions": [
+          "q和L按题面给定"
+        ],
+        "metrics": [
+          "expected-net"
+        ]
+      },
+      "primary": {
+        "method_id": "robust-optimization (separable economic threshold)",
+        "rationale": "逐人净收益可分离，阈值与容量排序有交换论证",
+        "assumptions": [
+          "p为关联风险，q为条件平均成功率"
+        ],
+        "equations": [
+          "q3-person-net",
+          "q3-threshold"
+        ],
+        "constraints": [
+          "成本、成功率、损失单位一致"
+        ],
+        "expected_outputs": [
+          "threshold",
+          "capacity curve",
+          "bootstrap policy interval"
+        ]
+      },
+      "fallbacks": [
+        {
+          "method_id": "risk-ranking",
+          "trigger": "仅有固定容量"
+        }
+      ],
+      "prohibited_shortcuts": [
+        "把观测流失率当挽留成功率",
+        "把期望净收益当已实现利润"
+      ],
+      "validation_plan": [
+        "independent-arithmetic-check",
+        "parameter-sensitivity",
+        "policy-bootstrap"
+      ],
+      "evidence_refs": [
+        "src-review-2023",
+        "src-review-2020"
+      ]
+    },
+    {
+      "question_id": "Q4",
+      "structural_cues": [
+        "竞争/宏观变化",
+        "策略稳健性",
+        "缺少外部时间序列"
+      ],
+      "baseline": {
+        "method_id": "one-factor-scenarios",
+        "rationale": "先逐个改变冲击方向并记录边界",
+        "assumptions": [
+          "外部冲击参数为假设"
+        ],
+        "metrics": [
+          "churn-rate",
+          "positive-net-count"
+        ]
+      },
+      "primary": {
+        "method_id": "robust-optimization + latin-hypercube-scenario-simulation",
+        "rationale": "把缺失外部数据转化为显式不确定集合，报告最坏下界而非伪造弹性",
+        "assumptions": [
+          "参数区间是假设并需新数据校准"
+        ],
+        "equations": [
+          "q4-shift",
+          "q4-robust"
+        ],
+        "constraints": [
+          "不声称识别竞争价格效应"
+        ],
+        "expected_outputs": [
+          "scenario envelope",
+          "robust set",
+          "counterexample boundary"
+        ]
+      },
+      "fallbacks": [
+        {
+          "method_id": "conservative-baseline",
+          "trigger": "外部区间无法由Owner确认"
+        }
+      ],
+      "prohibited_shortcuts": [
+        "无来源指定价格弹性",
+        "把情景均值当事实",
+        "把逐人下界当置信区间"
+      ],
+      "validation_plan": [
+        "uncertainty-set-sweep",
+        "boundary-check",
+        "assumption-red-team"
+      ],
+      "evidence_refs": [
+        "src-review-2023",
+        "src-prize-paper-school-2026"
+      ]
+    }
+  ],
+  "input_revision": "manifest:f262819cfcab8f94d70ac27648b7bdde688d133867760acf47020b9418da7619",
+  "skill_registry_revision": "skill:3d5f0dd4b8bbe91925aca161ff76bb5d5f847516108bcfa1cce91d99dce3bd4e",
+  "code_revision": "ee9883392060644c5be12adb0357fd94560fde94"
+}

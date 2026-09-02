@@ -1,0 +1,202 @@
+{
+  "schema_version": "run-manifest/v2",
+  "run_id": "T-23-b-problem-v2",
+  "input_revision": "manifest:f262819cfcab8f94d70ac27648b7bdde688d133867760acf47020b9418da7619",
+  "code_revision": "ee9883392060644c5be12adb0357fd94560fde94",
+  "route_revision": "route:7e37060526127c58a6c23f6e092488bac74b7b8acd0061e344074c352fe589c1",
+  "skill_registry_revision": "skill:3d5f0dd4b8bbe91925aca161ff76bb5d5f847516108bcfa1cce91d99dce3bd4e",
+  "environment": {
+    "interpreter": "3.9.7",
+    "packages": [
+      "numpy",
+      "pandas",
+      "scipy",
+      "scikit-learn",
+      "matplotlib"
+    ],
+    "os": "Windows",
+    "solver_versions": [
+      "solve_b_problem_v2/schema=b-problem-replay/v2"
+    ]
+  },
+  "command": "python -X utf8 models/solve_b_problem_v2.py --input <owner-attachment>/校赛B题附件.csv --output runtime/skill-v2-replay/b_solution_v2_final --seed 42",
+  "cwd": ".",
+  "seed_policy": {
+    "deterministic": false,
+    "reproducible_with_recorded_seeds": true,
+    "seeds": [
+      42,
+      143,
+      244,
+      345,
+      446
+    ],
+    "random_sources": [
+      "repeated-stratified-fold",
+      "bootstrap",
+      "latin-hypercube"
+    ]
+  },
+  "checkpoints": [
+    {
+      "name": "solver",
+      "status": "PASS"
+    },
+    {
+      "name": "aggregate-artifacts",
+      "status": "PASS"
+    },
+    {
+      "name": "policy-independent-arithmetic",
+      "status": "PASS"
+    },
+    {
+      "name": "paper-render",
+      "status": "PASS"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/imputation_ablation.json",
+      "sha256": "sha256:19b80fb0c030a4516aa52e801aeb91dc5ac1289f4add03bd87ed85b3dc8d17b6",
+      "media_type": "application/json",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/model_route.json",
+      "sha256": "sha256:8e56fc27611afbb63f0e8dc4b1d2682180e5836bd62c396b9f70e2bdcdfcdd51",
+      "media_type": "application/json",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q1_categorical_effects.csv",
+      "sha256": "sha256:545e3299b72692986994b0352fac990ae93bde7d10e3e139238042aad394d7a0",
+      "media_type": "text/csv",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q1_effect_sizes.png",
+      "sha256": "sha256:8124b110d65e6f6b4a7eb4b2848855ffa57caff9317a18c1c16d64c60ddb5920",
+      "media_type": "image/png",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q1_group_rates_ci.csv",
+      "sha256": "sha256:00e90f4aaf6ccb147cbd17b417f0eef1dd773f7bc34ca290f89e36b6445ca270",
+      "media_type": "text/csv",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q1_intersections.csv",
+      "sha256": "sha256:7d44948788b16239efd5cdc000fd1f23b43043172daf9ac1cc5247defa6ececf",
+      "media_type": "text/csv",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q1_numeric_effects.csv",
+      "sha256": "sha256:a7e27717f47fae35a2156c30829d4cb64e56a86341b07719d26847ebc1286f57",
+      "media_type": "text/csv",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q2_calibration.json",
+      "sha256": "sha256:e182b2dca749cde6a4135a35bfd9cccc626a510b071d444962fce53f2f7a1188",
+      "media_type": "application/json",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q2_calibration.png",
+      "sha256": "sha256:f99313c59826fb6860cef0dab09db9a577fdce1a56739f12b2fc672d4a33c673",
+      "media_type": "image/png",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q2_core_fold_metrics.csv",
+      "sha256": "sha256:fcd8f6bcddab652d651d7720f0924ba6beea377cfa676966947d0d67e7274c15",
+      "media_type": "text/csv",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q2_full_fold_metrics.csv",
+      "sha256": "sha256:b1487fd18d65abd9abb0b5bc1955a59db781a991b69948389406b1c7f3df0fa4",
+      "media_type": "text/csv",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q3_independent_arithmetic_check.json",
+      "sha256": "sha256:d2b0b3b00bc375991c3de85d1e67aa19faf160ae51ac49c889a6b02297ed146b",
+      "media_type": "application/json",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q3_policy_bootstrap.json",
+      "sha256": "sha256:151bb128f6bfeec008b94cbb60ec1c192453ea2bde0ddea04525d3ff7e2dc0a9",
+      "media_type": "application/json",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q3_policy_curve.png",
+      "sha256": "sha256:c3b7082731dabc1b319fb7e70df4adbc95a2baf6df64c688ecd1b6aa395a8f17",
+      "media_type": "image/png",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q3_policy_table.csv",
+      "sha256": "sha256:1dab8bc04c3a40945692f2a3aa6a0e434750e4d503dc3fa42cbebcf0fc500760",
+      "media_type": "text/csv",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q4_stress_envelope.json",
+      "sha256": "sha256:d1f0c52b4cb69572e4332300f6f628ef82cbde6a8b4c8ede50409c33dda688ba",
+      "media_type": "application/json",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/q4_stress_envelope.png",
+      "sha256": "sha256:8a652a67f8aba9db55fe0c4cbc932926c0f2fa6281c6d27d2f04ced0eeff6dfc",
+      "media_type": "image/png",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/results/summary_v2.json",
+      "sha256": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+      "media_type": "application/json",
+      "produced_by": "models/solve_b_problem_v2.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/solver.stdout.txt",
+      "sha256": "sha256:56b1e87f600f555c521b99482fa769eecbba20eda93821e9a5d4670a6b2f37c6",
+      "media_type": "text/plain",
+      "produced_by": "scripts/build_b_replay_artifacts.py"
+    },
+    {
+      "path": "artifacts/runs/T-23-b-problem-v2/solver.stderr.txt",
+      "sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "media_type": "text/plain",
+      "produced_by": "scripts/build_b_replay_artifacts.py"
+    },
+    {
+      "path": "paper/b_problem_solution_v2.tex",
+      "sha256": "sha256:36a2a413ad4b021fab450674b5cd78ed6a04d16781cc49bb18928a69ba351c0e",
+      "media_type": "text/plain",
+      "produced_by": "paper steward"
+    },
+    {
+      "path": "paper/b_problem_solution_v2.pdf",
+      "sha256": "sha256:16ef068bfc0fa4139af8e0c47dde7e92476e40dc99e13192c61557b383d9f715",
+      "media_type": "application/pdf",
+      "produced_by": "paper steward"
+    },
+    {
+      "path": "paper/render_qa_v2.json",
+      "sha256": "sha256:8f6090ea0d6b5b411470779d2b58ee5130b74b1fa210e27c4bce71819d9867e5",
+      "media_type": "text/plain",
+      "produced_by": "paper steward"
+    }
+  ],
+  "exit_code": 0,
+  "stdout_sha256": "sha256:56b1e87f600f555c521b99482fa769eecbba20eda93821e9a5d4670a6b2f37c6",
+  "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "status": "VERIFIED"
+}

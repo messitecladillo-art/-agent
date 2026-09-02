@@ -1,0 +1,6 @@
+{
+  "threshold": 0.21428571428571427,
+  "selected_count": 3281,
+  "expected_net": 628279.0392677824,
+  "formula": "sum(p_i)*q*L-|S|*C"
+}

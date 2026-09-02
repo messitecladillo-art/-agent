@@ -1,0 +1,127 @@
+{
+  "schema_version": "problem-contract/v2",
+  "problem_id": "B",
+  "contest_profile": {
+    "contest": "华中师范大学数学建模竞赛",
+    "edition": "2026",
+    "group": "校赛",
+    "region": "华中师范大学",
+    "stage": "校赛",
+    "problem_id": "B",
+    "rule_refs": [],
+    "format_refs": [
+      "OFFICIAL_PENDING:当届论文模板/匿名/页数未提供"
+    ]
+  },
+  "statement_refs": [
+    {
+      "ref": "<owner-attachment>/校赛B题.docx#p2",
+      "quote": "B题 电信客户流失分析与挽留策略",
+      "sha256": "sha256:c2049336b8ef6d85ba5d52fc943d9deb839e8a4a20d083807cc7b267a0c96c89"
+    },
+    {
+      "ref": "<owner-attachment>/校赛B题.docx#p5-p6",
+      "quote": "分析流失群体、因素关系并给出流失判定方法",
+      "sha256": "sha256:c2049336b8ef6d85ba5d52fc943d9deb839e8a4a20d083807cc7b267a0c96c89"
+    },
+    {
+      "ref": "<owner-attachment>/校赛B题.docx#p8-p12",
+      "quote": "给定成本、成功率、损失并讨论竞争和宏观变化",
+      "sha256": "sha256:c2049336b8ef6d85ba5d52fc943d9deb839e8a4a20d083807cc7b267a0c96c89"
+    }
+  ],
+  "attachment_refs": [
+    {
+      "ref": "<owner-attachment>/校赛B题附件.csv",
+      "sha256": "sha256:7131cd7542bc248f090e26e1beb40d22b9e9f1ec32d8c8854d71377a94b8d858",
+      "encoding": "gb18030"
+    }
+  ],
+  "task_verbs": [
+    {
+      "question_id": "Q1",
+      "quote": "分析哪些群体容易流失及因素关系",
+      "target": "群体流失率、关联强度、交叉画像",
+      "unit": "比例/无量纲",
+      "output": "统计表与画像",
+      "source_ref": "statement:p5"
+    },
+    {
+      "question_id": "Q2",
+      "quote": "给出客户流失判定方法",
+      "target": "客户级关联风险概率与判定规则",
+      "unit": "概率/无量纲",
+      "output": "模型、验证指标、校准",
+      "source_ref": "statement:p6"
+    },
+    {
+      "question_id": "Q3",
+      "quote": "设计客户挽留策略",
+      "target": "干预集合、成本和期望净收益",
+      "unit": "元/客户、元/集合",
+      "output": "阈值与容量策略",
+      "source_ref": "statement:p11"
+    },
+    {
+      "question_id": "Q4",
+      "quote": "评估策略稳健性并动态调整",
+      "target": "冲击情景、稳健集合、触发规则",
+      "unit": "情景概率/元",
+      "output": "压力包与更新规则",
+      "source_ref": "statement:p12"
+    }
+  ],
+  "constraints": [
+    {
+      "id": "C1",
+      "statement": "一次干预成本约150元/人",
+      "value": 150,
+      "unit": "元/客户",
+      "source_ref": "statement:p8",
+      "status": "OBSERVED"
+    },
+    {
+      "id": "C2",
+      "statement": "历史挽留成功率35%",
+      "value": 0.35,
+      "unit": "无量纲",
+      "source_ref": "statement:p9",
+      "status": "OBSERVED"
+    },
+    {
+      "id": "C3",
+      "statement": "每个流失客户损失约2000元",
+      "value": 2000,
+      "unit": "元/客户",
+      "source_ref": "statement:p10",
+      "status": "OBSERVED"
+    },
+    {
+      "id": "C4",
+      "statement": "横截面资料不足以识别因果/uplift或外部弹性",
+      "value": "不得因果化",
+      "unit": "逻辑边界",
+      "source_ref": "data-boundary",
+      "status": "VERIFIED"
+    }
+  ],
+  "online_information_policy": {
+    "mode": "offline-cross-sectional",
+    "visible_at_prediction": "客户画像字段与已知业务参数",
+    "future_information_forbidden": [
+      "未来月份标签",
+      "干预后的续留结果",
+      "未授权外部价格/宏观数据"
+    ],
+    "status": "CONTRACTED"
+  },
+  "deliverables": [
+    "Q1关联与画像",
+    "Q2可解释概率模型",
+    "Q3经济阈值与容量策略",
+    "Q4压力情景与动态规则",
+    "证据/复现/论文包"
+  ],
+  "input_revision": "manifest:f262819cfcab8f94d70ac27648b7bdde688d133867760acf47020b9418da7619",
+  "status": "CONTRACTED"
+}

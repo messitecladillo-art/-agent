@@ -1,0 +1,30 @@
+{
+  "structural_zero": {
+    "metrics": {
+      "roc_auc": 0.8458562826893243,
+      "average_precision": 0.656547184737994,
+      "brier": 0.13512400310142228,
+      "log_loss": 0.41666816058522343,
+      "repeats": 2,
+      "folds": 5,
+      "fold_auc_mean": 0.8458584448743535,
+      "fold_auc_std": 0.006997032640966529,
+      "oof_missing": 0
+    },
+    "rows_changed": 0
+  },
+  "median_for_structural_blank": {
+    "metrics": {
+      "roc_auc": 0.845740566436744,
+      "average_precision": 0.6564337673831563,
+      "brier": 0.13515669818062193,
+      "log_loss": 0.4167679309769763,
+      "repeats": 2,
+      "folds": 5,
+      "fold_auc_mean": 0.8457411330969136,
+      "fold_auc_std": 0.007016274561205111,
+      "oof_missing": 0
+    },
+    "rows_changed": 11
+  }
+}

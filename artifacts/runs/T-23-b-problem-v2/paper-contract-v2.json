@@ -1,0 +1,560 @@
+{
+  "schema": "paper-contract/v2",
+  "input_revision": "manifest:f262819cfcab8f94d70ac27648b7bdde688d133867760acf47020b9418da7619",
+  "problem_contract": {
+    "contest": "华中师范大学数学建模竞赛",
+    "edition": "2026",
+    "group": "校赛",
+    "problem_id": "B",
+    "subproblems": [
+      {
+        "id": "Q1",
+        "objective": "群体和因素关系",
+        "deliverables": [
+          "效应量",
+          "群体率",
+          "交叉画像"
+        ]
+      },
+      {
+        "id": "Q2",
+        "objective": "流失判定方法",
+        "deliverables": [
+          "概率模型",
+          "隔离验证",
+          "校准"
+        ]
+      },
+      {
+        "id": "Q3",
+        "objective": "挽留策略",
+        "deliverables": [
+          "经济阈值",
+          "容量排序",
+          "敏感性"
+        ]
+      },
+      {
+        "id": "Q4",
+        "objective": "稳健性与动态调整",
+        "deliverables": [
+          "压力包",
+          "稳健集合",
+          "反例边界"
+        ]
+      }
+    ],
+    "official_format": "OFFICIAL_PENDING"
+  },
+  "variables": [
+    {
+      "id": "data:Y",
+      "symbol": "Y_i",
+      "meaning": "流失标签",
+      "kind": "response",
+      "unit": "无量纲",
+      "status": "VERIFIED"
+    },
+    {
+      "id": "output:p",
+      "symbol": "p_i",
+      "meaning": "关联风险概率",
+      "kind": "output",
+      "unit": "无量纲",
+      "status": "VERIFIED"
+    },
+    {
+      "id": "parameter:C",
+      "symbol": "C",
+      "meaning": "干预成本",
+      "kind": "parameter",
+      "unit": "元/客户",
+      "status": "VERIFIED"
+    },
+    {
+      "id": "parameter:q",
+      "symbol": "q",
+      "meaning": "平均条件成功率",
+      "kind": "parameter",
+      "unit": "无量纲",
+      "status": "VERIFIED"
+    },
+    {
+      "id": "parameter:L",
+      "symbol": "L",
+      "meaning": "流失损失",
+      "kind": "parameter",
+      "unit": "元/客户",
+      "status": "VERIFIED"
+    },
+    {
+      "id": "output:g",
+      "symbol": "g_i",
+      "meaning": "单客期望净收益",
+      "kind": "output",
+      "unit": "元/客户",
+      "status": "VERIFIED"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "asm:association",
+      "statement": "横截面结果只作关联",
+      "status": "VERIFIED"
+    },
+    {
+      "id": "asm:q4",
+      "statement": "Q4区间为压力假设",
+      "status": "HYPOTHESIS"
+    }
+  ],
+  "equations": [
+    {
+      "id": "eq:q1-rate",
+      "label": "eq:q1-rate",
+      "question_id": "Q1",
+      "inputs": [
+        "data:Y"
+      ],
+      "outputs": [
+        "result:q1"
+      ],
+      "domain": "G nonempty",
+      "assumptions": [
+        "asm:association"
+      ],
+      "validation_refs": [
+        "val:q1-denominator"
+      ],
+      "unit_check": {
+        "status": "VERIFIED",
+        "operation": "ratio",
+        "terms": [
+          "计数",
+          "计数"
+        ]
+      },
+      "status": "VERIFIED"
+    },
+    {
+      "id": "eq:q2-logistic",
+      "label": "eq:q2-logistic",
+      "question_id": "Q2",
+      "inputs": [
+        "data:Y"
+      ],
+      "outputs": [
+        "output:p"
+      ],
+      "domain": "p in [0,1]",
+      "assumptions": [
+        "asm:association"
+      ],
+      "validation_refs": [
+        "val:q2-oof",
+        "val:q2-calibration"
+      ],
+      "unit_check": {
+        "status": "VERIFIED",
+        "operation": "dimensionless",
+        "terms": [
+          "1"
+        ]
+      },
+      "status": "VERIFIED"
+    },
+    {
+      "id": "eq:q3-net",
+      "label": "eq:q3-net",
+      "question_id": "Q3",
+      "inputs": [
+        "output:p",
+        "parameter:q",
+        "parameter:L",
+        "parameter:C"
+      ],
+      "outputs": [
+        "output:g"
+      ],
+      "domain": "i=1,...,N",
+      "assumptions": [
+        "asm:association"
+      ],
+      "validation_refs": [
+        "val:q3-arithmetic"
+      ],
+      "unit_check": {
+        "status": "VERIFIED",
+        "operation": "元乘无量纲减元",
+        "terms": [
+          "元",
+          "元"
+        ]
+      },
+      "status": "VERIFIED"
+    }
+  ],
+  "results": [
+    {
+      "id": "result:q1",
+      "meaning": "Q1效应量与群体率"
+    },
+    {
+      "id": "result:q2",
+      "meaning": "Q2模型与校准"
+    },
+    {
+      "id": "result:q3",
+      "meaning": "Q3策略"
+    },
+    {
+      "id": "result:q4",
+      "meaning": "Q4压力包"
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim:q1",
+      "question_id": "Q1",
+      "text": "合同类型、在线安全和技术支持具有较大的观测关联效应量",
+      "value": "V_contract=0.4098",
+      "scope": "7043条横截面记录",
+      "evidence_refs": [
+        "artifact:results/q1_categorical_effects.csv"
+      ],
+      "command": "python -X utf8 models/solve_b_problem_v2.py ...",
+      "artifact_hash": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+      "validation_refs": [
+        "val:q1-multiple-testing"
+      ],
+      "claim_class": "OBSERVED",
+      "status": "VERIFIED"
+    },
+    {
+      "id": "claim:q2",
+      "question_id": "Q2",
+      "text": "全画像参考编码Logistic重复OOF ROC-AUC约为0.8451",
+      "value": "AUC=0.845120",
+      "scope": "3x5 repeated OOF, seed42",
+      "evidence_refs": [
+        "artifact:results/summary_v2.json"
+      ],
+      "command": "python -X utf8 models/solve_b_problem_v2.py ...",
+      "artifact_hash": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+      "validation_refs": [
+        "val:q2-oof",
+        "val:q2-calibration"
+      ],
+      "claim_class": "REPRODUCED",
+      "status": "VERIFIED"
+    },
+    {
+      "id": "claim:q3",
+      "question_id": "Q3",
+      "text": "题面经济参数导出阈值0.2143；OOF阈值策略期望净收益约62.83万元",
+      "value": "tau=0.2142857;B=628279.04",
+      "scope": "C=150,q=.35,L=2000",
+      "evidence_refs": [
+        "artifact:results/q3_policy_table.csv",
+        "artifact:results/q3_independent_arithmetic_check.json"
+      ],
+      "command": "python -X utf8 models/solve_b_problem_v2.py ...",
+      "artifact_hash": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+      "validation_refs": [
+        "val:q3-arithmetic",
+        "val:q3-bootstrap"
+      ],
+      "claim_class": "DERIVED",
+      "status": "VERIFIED"
+    },
+    {
+      "id": "claim:q4",
+      "question_id": "Q4",
+      "text": "在声明的联合压力假设区间并纳入精确最坏角点后，逐人最坏净收益为正的稳健集合约2105人",
+      "value": "N=2105;lower=182898.44",
+      "scope": "256点LHS+精确最坏角点压力包",
+      "evidence_refs": [
+        "artifact:results/q4_stress_envelope.json"
+      ],
+      "command": "python -X utf8 models/solve_b_problem_v2.py ...",
+      "artifact_hash": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+      "validation_refs": [
+        "val:q4-envelope",
+        "val:q4-counterexample"
+      ],
+      "claim_class": "HYPOTHESIS",
+      "status": "VERIFIED"
+    }
+  ],
+  "crossrefs": {
+    "items": [
+      {
+        "id": "fig:q1",
+        "kind": "figure",
+        "label": "fig:q1",
+        "caption": "Q1类别字段关联效应量",
+        "cited_by": [
+          "claim:q1"
+        ],
+        "source_artifact": "results/q1_effect_sizes.png",
+        "generator": "models/solve_b_problem_v2.py",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "fig:q2",
+        "kind": "figure",
+        "label": "fig:q2",
+        "caption": "Q2 OOF概率校准",
+        "cited_by": [
+          "claim:q2"
+        ],
+        "source_artifact": "results/q2_calibration.png",
+        "generator": "models/solve_b_problem_v2.py",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "fig:q3",
+        "kind": "figure",
+        "label": "fig:q3",
+        "caption": "Q3经济阈值与容量曲线",
+        "cited_by": [
+          "claim:q3"
+        ],
+        "source_artifact": "results/q3_policy_curve.png",
+        "generator": "models/solve_b_problem_v2.py",
+        "status": "VERIFIED"
+      },
+      {
+        "id": "fig:q4",
+        "kind": "figure",
+        "label": "fig:q4",
+        "caption": "Q4压力情景代表点",
+        "cited_by": [
+          "claim:q4"
+        ],
+        "source_artifact": "results/q4_stress_envelope.png",
+        "generator": "models/solve_b_problem_v2.py",
+        "status": "VERIFIED"
+      }
+    ]
+  },
+  "validation": {
+    "schema_version": "paper-validation/v2",
+    "source_report": "validation-report.json",
+    "checks": [
+      {
+        "id": "val:data-quality",
+        "kind": "data-audit",
+        "scope": "schema-provenance-audit",
+        "threshold": "rows=7043, duplicates=0, structural blank replay",
+        "command": "python -X utf8 models/solve_b_problem_v2.py --input <owner-attachment>/校赛B题附件.csv --seed 42",
+        "exit_code": 0,
+        "result_hash": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+        "status": "VERIFIED",
+        "observed": "rows=7043;duplicates=0;blank=11",
+        "evidence_refs": [
+          "results/summary_v2.json"
+        ]
+      },
+      {
+        "id": "val:q1-multiple-testing",
+        "kind": "effect-size",
+        "scope": "chi-square+Cramer's V+BH",
+        "threshold": "effect size and FDR both reported",
+        "command": "python -X utf8 models/solve_b_problem_v2.py --input <owner-attachment>/校赛B题附件.csv --seed 42",
+        "exit_code": 0,
+        "result_hash": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+        "status": "VERIFIED",
+        "observed": "16 categorical fields; BH q-values present",
+        "evidence_refs": [
+          "results/q1_categorical_effects.csv"
+        ]
+      },
+      {
+        "id": "val:q1-denominator",
+        "kind": "denominator",
+        "scope": "group-summary-reconcile",
+        "threshold": "all reported groups have n and Wilson interval",
+        "command": "python -X utf8 models/solve_b_problem_v2.py --input <owner-attachment>/校赛B题附件.csv --seed 42",
+        "exit_code": 0,
+        "result_hash": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+        "status": "VERIFIED",
+        "observed": "intersection table regenerated",
+        "evidence_refs": [
+          "results/q1_group_rates_ci.csv",
+          "results/q1_intersections.csv"
+        ]
+      },
+      {
+        "id": "val:q2-oof",
+        "kind": "cross-validation",
+        "scope": "3x5 repeated stratified OOF",
+        "threshold": "OOF missing=0; fold variability recorded",
+        "command": "python -X utf8 models/solve_b_problem_v2.py --input <owner-attachment>/校赛B题附件.csv --seed 42",
+        "exit_code": 0,
+        "result_hash": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+        "status": "VERIFIED",
+        "observed": "AUC=0.845120; fold std=0.011572",
+        "evidence_refs": [
+          "results/q2_full_fold_metrics.csv",
+          "results/summary_v2.json"
+        ]
+      },
+      {
+        "id": "val:q2-holdout",
+        "kind": "holdout",
+        "scope": "stratified 20% holdout",
+        "threshold": "AUC is reported without tuning on holdout",
+        "command": "python -X utf8 models/solve_b_problem_v2.py --input <owner-attachment>/校赛B题附件.csv --seed 42",
+        "exit_code": 0,
+        "result_hash": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+        "status": "VERIFIED",
+        "observed": "AUC=0.842171",
+        "evidence_refs": [
+          "results/summary_v2.json"
+        ]
+      },
+      {
+        "id": "val:q2-calibration",
+        "kind": "calibration",
+        "scope": "fixed-bin and quantile OOF calibration",
+        "threshold": "ECE, maximum gap and bins reported",
+        "command": "python -X utf8 models/solve_b_problem_v2.py --input <owner-attachment>/校赛B题附件.csv --seed 42",
+        "exit_code": 0,
+        "result_hash": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+        "status": "VERIFIED",
+        "observed": "ECE=0.012977; quantile ECE=0.012726",
+        "evidence_refs": [
+          "results/q2_calibration.json"
+        ]
+      },
+      {
+        "id": "val:q2-imputation",
+        "kind": "ablation",
+        "scope": "structural-zero vs median comparator",
+        "threshold": "11 structural blanks explicitly tested",
+        "command": "python -X utf8 models/solve_b_problem_v2.py --input <owner-attachment>/校赛B题附件.csv --seed 42",
+        "exit_code": 0,
+        "result_hash": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+        "status": "VERIFIED",
+        "observed": "AUC difference recorded",
+        "evidence_refs": [
+          "results/imputation_ablation.json"
+        ]
+      },
+      {
+        "id": "val:q3-arithmetic",
+        "kind": "unit-and-reproduction",
+        "scope": "independent arithmetic check",
+        "threshold": "threshold and net agree within 1e-6",
+        "command": "python -X utf8 models/solve_b_problem_v2.py --input <owner-attachment>/校赛B题附件.csv --seed 42",
+        "exit_code": 0,
+        "result_hash": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+        "status": "VERIFIED",
+        "observed": "count=3281;net=628279.039268",
+        "evidence_refs": [
+          "results/q3_independent_arithmetic_check.json"
+        ]
+      },
+      {
+        "id": "val:q3-bootstrap",
+        "kind": "uncertainty",
+        "scope": "500-row bootstrap",
+        "threshold": "95% interval reported for threshold/top-k policies",
+        "command": "python -X utf8 models/solve_b_problem_v2.py --input <owner-attachment>/校赛B题附件.csv --seed 42",
+        "exit_code": 0,
+        "result_hash": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+        "status": "VERIFIED",
+        "observed": "3 policy intervals",
+        "evidence_refs": [
+          "results/q3_policy_bootstrap.json"
+        ]
+      },
+      {
+        "id": "val:q4-envelope",
+        "kind": "sensitivity",
+        "scope": "Latin-hypercube scenario sweep",
+        "threshold": "256 samples with seed and bounds",
+        "command": "python -X utf8 models/solve_b_problem_v2.py --input <owner-attachment>/校赛B题附件.csv --seed 42",
+        "exit_code": 0,
+        "result_hash": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+        "status": "VERIFIED",
+        "observed": "samples=256;robust positive=2105",
+        "evidence_refs": [
+          "results/q4_stress_envelope.json"
+        ]
+      },
+      {
+        "id": "val:q4-counterexample",
+        "kind": "counterexample",
+        "scope": "worst-corner boundary search",
+        "threshold": "boundary is stated and not generalized",
+        "command": "python -X utf8 models/solve_b_problem_v2.py --input <owner-attachment>/校赛B题附件.csv --seed 42",
+        "exit_code": 0,
+        "result_hash": "sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858",
+        "status": "VERIFIED",
+        "observed": "worst-case threshold=0.400",
+        "evidence_refs": [
+          "results/q4_stress_envelope.json"
+        ]
+      },
+      {
+        "id": "val:paper-render",
+        "kind": "render",
+        "scope": "XeLaTeX+pdfinfo+pdftoppm",
+        "threshold": "two-pass compile and visual QA",
+        "command": "python -X utf8 models/solve_b_problem_v2.py --input <owner-attachment>/校赛B题附件.csv --seed 42",
+        "exit_code": 0,
+        "result_hash": "sha256:16ef068bfc0fa4139af8e0c47dde7e92476e40dc99e13192c61557b383d9f715",
+        "status": "VERIFIED",
+        "observed": "paper render manifest present",
+        "evidence_refs": [
+          "paper/b_problem_solution_v2.pdf",
+          "paper/render_qa_v2.json"
+        ]
+      }
+    ]
+  },
+  "validation_report": "validation-report.json",
+  "profile": {
+    "type": "school-contest-internal-review",
+    "official_status": "OFFICIAL_PENDING",
+    "page_budget": "待官方通知"
+  },
+  "sections": [
+    "摘要",
+    "问题重述与路线",
+    "数据与假设",
+    "Q1",
+    "Q2",
+    "Q3",
+    "Q4",
+    "验证与局限",
+    "结论",
+    "复现附录"
+  ],
+  "notation": {
+    "symbol_policy": "one symbol one meaning",
+    "unit_policy": "all additive terms dimensionally checked",
+    "reference_policy": "semantic labels only"
+  },
+  "page_budget": {
+    "target_pages": 14,
+    "status": "CONVENTION_ONLY"
+  },
+  "render_artifacts": [
+    {
+      "path": "paper/b_problem_solution_v2.pdf",
+      "status": "VERIFIED"
+    },
+    {
+      "path": "paper/render_qa_v2.json",
+      "status": "VERIFIED"
+    }
+  ],
+  "coverage_refs": [
+    "question-map.json",
+    "validation-report.json"
+  ],
+  "status": "READY_FOR_REVIEW"
+}
