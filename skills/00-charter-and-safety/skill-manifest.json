@@ -1,0 +1,53 @@
+ {
+   "schema_version": "skill-manifest/v2",
+   "id": "charter-and-safety",
+   "name": "建模工程章程与安全边界",
+   "version": "2.0.0",
+   "entrypoint": "skills/00-charter-and-safety/SKILL.md",
+   "phase": "cross-cutting",
+   "depends_on": [],
+   "inputs": [
+     "user_goal",
+     "source_refs",
+     "current_revision",
+     "capability_policy"
+   ],
+   "outputs": [
+     "run_charter",
+     "source_ledger",
+     "artifact_map",
+     "gate_plan",
+     "open_questions"
+   ],
+   "write_boundary": [
+     "notes/",
+     "artifacts/",
+     "events/"
+   ],
+   "capabilities": [
+     "read-only-source-audit",
+     "claim-classification",
+     "permission-boundary"
+   ],
+   "references": [
+     "skills/references/evidence-and-status.md",
+     "skills/references/artifact-contracts.md",
+     "notes/skill-rebuild-material-ledger.md"
+   ],
+   "scripts": [],
+   "gates": [
+     "revision-locked",
+     "source-classified",
+     "permissions-explicit"
+   ],
+   "source_ids": [
+     "src-review-2019-docx",
+     "src-review-2020-docx",
+     "src-review-2021",
+     "src-review-2023",
+     "src-template-national",
+     "src-template-mcm",
+     "src-code-index"
+   ],
+   "status": "ACTIVE"
+ }

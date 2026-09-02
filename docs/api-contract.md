@@ -270,11 +270,13 @@ GET /api/projects/{project_id}/capabilities/suggest?q=约束优化&limit=8
     "validation_kinds": ["error", "sensitivity", "robustness"]
   }],
   "methods": [{
-    "id": "ridge-regression", "family": "prediction",
+    "id": "ridge-regression", "family": "statistical",
     "applicability": ["连续响应", "样本量有限"],
     "prohibitions": ["时间泄漏未处理"],
-    "validation_checks": ["独立留出", "残差检查"],
-    "claim_class": "inferred", "source_refs": ["kbdoc:kbdoc_<16位hex>"]
+    "validation": ["独立留出", "残差检查"],
+    "skill_refs": ["model-routing", "data-and-evidence"],
+    "skill_binding_status": "BOUND",
+    "source_kind": "curated/inferred", "evidence_refs": ["playbook:method-card:ridge-regression"]
   }],
   "content_packs": [{
     "id": "counterexample", "title": "反例与边界",
@@ -320,7 +322,50 @@ GET /api/projects/{project_id}/capabilities/content-packs/{pack_id}/resolve?top_
 
 `evidence_refs` 只证明候选来源已被当前快照返回；它不能单独关闭反例、敏感性或论文发布门。装配提交可以把解析后的 refs 作为审查上下文，但仍需独立复现。
 
-### 9.2 动态题面契约
+### 9.2 Skill Registry v2
+
+技能发现与资料检索分层：资料库回答“有哪些来源候选”，Skill Registry 回答“哪一个
+可执行技能负责什么输入、输出、依赖和硬门”。注册表是仓库内的
+`skills/registry.json`，接口只读且不执行技能或资料代码：
+
+```http
+GET /api/projects/{project_id}/skills/catalog
+GET /api/projects/{project_id}/skills/search?q=推导&limit=12
+GET /api/projects/{project_id}/skills/{skill_id}
+```
+
+目录响应包含 `registry_revision`、`skills`、`workflows`、`method_families` 和计数；
+还包含不带外部绝对路径的 `source_provenance`（资料快照 revision、来源数量和哈希摘要）；
+详情响应只提供对应 `skill-manifest.json` 与最多 500 字的入口预览，并明确
+`read_only=true`、`execution=not_performed`。路径始终是仓库相对路径，拒绝绝对路径、
+`..`、符号链接和缺失引用。
+
+能力目录的方法卡增加以下绑定字段：
+
+```json
+{
+  "id": "linear-programming",
+  "skill_refs": ["model-routing", "mathematical-derivation", "solver-reproducibility", "validation-and-adversarial-review"],
+  "skill_binding_status": "BOUND",
+  "unresolved_skill_refs": []
+}
+```
+
+`BOUND` 只表示方法卡能找到对应的版本化技能；仍必须根据当前 problem/data/model
+contract 重新判断适用性。注册表不可用或绑定过期时，接口返回 `UNAVAILABLE/STALE`，
+不能静默退回旧扁平入口。`source.skill_registry` 和顶层
+`skill_registry_revision` 与 `capability_revision` 同时返回，供前端和外部 Agent
+拒绝 stale 装配。
+
+技能层的结构回归可在仓库根目录运行：
+
+```powershell
+python -X utf8 skills/tests/run_regression.py
+```
+
+其中拼图负例以“预期 exit 1”验收，防止为了让 CI 全绿而删除硬门。
+
+### 9.3 动态题面契约
 
 ```http
 POST /api/projects/{project_id}/capabilities/problem-contract
@@ -351,7 +396,7 @@ Content-Type: application/json
 
 抽取器是保守的词法/分段工具；它不确认隐含变量、单位、因果机制、附件含义或正确答案。无编号题面会得到 `Q1` 草稿。Scope-Lock 必须把该草稿修订为人工确认的题面覆盖表后，才能用于路线审批。
 
-### 9.3 干运行组合校验
+### 9.4 干运行组合校验
 
 ```http
 POST /api/projects/{project_id}/capabilities/compose
@@ -389,7 +434,7 @@ Content-Type: application/json
 
 节点可以带 `parameter-contract`、`scenario-contract`、`critic-challenger` 等扩展；自由装配允许增加节点和替换方法，但不能移除硬门或把类型不匹配的输出强接到输入。结构校验通过不代表模型数学正确、参数可识别、数据无泄漏或结果稳定。
 
-### 9.4 提交装配、CAS 与事件同步
+### 9.5 提交装配、CAS 与事件同步
 
 ```http
 POST /api/projects/{project_id}/capabilities/commit
@@ -417,13 +462,13 @@ Content-Type: application/json
 
 `previous_assembly_revision` 是装配投影级 CAS：它防止两个浏览器同时修改同一画布。`base_revision` 是整个控制面事件链的 CAS：它防止旧任务/旧聊天覆盖新控制面。两者都不是数学正确性证明；后者冲突时应重新读取 snapshot、人工确认差异后再提交。
 
-### 9.5 差异审计与创新声明
+### 9.6 差异审计与创新声明
 
 `assembly-diff/v1` 的 `added_nodes`、`removed_nodes`、`changed_nodes`、`added_edges`、`removed_edges` 和 `impacted_nodes` 描述可复现的结构变化，`missing_required_blocks` 与 `status` 描述硬门状态。它适合做群聊同步、Owner 审批和回滚依据。
 
 差异本身不自动生成 `originality` 或“创新点”。若要声称创新，必须创建独立差异卡，说明相对 baseline 的假设/机制/算法/数据或验证变化，并提供消融、敏感性、反例或 clean-run 证据；否则 claim class 只能保持 `hypothesis`。
 
-### 9.6 当前边界
+### 9.7 当前边界
 
 能力目录目前是从 metadata/受限短片段和内置能力卡投影出的离线开发版；它不等于 18,986 份资料已完成全文理解、页级 OCR、向量检索或人工审核。系统可以对未知题型保留通用接口并允许人工装配，但不能保证“所有赛题自动正确建模”。正式论文数字、规则结论和获奖判断仍需当届官方来源、独立数学审查、数据验证和清洁环境复现。
 

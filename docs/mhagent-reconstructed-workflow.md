@@ -18,10 +18,10 @@ manifest 显示 7 个步骤、2000 条日志上限、`_sub_steps_pruned=true`，
 
 ## 2. 七步能力契约
 
-`skills/mhagent-evidence-reconstruction/references/step-contracts.json` 是机器可读真相源。每一步都把输入、输出、职责、方法链、验证门、checkpoint 声明、交接、证据引用、失败策略和开放问题写成字段；运行：
+`skills/12-evidence-reconstruction/` 是当前机器可读入口。每一步都把输入、输出、职责、方法链、验证门、checkpoint 声明、交接、证据引用、失败策略和开放问题写成字段；运行：
 
 ```text
-python skills/mhagent-evidence-reconstruction/scripts/validate_step_contract.py
+python skills/12-evidence-reconstruction/scripts/validate_step_contract.py
 ```
 
 七步的可迁移解释如下：

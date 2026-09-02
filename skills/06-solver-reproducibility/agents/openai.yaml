@@ -1,0 +1,6 @@
+ interface:
+   display_name: "求解复现与运行台账"
+   short_description: "固定环境、种子、命令、中间量与结果哈希"
+   default_prompt: "Use $06-solver-reproducibility to make solver results reproducible."
+ policy:
+   allow_implicit_invocation: true

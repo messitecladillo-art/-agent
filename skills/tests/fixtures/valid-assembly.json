@@ -1,0 +1,139 @@
+ {
+   "schema_version": "workflow-assembly/v2",
+   "input_revision": "manifest:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "status": "DRAFT",
+   "action": "SAVE_DRAFT",
+   "evidence_refs": [
+     "repo:skills/references/workflow-composition.md"
+   ],
+   "nodes": [
+     {
+       "node_id": "scope",
+       "block_id": "problem-decomposition",
+       "method_id": "question-tree-decomposition",
+       "input_ports": {
+         "problem_contract": "problem"
+       },
+       "output_ports": {
+         "problem_contract": "problem",
+         "question_map": "question_map",
+         "subproblems": "subproblems"
+       }
+     },
+     {
+       "node_id": "data",
+       "block_id": "data-audit",
+       "method_id": "schema-provenance-audit",
+       "input_ports": {
+         "problem_contract": "problem"
+       },
+       "output_ports": {
+         "data_contract": "data_contract"
+       }
+     },
+     {
+       "node_id": "contract",
+       "block_id": "parameter-contract",
+       "method_id": "variable-unit-registry",
+       "input_ports": {
+         "problem_contract": "problem",
+         "data_contract": "data_contract"
+       },
+       "output_ports": {
+         "model_contract": "model_contract"
+       }
+     },
+     {
+       "node_id": "baseline",
+       "block_id": "baseline-model",
+       "method_id": "descriptive-statistical-baseline",
+       "input_ports": {
+         "data_contract": "data_contract",
+         "model_contract": "model_contract"
+       },
+       "output_ports": {
+         "result": "result"
+       }
+     },
+     {
+       "node_id": "validation",
+       "block_id": "validation",
+       "method_id": "cross-validation",
+       "input_ports": {
+         "result": "result",
+         "model_contract": "model_contract"
+       },
+       "output_ports": {
+         "validation_report": "validation_report"
+       }
+     },
+     {
+       "node_id": "writing",
+       "block_id": "writing",
+       "method_id": "derivation-first-outline",
+       "input_ports": {
+         "question_map": "question_map",
+         "validation_report": "validation_report"
+       },
+       "output_ports": {
+         "paper_contract": "paper_contract"
+       }
+     }
+   ],
+   "edges": [
+     [
+       "scope",
+       "problem_contract",
+       "data",
+       "problem_contract"
+     ],
+     [
+       "scope",
+       "problem_contract",
+       "contract",
+       "problem_contract"
+     ],
+     [
+       "data",
+       "data_contract",
+       "contract",
+       "data_contract"
+     ],
+     [
+       "data",
+       "data_contract",
+       "baseline",
+       "data_contract"
+     ],
+     [
+       "contract",
+       "model_contract",
+       "baseline",
+       "model_contract"
+     ],
+     [
+       "baseline",
+       "result",
+       "validation",
+       "result"
+     ],
+     [
+       "contract",
+       "model_contract",
+       "validation",
+       "model_contract"
+     ],
+     [
+       "scope",
+       "question_map",
+       "writing",
+       "question_map"
+     ],
+     [
+       "validation",
+       "validation_report",
+       "writing",
+       "validation_report"
+     ]
+   ]
+ }

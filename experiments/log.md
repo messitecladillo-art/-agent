@@ -98,3 +98,10 @@
 - 系统修复：问题契约解析器覆盖 `问题 4`，并在显式问题标题存在时忽略 `(1)(2)(3)` 子项；能力建议器增加可解释领域别名和 `matched_terms`。新增回归测试 2 个。
 - 验证：求解器 clean-run exit 0；论文契约严格审计 PASS（14 variables/11 equations/10 claims/14 crossrefs/8 checks）；LaTeX 数学审计 PASS（36 labels/20 refs）；XeLaTeX 双遍 exit 0、PDF 12 页 A4、全页视觉检查通过；后端全量 `153 passed`；服务端 E2E `runtime/solo-test/api_e2e_t21.py` PASS（题面 Q1–Q4、能力目录 13 blocks/54 methods、知识检索、路由预览、拼图组合、LaTeX job）。
 - 结论/下一步：交付状态 `READY_FOR_REVIEW`，TASKS 标为待审；未自动合并/推送 main。官方投稿模板、匿名/页数规则、独立 Claude/Antigravity 数学复算和 Owner 发布审批仍待补齐。
+
+### 2026-09-03 · T-22 · 资料驱动 Skill Registry v2 重建
+- 目的：删除仓库中原有扁平/重复 Skill 入口，依据资料包的官方评阅、范文、模板、课程、代码与 MHAgent 证据，重建可审计、可组合、可泛化的数学建模 Skill 系统。
+- 输入锁定：资料包目录约 18,987 个文件、约 21.2 GiB；源目录 manifest SHA-256 `a3eb5ea717a45dee3b280afc506b37df3026e7142a9f3411e5bdafe3bc4306a`；来源证据与置信度登记在 `skills/source-provenance.json`，不复制原始论文、题面、数据或代码。
+- 实现：移除旧的 10 个 Markdown 入口及 2 个旧 Skill 目录；新增 13 个核心过程 Skill、3 个固定/DYI/备赛 workflow、`skill-registry/v2`、12 个来源账本、86 张方法卡绑定、数据/运行/拼图/重建/论文契约与审计器；后端提供目录、搜索、详情 API，并将 binding/revision/provenance 回显到能力目录和前端。
+- 验证：16 个入口通过 `quick_validate`；registry 严格校验通过（16 entries/13 skills/3 workflows/12 sources，依赖 DAG、路径边界、写边界、引用与哈希均通过）；正反例契约按预期通过/拒绝；LaTeX/论文、数据、运行、证据重建回归通过；Node 语法与 `git diff --check` 通过；完整回归脚本 `27/27` 检查通过，后端全量 `158 passed`。
+- 结论/下一步：当前状态 `READY_FOR_REVIEW`。旧追踪入口已删除，未追踪的 Python `__pycache__` 仅为忽略缓存，不属于 Skill；生产仍需真实模型 adapter、RBAC/签名 relay、持久化队列、语义索引与 Owner 发布审批。

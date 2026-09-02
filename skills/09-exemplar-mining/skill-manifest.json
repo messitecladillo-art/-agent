@@ -1,0 +1,49 @@
+ {
+   "schema_version": "skill-manifest/v2",
+   "id": "exemplar-mining",
+   "name": "范文与算法资料抽象",
+   "version": "2.0.0",
+   "entrypoint": "skills/09-exemplar-mining/SKILL.md",
+   "phase": "learning",
+   "depends_on": [
+     "charter-and-safety"
+   ],
+   "inputs": [
+     "exemplar_files",
+     "algorithm_index",
+     "review_sources"
+   ],
+   "outputs": [
+     "observation_cards",
+     "pattern_comparisons",
+     "transfer_limits"
+   ],
+   "write_boundary": [
+     "notes/",
+     "artifacts/exemplar/"
+   ],
+   "capabilities": [
+     "static-paper-reading",
+     "pattern-abstraction",
+     "anti-copy-audit"
+   ],
+   "references": [
+     "skills/references/cumcm-review-rubric.md",
+     "skills/references/paper-layout-profiles.md",
+     "notes/skill-rebuild-material-ledger.md"
+   ],
+   "scripts": [],
+   "gates": [
+     "observation-inference-separated",
+     "source-location-recorded",
+     "no-copy-check"
+   ],
+   "source_ids": [
+     "src-exemplar-synthesis",
+     "src-prize-paper-school-2026",
+     "src-algorithm-index",
+     "src-review-2021",
+     "src-review-2023"
+   ],
+   "status": "ACTIVE"
+ }

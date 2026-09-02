@@ -80,7 +80,7 @@ def test_kb_document_citation_is_accepted_but_not_a_release_shortcut(client):
 
 def test_workspace_repo_citation_is_bounded_and_accepted(client):
     base = snapshot(client)["revision"]
-    repo_ref = "repo:skills/01-审题破题.md"
+    repo_ref = "repo:skills/01-scope-lock/SKILL.md"
     response = client.post(f"/api/projects/{api.PROJECT_ID}/messages", json={
         "text": "请以共享技能卡为候选输入，并回到题面核验",
         "base_revision": base,

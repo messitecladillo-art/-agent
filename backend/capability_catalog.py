@@ -35,6 +35,10 @@ class MethodCard:
     # routing/display label; this field makes the block compatibility explicit
     # for the puzzle assembler and independent auditors.
     compatible_block_kinds: Tuple[str, ...] = ()
+    # The skill IDs that explain how this card must be evaluated.  These are
+    # bindings, not proof that the method is appropriate for a particular
+    # problem; the current problem contract and validation gates still decide.
+    skill_refs: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -110,16 +114,65 @@ METHOD_FAMILY_BLOCK_KINDS: Mapping[str, Tuple[str, ...]] = {
     "ensemble": ("baseline",),
     "time-series": ("baseline",),
     "survival": ("baseline",),
+    "evaluation": ("baseline",),
+    "dimensionality": ("baseline",),
+    "clustering": ("baseline",),
+    "grey": ("baseline",),
+    "fitting": ("baseline",),
+    "neural": ("baseline",),
+    "fuzzy": ("baseline",),
     "problem": ("problem",),
     "data": ("data",),
     "contract": ("contract",),
     "mechanism": ("mechanism",),
     "optimization": ("optimization",),
     "simulation": ("simulation",),
+    "stochastic-process": ("simulation",),
+    "markov": ("simulation",),
+    "game": ("optimization",),
+    "graph": ("optimization",),
+    "metaheuristic": ("optimization",),
     "validation": ("validation",),
     "review": ("review",),
     "writing": ("writing",),
     "defense": ("defense",),
+}
+
+
+# Keep the capability catalogue and the versioned Skill Registry connected at
+# the metadata boundary.  A method card can therefore be surfaced with the
+# exact procedural skills that govern its assumptions, derivation, execution
+# and review.  The mapping is intentionally many-to-many: a statistical card
+# needs routing, data, derivation and validation guidance, while a writing
+# card needs the paper and release gates.
+METHOD_FAMILY_SKILL_REFS: Mapping[str, Tuple[str, ...]] = {
+    "problem": ("question-decomposition", "scope-lock"),
+    "data": ("data-and-evidence",),
+    "contract": ("mathematical-derivation",),
+    "statistical": ("model-routing", "data-and-evidence", "mathematical-derivation", "validation-and-adversarial-review"),
+    "classification": ("model-routing", "data-and-evidence", "mathematical-derivation", "validation-and-adversarial-review"),
+    "ensemble": ("model-routing", "data-and-evidence", "solver-reproducibility", "validation-and-adversarial-review"),
+    "time-series": ("model-routing", "data-and-evidence", "solver-reproducibility", "validation-and-adversarial-review"),
+    "survival": ("model-routing", "data-and-evidence", "mathematical-derivation", "validation-and-adversarial-review"),
+    "evaluation": ("model-routing", "data-and-evidence", "mathematical-derivation", "validation-and-adversarial-review"),
+    "dimensionality": ("model-routing", "data-and-evidence", "mathematical-derivation", "validation-and-adversarial-review"),
+    "clustering": ("model-routing", "data-and-evidence", "solver-reproducibility", "validation-and-adversarial-review"),
+    "grey": ("model-routing", "mathematical-derivation", "solver-reproducibility", "validation-and-adversarial-review"),
+    "fitting": ("model-routing", "mathematical-derivation", "solver-reproducibility", "validation-and-adversarial-review"),
+    "neural": ("model-routing", "data-and-evidence", "solver-reproducibility", "validation-and-adversarial-review"),
+    "fuzzy": ("model-routing", "mathematical-derivation", "validation-and-adversarial-review"),
+    "mechanism": ("model-routing", "mathematical-derivation", "solver-reproducibility", "validation-and-adversarial-review"),
+    "optimization": ("model-routing", "mathematical-derivation", "solver-reproducibility", "validation-and-adversarial-review"),
+    "simulation": ("model-routing", "solver-reproducibility", "validation-and-adversarial-review"),
+    "stochastic-process": ("model-routing", "mathematical-derivation", "solver-reproducibility", "validation-and-adversarial-review"),
+    "markov": ("model-routing", "mathematical-derivation", "solver-reproducibility", "validation-and-adversarial-review"),
+    "game": ("model-routing", "mathematical-derivation", "validation-and-adversarial-review"),
+    "graph": ("model-routing", "mathematical-derivation", "solver-reproducibility", "validation-and-adversarial-review"),
+    "metaheuristic": ("model-routing", "solver-reproducibility", "validation-and-adversarial-review"),
+    "validation": ("validation-and-adversarial-review", "solver-reproducibility"),
+    "review": ("validation-and-adversarial-review", "evidence-reconstruction"),
+    "writing": ("paper-and-typesetting", "mathematical-derivation", "defense-and-release"),
+    "defense": ("defense-and-release", "validation-and-adversarial-review"),
 }
 
 
@@ -129,14 +182,17 @@ def _method(
     outputs: Sequence[str], validation: Sequence[str], fallback: Sequence[str],
     compatible_block_kinds: Optional[Sequence[str]] = None,
     evidence_refs: Optional[Sequence[str]] = None,
+    skill_refs: Optional[Sequence[str]] = None,
 ) -> MethodCard:
     kinds = tuple(compatible_block_kinds or METHOD_FAMILY_BLOCK_KINDS.get(family, ()))
     refs = tuple(evidence_refs or (f"playbook:method-card:{id}",))
+    skills = tuple(skill_refs or METHOD_FAMILY_SKILL_REFS.get(family, ("model-routing",)))
     return MethodCard(
         id=id, title=title, family=family, applicability=tuple(applicability),
         prohibitions=tuple(prohibitions), assumptions=tuple(assumptions),
         inputs=tuple(inputs), outputs=tuple(outputs), validation=tuple(validation),
         fallback=tuple(fallback), evidence_refs=refs, compatible_block_kinds=kinds,
+        skill_refs=skills,
     )
 
 
@@ -157,6 +213,42 @@ BUILTIN_METHODS: Tuple[MethodCard, ...] = (
     _method("discrete-event-simulation", "离散事件仿真", "simulation", ["排队/流程/资源竞争", "事件规则明确"], ["把单次轨迹当结论"], ["事件优先级明确", "暖机和重复策略预设"], ["process_contract", "scenario"], ["throughput", "waiting_time"], ["replicate-seeds", "warmup-sensitivity"], ["monte-carlo", "queueing-approximation"]),
     _method("lhs-sensitivity", "拉丁超立方敏感性", "validation", ["参数扰动筛查", "模型可重复运行"], ["参数范围无物理依据"], ["扰动域覆盖实际不确定性", "指标预先定义"], ["model_contract", "parameter_ranges"], ["sensitivity_report", "ranked_drivers"], ["repeat-seeds", "range-perturbation"], ["one-at-a-time-sensitivity", "bootstrap"]),
     _method("bootstrap-uncertainty", "Bootstrap 不确定性", "validation", ["有限样本估计不确定性", "可重采样数据"], ["时间依赖数据直接独立重采样"], ["重采样方案匹配数据结构", "重复次数足够"], ["data_contract", "estimator"], ["interval", "stability_report"], ["bootstrap-replicates", "holdout"], ["cross-validation", "jackknife"]),
+
+    # Evaluation, clustering and classical-analysis cards distilled from the
+    # 35-family algorithm index. Each card is a bounded route, not a promise
+    # that a high-frequency method is suitable.
+    _method("ahp-evaluation", "层次分析法 AHP", "evaluation", ["指标层级和成对比较可解释", "需要一致性检验"], ["比较矩阵来自无依据主观打分", "把权重当客观真值"], ["层级结构完整", "一致性比率阈值预先登记"], ["criteria_matrix", "decision_context"], ["weights", "consistency_report", "ranking"], ["consistency-ratio", "weight-perturbation", "rank-stability"], ["topsis-evaluation", "entropy-weight"]),
+    _method("topsis-evaluation", "TOPSIS 综合评价", "evaluation", ["多指标正负方向明确", "需要接近理想解的排序"], ["未处理量纲/极性就直接排序", "把排序当因果结论"], ["标准化和权重方案冻结", "正负指标和缺失处理可追溯"], ["data_contract", "indicator_matrix", "weights"], ["ranking", "distance_to_ideal", "score"], ["rank-stability", "weight-sensitivity", "holdout-or-external-check"], ["ahp-evaluation", "entropy-weight"]),
+    _method("entropy-weight", "熵权/客观赋权", "evaluation", ["指标离散度可用于权重候选", "希望减少纯主观权重"], ["把高离散度等同于重要性", "零方差/负指标未处理"], ["标准化、样本范围和零值修正规则预注册", "权重只作候选"], ["indicator_matrix", "normalization_spec"], ["weights", "weight_diagnostics"], ["weight-perturbation", "rank-stability", "indicator-ablation"], ["ahp-evaluation", "topsis-evaluation"]),
+    _method("grey-relational-analysis", "灰色关联分析", "grey", ["样本较少且序列关联形态可比较", "参考序列有明确语义"], ["相关系数或关联度写成因果", "分辨系数和尺度处理不说明"], ["参考序列、无量纲化和分辨系数有来源", "边界序列可解释"], ["data_contract", "reference_sequence"], ["relation_degree", "factor_ranking"], ["coefficient-sensitivity", "rank-stability", "external-plausibility"], ["correlation-diagnostics", "pca-dimensionality"]),
+    _method("pca-dimensionality", "主成分分析 PCA", "dimensionality", ["连续特征相关且需要降维/综合指标", "样本量支持协方差估计"], ["未标准化混合量纲", "把主成分方向当因果机制"], ["中心化/标准化规则固定", "成分解释和保留率预注册"], ["data_contract", "feature_matrix"], ["components", "explained_variance", "scores"], ["variance-replay", "loading-stability", "downstream-holdout"], ["factor-analysis", "ridge-regression"]),
+    _method("factor-analysis", "因子分析", "dimensionality", ["存在潜在共同因子假设", "相关矩阵适合因子模型"], ["样本量不足仍解释因子", "旋转后载荷当作唯一真相"], ["因子数和旋转规则预注册", "可识别性与残差可检查"], ["data_contract", "correlation_matrix"], ["factor_scores", "loading_matrix", "fit_report"], ["factor-number-sensitivity", "residual-check", "split-stability"], ["pca-dimensionality", "descriptive-statistical-baseline"]),
+    _method("kmeans-clustering", "K-means 聚类", "clustering", ["数值特征、簇近似凸且距离有意义", "需要可解释分组"], ["未缩放混合量纲", "把簇标签当自然类别或因果"], ["距离度量、K 候选和初始化重复固定", "异常值处理先登记"], ["data_contract", "feature_matrix"], ["cluster_labels", "centroids", "cluster_summary"], ["silhouette", "seed-stability", "k-sensitivity"], ["hierarchical-clustering", "dbscan-clustering"]),
+    _method("dbscan-clustering", "DBSCAN 密度聚类", "clustering", ["簇形状非凸且噪声点有意义", "密度尺度可定义"], ["eps/min_samples 无依据", "把噪声点静默删除"], ["距离和尺度固定", "参数域覆盖并报告未归类比例"], ["data_contract", "feature_matrix"], ["cluster_labels", "noise_mask", "density_report"], ["eps-sensitivity", "seed-or-order-stability", "noise-review"], ["kmeans-clustering", "hierarchical-clustering"]),
+    _method("gaussian-mixture-clustering", "高斯混合聚类", "clustering", ["软分配和椭圆簇有解释价值", "样本量支持协方差估计"], ["协方差奇异仍强行拟合", "后验概率当真实概率"], ["成分数、协方差结构和正则化冻结", "标签交换处理明确"], ["data_contract", "feature_matrix"], ["posterior_membership", "component_parameters", "cluster_labels"], ["bic-aic", "seed-stability", "posterior-calibration"], ["kmeans-clustering", "pca-dimensionality"]),
+    _method("svm-classification", "支持向量机 SVM", "classification", ["中小样本、高维且边界间隔有价值", "核函数可解释为候选"], ["未缩放特征", "用训练集调参后报测试性能"], ["核/惩罚参数隔离验证", "类别权重和标签定义冻结"], ["data_contract", "feature_matrix", "split_spec"], ["classification", "margin", "probability"], ["nested-cross-validation", "calibration", "confusion-matrix"], ["logistic-regression", "random-forest"]),
+    _method("decision-tree-classification", "决策树分类", "classification", ["规则路径需要可解释", "非线性边界和混合特征"], ["树深无限制", "叶节点样本过少仍解释规则"], ["剪枝/深度用隔离验证", "类别不平衡处理预注册"], ["data_contract", "feature_matrix", "split_spec"], ["classification", "decision_rules", "feature_importance"], ["holdout", "pruning-sensitivity", "permutation"], ["logistic-regression", "random-forest"]),
+    _method("grey-gm11", "灰色预测 GM(1,1)", "grey", ["短序列、趋势明显、信息稀缺", "预测窗不长且外推风险可接受"], ["长周期/强季节序列直接外推", "后验差检验缺失"], ["累加生成和发展系数可诊断", "残差与后验差达标门预注册"], ["time_series_contract", "time_index"], ["forecast", "development_coefficient", "posterior_error"], ["rolling-backtest", "posterior-error-check", "window-sensitivity"], ["seasonal-naive-forecast", "arima-forecast"]),
+    _method("nonlinear-curve-fitting", "非线性曲线拟合", "fitting", ["机理曲线参数少且函数形式有依据", "参数可识别且有边界"], ["无边界拟合发散", "拟合优度当机制证明"], ["初值、上下界、损失和权重预注册", "残差结构可诊断"], ["data_contract", "equation_registry", "parameter_ranges"], ["parameter_estimates", "fitted_curve", "confidence_interval"], ["residual-diagnostics", "parameter-profile", "holdout"], ["linear-regression", "mass-balance-compartment"]),
+    _method("exponential-smoothing", "指数平滑/ETS", "time-series", ["水平、趋势或季节成分可描述", "需要滚动更新"], ["随机切分时间序列", "季节周期未验证就复制"], ["平滑参数和季节周期隔离选择", "预测窗口晚于训练窗口"], ["time_series_contract", "time_index"], ["forecast", "interval", "smoothing_parameters"], ["rolling-backtest", "residual-diagnostics", "drift-check"], ["seasonal-naive-forecast", "arima-forecast"]),
+    _method("neural-network-regression", "神经网络回归", "neural", ["样本量和非线性结构足够", "有独立验证与正则化预算"], ["小样本无基线直接深网", "训练集高分当泛化证明"], ["架构、早停和随机种子冻结", "输入缩放只在训练折拟合"], ["data_contract", "feature_matrix", "split_spec"], ["prediction", "uncertainty_proxy", "training_log"], ["nested-holdout", "seed-repetition", "residual-diagnostics"], ["gradient-boosting", "ridge-regression"]),
+    _method("markov-chain", "马尔可夫链/状态转移", "markov", ["状态和转移概率可定义", "无记忆近似有题面或数据依据"], ["状态定义模糊", "用未来状态估计当前转移"], ["状态集合、时间步、转移估计和初始分布冻结", "平稳性假设可挑战"], ["state_sequence", "transition_counts", "initial_distribution"], ["transition_matrix", "state_distribution", "stationary_summary"], ["transition-bootstrap", "initial-distribution-sensitivity", "holdout-transition-check"], ["system-dynamics-model", "discrete-event-simulation"]),
+    _method("queueing-analytic", "解析排队模型", "stochastic-process", ["到达/服务分布与队列规则可近似", "稳态条件可检查"], ["不稳定系统套稳态公式", "多服务台/优先级被忽略"], ["到达率、服务率、容量和先后规则有来源", "稳态与有限时窗分开"], ["process_contract", "arrival_service_rates"], ["waiting_time", "utilization", "queue_length"], ["stability-check", "simulation-cross-check", "parameter-sensitivity"], ["queueing-network-simulation", "discrete-event-simulation"]),
+    _method("graph-shortest-path", "图论最短路", "graph", ["节点、边权和路径约束明确", "目标是可加成本或时间"], ["负权/不可达未处理", "把最短路当唯一公平方案"], ["边权单位和方向冻结", "不可达与并列解显式报告"], ["network_contract", "edge_table"], ["path", "path_cost", "reachability"], ["toy-enumeration", "edge-perturbation", "feasibility"], ["linear-programming", "dynamic-programming"]),
+    _method("max-flow-min-cut", "最大流/最小割", "graph", ["容量网络和流守恒明确", "需要瓶颈识别"], ["容量方向或节点约束遗漏", "把最大流当真实吞吐保证"], ["容量单位、源汇和可分流性冻结", "节点容量转边规则显式"], ["network_contract", "capacity_table"], ["flow", "cut_set", "bottleneck_report"], ["flow-conservation", "cut-certificate", "capacity-sensitivity"], ["linear-programming", "graph-shortest-path"]),
+    _method("genetic-algorithm", "遗传算法 GA", "metaheuristic", ["非凸/组合空间且精确求解成本高", "编码和约束修复可定义"], ["没有可行性修复或基线", "单次种子声称全局最优"], ["编码、种群、交叉/变异、精英策略和种子冻结", "目标尺度与惩罚有依据"], ["model_contract", "constraints", "seed_policy"], ["candidate_solution", "objective_trace", "feasibility_report"], ["exact-small-instance", "repeat-seeds", "feasibility", "convergence"], ["integer-programming", "simulated-annealing"]),
+    _method("simulated-annealing", "模拟退火 SA", "metaheuristic", ["邻域结构明确且局部极值明显", "目标可比较"], ["温度/降温无记录", "只挑最好一次运行"], ["初解、邻域、温度、接受率和种子预注册", "终止条件与重复数足够"], ["model_contract", "constraints", "seed_policy"], ["candidate_solution", "objective_trace", "acceptance_trace"], ["exact-small-instance", "repeat-seeds", "neighborhood-ablation"], ["integer-programming", "local-search-neighborhood"]),
+    _method("particle-swarm", "粒子群优化 PSO", "metaheuristic", ["连续/可编码搜索空间", "目标评估成本可承受"], ["无边界处理", "速度/惯性参数任意套用"], ["变量边界、速度、群体参数、种子和停止规则冻结", "可行性修复有记录"], ["model_contract", "parameter_ranges", "seed_policy"], ["candidate_solution", "objective_trace", "swarm_diagnostics"], ["repeat-seeds", "boundary-sensitivity", "exact-small-instance"], ["genetic-algorithm", "robust-optimization"]),
+    _method("ant-colony", "蚁群算法 ACO", "metaheuristic", ["路径/组合问题有信息素结构", "局部转移规则可解释"], ["信息素更新无边界", "未与可行基线比较"], ["启发函数、蒸发率、种子和约束修复冻结", "停滞检测明确"], ["network_contract", "constraints", "seed_policy"], ["path", "objective_trace", "pheromone_summary"], ["repeat-seeds", "exact-small-instance", "parameter-sensitivity"], ["graph-shortest-path", "simulated-annealing"]),
+    _method("cellular-automaton", "元胞自动机", "simulation", ["局部规则产生空间/时间演化", "邻域和边界可定义"], ["规则凭空设定", "单一初态轨迹当普遍规律"], ["网格、邻域、更新顺序、边界、初态和随机源冻结", "尺度解释有限"], ["mechanism_spec", "initial_state", "scenario"], ["state_field", "pattern_metrics", "scenario_summary"], ["grid-sensitivity", "initial-state-sensitivity", "replicate-seeds"], ["agent-based-simulation", "finite-difference-pde"]),
+    _method("game-theory", "博弈/策略均衡", "game", ["主体、策略、收益和信息集可定义", "互动反馈是题面核心"], ["收益无来源", "把均衡当现实预测"], ["参与者、行动顺序、信息、收益和均衡概念冻结", "多均衡选择规则披露"], ["player_set", "payoff_matrix", "information_set"], ["equilibrium", "payoff_comparison", "strategy_sensitivity"], ["equilibrium-check", "payoff-perturbation", "scenario-analysis"], ["optimization", "agent-based-simulation"]),
+    _method("fuzzy-comprehensive-evaluation", "模糊综合评价", "fuzzy", ["指标边界模糊且等级语义明确", "隶属函数可解释"], ["隶属函数随意选择", "模糊分数当客观测量"], ["等级集、隶属函数、权重和合成算子有依据", "替代函数敏感性预注册"], ["indicator_matrix", "membership_spec", "weights"], ["membership_matrix", "evaluation_score", "grade"], ["membership-sensitivity", "weight-sensitivity", "rank-stability"], ["topsis-evaluation", "ahp-evaluation"]),
+    _method("data-envelopment-analysis", "数据包络分析 DEA", "evaluation", ["决策单元、投入和产出可比", "相对效率而非绝对因果"], ["投入产出方向混乱", "样本极少仍过度解释效率"], ["DMU 同质、正值/零值处理和规模报酬假设冻结", "效率前沿外推边界披露"], ["data_contract", "input_output_matrix"], ["efficiency_score", "reference_set", "slack"], ["scale-sensitivity", "leave-one-out", "super-efficiency-check"], ["topsis-evaluation", "linear-programming"]),
+    _method("anova-effect-test", "方差分析/效应检验", "statistical", ["分组响应比较且设计条件可检查", "误差结构可诊断"], ["多重比较不校正", "显著性当实际重要性"], ["独立性、方差结构和效应量阈值预注册", "违反条件时使用稳健替代"], ["data_contract", "group_labels", "split_spec"], ["effect_estimates", "p_values", "confidence_intervals"], ["residual-diagnostics", "multiple-comparison", "effect-size"], ["generalized-linear-model", "bootstrap-uncertainty"]),
+    _method("correlation-diagnostics", "相关性与依赖诊断", "statistical", ["需要探索变量依赖或共线", "关系方向和分母明确"], ["相关写成因果", "忽略时间/分组/非线性"], ["尺度、缺失、分组和置信区间规则冻结", "探索结果不直接作为结论"], ["data_contract", "feature_matrix"], ["correlation_matrix", "effect_interval", "diagnostic_plot"], ["bootstrap-uncertainty", "group-reconciliation", "partial-check"], ["generalized-linear-model", "pca-dimensionality"]),
+    _method("interpolation", "插值/空间重构", "fitting", ["采样点和连续性假设明确", "目标区域位于支持域内"], ["超出凸包无边界外推", "忽略测量误差和空间尺度"], ["坐标、核/阶次、边界和外推规则冻结", "稀疏区域标不确定"], ["data_contract", "coordinates", "observations"], ["surface", "prediction", "uncertainty_flag"], ["leave-one-out", "grid-sensitivity", "out-of-domain-check"], ["nonlinear-curve-fitting", "finite-element-pde"]),
+    _method("leslie-population-model", "Leslie/Logistic 种群模型", "mechanism", ["年龄结构或增长/承载关系可定义", "状态转移参数有来源"], ["参数不可识别仍做长期外推", "忽略非负性和容量边界"], ["年龄组/状态、出生率、存活率和初值冻结", "外推时间窗受限"], ["mechanism_spec", "initial_state", "parameter_ranges"], ["population_trajectory", "growth_rate", "stable_structure"], ["nonnegativity", "parameter-sensitivity", "holdout-replay"], ["runge-kutta-ode", "markov-chain"]),
+    _method("difference-equation-dynamics", "差分方程动态模型", "mechanism", ["离散时间状态更新自然", "更新规则和边界可表达"], ["时间步改变模型含义", "直接套连续方程而不离散说明"], ["状态、时间步、更新顺序、初值和参数域冻结", "稳定性/非负性可检查"], ["mechanism_spec", "initial_state", "parameter_ranges"], ["state_trajectory", "fixed_points", "stability_summary"], ["step-sensitivity", "fixed-point-check", "invariant-check"], ["runge-kutta-ode", "system-dynamics-model"]),
 
     # Problem framing cards: they turn a statement into auditable subproblem
     # and deliverable contracts before a solver is selected.
@@ -583,6 +675,7 @@ validate_workflow = validate_composition
 __all__ = [
     "CATALOG_VERSION", "Catalog", "MethodCard", "WorkflowBlock", "WorkflowPreset", "ProblemArchetype", "ContentPack",
     "METHOD_FAMILY_BLOCK_KINDS",
+    "METHOD_FAMILY_SKILL_REFS",
     "REQUIRED_BLOCK_IDS",
     "BUILTIN_METHODS", "BUILTIN_BLOCKS", "BUILTIN_PRESETS", "BUILTIN_ARCHETYPES", "BUILTIN_CONTENT_PACKS",
     "metadata_snapshot_to_catalog", "build_capability_catalog", "validate_composition", "validate_workflow", "compose_workflow", "composition_diff",

@@ -46,6 +46,7 @@ def test_catalog_exposes_typed_method_choices_for_all_puzzle_kinds(monkeypatch):
     required_fields = {
         "applicability", "prohibitions", "assumptions", "inputs", "outputs",
         "validation", "fallback", "evidence_refs", "compatible_block_kinds",
+        "skill_refs", "skill_binding_status", "unresolved_skill_refs",
     }
     assert all(required_fields <= set(method) for method in methods)
     # Spot-check the categories that were previously absent from the catalog.

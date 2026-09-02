@@ -1,0 +1,6 @@
+ interface:
+   display_name: "高教社杯固定主流程"
+   short_description: "按阶段门完成从题面到论文发布的完整链"
+   default_prompt: "Use $workflow-cumcm-main to run the fixed CUMCM workflow."
+ policy:
+   allow_implicit_invocation: true

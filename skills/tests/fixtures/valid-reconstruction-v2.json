@@ -1,0 +1,80 @@
+ {
+   "schema_version": "evidence-reconstruction/v2",
+   "source_kind": "exported-run-evidence",
+   "source_artifact": "external-run.zip",
+   "source_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "input_revision": "manifest:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "status": "READY_FOR_REVIEW",
+   "unresolved": [
+     "external runtime approval was not recorded"
+   ],
+   "steps": [
+     {
+       "id": "scope",
+       "order": 0,
+       "inputs": [
+         "statement"
+       ],
+       "outputs": [
+         "problem_contract"
+       ],
+       "responsibilities": [
+         "extract"
+       ],
+       "method_chain": [
+         "static extraction"
+       ],
+       "validation_gates": [
+         {
+           "id": "hash",
+           "status": "PASS"
+         }
+       ],
+       "evidence_levels": [
+         "observed"
+       ],
+       "evidence_refs": [
+         "file:manifest.json"
+       ],
+       "open_questions": [],
+       "handoff_to": [
+         "model"
+       ],
+       "failure_policy": "keep pending"
+     },
+     {
+       "id": "model",
+       "order": 1,
+       "inputs": [
+         "problem_contract"
+       ],
+       "outputs": [
+         "model_contract"
+       ],
+       "responsibilities": [
+         "map"
+       ],
+       "method_chain": [
+         "mechanism candidate"
+       ],
+       "validation_gates": [
+         {
+           "id": "review",
+           "status": "PENDING"
+         }
+       ],
+       "evidence_levels": [
+         "inferred",
+         "hypothesis"
+       ],
+       "evidence_refs": [
+         "file:model.md"
+       ],
+       "open_questions": [
+         "verify parameter"
+       ],
+       "handoff_to": [],
+       "failure_policy": "do not promote"
+     }
+   ]
+ }

@@ -1,0 +1,42 @@
+ {
+   "schema_version": "run-manifest/v2",
+   "run_id": "run-demo-001",
+   "input_revision": "manifest:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+   "code_revision": "manifest:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+   "route_revision": "manifest:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "environment": {
+     "interpreter": "python 3.11",
+     "packages": [
+       "numpy"
+     ],
+     "os": "Windows",
+     "solver_versions": []
+   },
+   "command": "python models/demo.py --config configs/demo.json",
+   "cwd": "models",
+   "seed_policy": {
+     "deterministic": true,
+     "seeds": [
+       42
+     ],
+     "random_sources": []
+   },
+   "checkpoints": [
+     {
+       "name": "smoke",
+       "status": "PASS"
+     }
+   ],
+   "artifacts": [
+     {
+       "path": "experiments/demo/result.json",
+       "sha256": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+       "media_type": "application/json",
+       "produced_by": "models/demo.py"
+     }
+   ],
+   "exit_code": 0,
+   "stdout_sha256": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+   "stderr_sha256": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+   "status": "VERIFIED"
+ }

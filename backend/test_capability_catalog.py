@@ -42,6 +42,7 @@ def test_builtin_method_cards_have_modeling_interfaces_and_evidence_refs():
         assert card.inputs and card.outputs and card.validation and card.fallback
         assert card.assumptions and card.prohibitions
         assert card.evidence_refs and card.evidence_refs[0].startswith("playbook:")
+        assert card.skill_refs
 
 
 def test_method_cards_explicitly_cover_every_workflow_kind():

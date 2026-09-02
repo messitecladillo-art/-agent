@@ -1,0 +1,6 @@
+ interface:
+   display_name: "数据证据契约"
+   short_description: "审计字段、单位、质量、切分与信息泄漏"
+   default_prompt: "Use $03-data-and-evidence to build a traceable data contract."
+ policy:
+   allow_implicit_invocation: true

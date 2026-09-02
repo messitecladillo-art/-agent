@@ -1,0 +1,48 @@
+ {
+   "schema_version": "skill-manifest/v2",
+   "id": "scope-lock",
+   "name": "赛事与题面范围锁定",
+   "version": "2.0.0",
+   "entrypoint": "skills/01-scope-lock/SKILL.md",
+   "phase": "intake",
+   "depends_on": [
+     "charter-and-safety"
+   ],
+   "inputs": [
+     "run_charter",
+     "statement_files",
+     "attachment_files",
+     "contest_notice"
+   ],
+   "outputs": [
+     "problem_contract",
+     "contest_profile",
+     "attachment_manifest",
+     "rule_status"
+   ],
+   "write_boundary": [
+     "artifacts/problem-contract.json",
+     "notes/"
+   ],
+   "capabilities": [
+     "static-document-extraction",
+     "hashing",
+     "scope-audit"
+   ],
+   "references": [
+     "skills/references/artifact-contracts.md",
+     "notes/skill-rebuild-material-ledger.md"
+   ],
+   "scripts": [],
+   "gates": [
+     "edition-group-problem-locked",
+     "statement-attachment-hashed",
+     "official-rule-status-set"
+   ],
+   "source_ids": [
+     "src-review-2021",
+     "src-review-2023",
+     "src-review-2024"
+   ],
+   "status": "ACTIVE"
+ }

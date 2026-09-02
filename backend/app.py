@@ -44,6 +44,7 @@ try:  # Works both as ``backend.app`` and as ``app`` from the backend folder.
     from .problem_contract import build_problem_contract
     from .repo_catalog import CatalogPathError, WorkspaceCatalog
     from .latex_compiler import CompileInputError, CompilerConfig, LatexCompiler
+    from .skill_registry import SkillRegistry, SkillRegistryError
 except ImportError:  # pragma: no cover - exercised by the documented launch command
     from orchestrator import acceptance_blocked, canonical_path, validate_dependency_graph, write_sets_conflict
     from model_gateway import ModelGateway, ModelRequest, default_profiles
@@ -61,6 +62,7 @@ except ImportError:  # pragma: no cover - exercised by the documented launch com
     from problem_contract import build_problem_contract
     from repo_catalog import CatalogPathError, WorkspaceCatalog
     from latex_compiler import CompileInputError, CompilerConfig, LatexCompiler
+    from skill_registry import SkillRegistry, SkillRegistryError
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -78,6 +80,7 @@ REVISION_PATTERN = re.compile(r"^(?:manifest|source):[0-9a-fA-F]{64}$")
 # derived from the current checkout rather than from a stale ignored evidence
 # file left by an earlier run.
 workspace_catalog = WorkspaceCatalog(ROOT)
+skill_registry = SkillRegistry(ROOT)
 
 
 def _declared_manifest_revision() -> Optional[str]:
@@ -275,6 +278,63 @@ def capability_catalog_snapshot(force_refresh: bool = False) -> Dict[str, Any]:
         "method_cards": "curated/inferred; verify against current problem",
         "paper_claims": "only VERIFIED/ACCEPTED with artifact + validation gates",
     }
+    # The Skill Registry is a separate, versioned discovery layer.  Keep its
+    # revision next to the capability revision so a UI/Agent can tell whether
+    # a route was selected against stale instructions.  Loading is read-only;
+    # a partially deployed checkout is reported explicitly rather than
+    # silently falling back to an unversioned skill list.
+    try:
+        skill_snapshot = skill_registry.snapshot()
+        registered_skill_ids = {
+            str(item.get("id"))
+            for section in ("skills", "workflows")
+            for item in (skill_snapshot.get(section) or [])
+            if isinstance(item, Mapping) and item.get("id")
+        }
+        source["skill_registry"] = {
+            "schema_version": skill_snapshot.get("schema_version"),
+            "registry_revision": skill_snapshot.get("registry_revision"),
+            "source_revision": skill_snapshot.get("source_revision"),
+            "counts": skill_snapshot.get("counts", {}),
+            "status": "READY",
+        }
+        catalog["skill_registry_revision"] = skill_snapshot.get("registry_revision")
+        # Bind every capability card to the procedural skills that govern it.
+        # Keep unresolved IDs visible instead of dropping them: a stale card
+        # must be diagnosable by the UI and by an adapter before it is used.
+        bound_count = 0
+        unresolved_count = 0
+        for method in catalog.get("methods", []):
+            if not isinstance(method, dict):
+                continue
+            refs = [str(item) for item in (method.get("skill_refs") or []) if str(item)]
+            unresolved = [item for item in refs if item not in registered_skill_ids]
+            method["skill_refs"] = refs
+            method["skill_binding_status"] = "BOUND" if not unresolved else "STALE"
+            method["unresolved_skill_refs"] = unresolved
+            if not unresolved:
+                bound_count += 1
+            unresolved_count += len(unresolved)
+        source["skill_binding"] = {
+            "status": "READY" if unresolved_count == 0 else "PARTIAL",
+            "method_cards": len(catalog.get("methods") or []),
+            "fully_bound": bound_count,
+            "unresolved_refs": unresolved_count,
+        }
+    except SkillRegistryError as exc:
+        source["skill_registry"] = {
+            "schema_version": "skill-registry/v2",
+            "registry_revision": None,
+            "status": "UNAVAILABLE",
+            "reason": str(exc)[:240],
+        }
+        catalog["skill_registry_revision"] = None
+        source["skill_binding"] = {
+            "status": "UNAVAILABLE",
+            "method_cards": len(catalog.get("methods") or []),
+            "fully_bound": 0,
+            "unresolved_refs": None,
+        }
     # Content packs are first-class catalogue objects, but their source
     # bindings are resolved lazily.  Keep the catalogue useful and honest by
     # exposing an explicit pending/partial coverage state and a read-only
@@ -1682,6 +1742,42 @@ def workspace_catalog_search(
         return workspace_catalog.search(q, top_k=top_k, path=path)
     except CatalogPathError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/projects/{project_id}/skills/catalog")
+def skill_registry_catalog(project_id: str) -> Dict[str, Any]:
+    """Return the versioned, read-only Skill Registry metadata."""
+    _require_project(project_id)
+    try:
+        return skill_registry.snapshot()
+    except SkillRegistryError as exc:
+        raise HTTPException(status_code=503, detail={"code": "SKILL_REGISTRY_UNAVAILABLE", "message": str(exc)}) from exc
+
+
+@app.get("/api/projects/{project_id}/skills/search")
+def skill_registry_search(
+    project_id: str,
+    q: str = Query(default="", max_length=240),
+    limit: int = Query(default=12, ge=1, le=50),
+) -> Dict[str, Any]:
+    """Search registered skills by purpose, phase and trigger."""
+    _require_project(project_id)
+    try:
+        return skill_registry.search(q, limit=limit)
+    except SkillRegistryError as exc:
+        raise HTTPException(status_code=503, detail={"code": "SKILL_REGISTRY_UNAVAILABLE", "message": str(exc)}) from exc
+
+
+@app.get("/api/projects/{project_id}/skills/{skill_id}")
+def skill_registry_detail(project_id: str, skill_id: str) -> Dict[str, Any]:
+    """Return one bounded skill preview and its machine-readable manifest."""
+    _require_project(project_id)
+    try:
+        return skill_registry.get(skill_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail={"code": "SKILL_NOT_FOUND", "skill_id": skill_id}) from exc
+    except SkillRegistryError as exc:
+        raise HTTPException(status_code=503, detail={"code": "SKILL_REGISTRY_UNAVAILABLE", "message": str(exc)}) from exc
 
 
 @app.get("/api/projects/{project_id}/capabilities/catalog")

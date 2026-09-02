@@ -1,0 +1,50 @@
+ {
+   "schema_version": "skill-manifest/v2",
+   "id": "model-routing",
+   "name": "结构驱动模型路由",
+   "version": "2.0.0",
+   "entrypoint": "skills/04-model-routing/SKILL.md",
+   "phase": "modeling",
+   "depends_on": [
+     "question-decomposition",
+     "data-and-evidence"
+   ],
+   "inputs": [
+     "question_map",
+     "data_contract",
+     "mechanism_cues",
+     "method_catalog"
+   ],
+   "outputs": [
+     "model_route",
+     "baseline_spec",
+     "fallback_spec"
+   ],
+   "write_boundary": [
+     "artifacts/model-route.json",
+     "notes/"
+   ],
+   "capabilities": [
+     "structural-triage",
+     "method-card-selection",
+     "anti-stacking-review"
+   ],
+   "references": [
+     "skills/references/method-routing-matrix.md",
+     "skills/references/cumcm-review-rubric.md",
+     "skills/references/artifact-contracts.md"
+   ],
+   "scripts": [],
+   "gates": [
+     "baseline-present",
+     "applicability-and-prohibitions-recorded",
+     "fallback-and-validation-declared"
+   ],
+   "source_ids": [
+     "src-algorithm-index",
+     "src-code-index",
+     "src-review-2021",
+     "src-review-2023"
+   ],
+   "status": "ACTIVE"
+ }

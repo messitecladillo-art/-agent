@@ -1,0 +1,48 @@
+ {
+   "schema_version": "skill-manifest/v2",
+   "id": "evidence-reconstruction",
+   "name": "外部 Agent 证据重建",
+   "version": "2.0.0",
+   "entrypoint": "skills/12-evidence-reconstruction/SKILL.md",
+   "phase": "migration-audit",
+   "depends_on": [
+     "charter-and-safety"
+   ],
+   "inputs": [
+     "external_export",
+     "logs",
+     "manifests",
+     "code_snapshot"
+   ],
+   "outputs": [
+     "step_contract",
+     "reconstruction_report",
+     "pending_relay"
+   ],
+   "write_boundary": [
+     "artifacts/reconstruction/",
+     "notes/"
+   ],
+   "capabilities": [
+     "static-import",
+     "manifest-reconcile",
+     "relay-packet"
+   ],
+   "references": [
+     "skills/references/evidence-and-status.md",
+     "skills/references/artifact-contracts.md"
+   ],
+  "scripts": [
+    "skills/12-evidence-reconstruction/scripts/validate_reconstruction.py",
+    "skills/12-evidence-reconstruction/scripts/validate_step_contract.py"
+  ],
+   "gates": [
+     "input-hash-reconciled",
+     "observed-inferred-separated",
+     "unresolved-listed"
+   ],
+   "source_ids": [
+     "src-code-index"
+   ],
+   "status": "ACTIVE"
+ }

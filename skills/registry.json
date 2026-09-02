@@ -1,0 +1,301 @@
+{
+   "schema_version": "skill-registry/v2",
+   "registry_id": "gaojiao-math-modeling",
+   "version": "2.0.0",
+   "generated_at": "2026-09-03",
+   "source_revision": "materials-inventory:2026-08-31",
+   "source_manifest_sha256": "a3eb5ea717a45dee3b280afc506b37df3026e7142a9f3411e5bdafe3bc4306a",
+   "source_ledger": "skills/source-provenance.json",
+   "policy": {
+     "default_status": "DRAFT",
+     "claim_classes": [
+       "observed",
+       "reproduced",
+       "independently_reproduced",
+       "official_rule",
+       "official_review_signal",
+       "exemplar_observation",
+       "code_observation",
+       "curated_inference",
+       "hypothesis"
+     ],
+     "statuses": [
+       "DISCOVERED",
+       "EXTRACTED",
+       "CONTRACTED",
+       "RUNNABLE",
+       "VERIFIED",
+       "INDEPENDENTLY_REPRODUCED",
+       "RELEASE_CANDIDATE",
+       "RELEASED",
+       "STALE",
+       "BLOCKED",
+       "PENDING_RESOLUTION"
+     ],
+     "mandatory_invariants": [
+       "scope_locked",
+       "raw_inputs_immutable",
+       "baseline_present",
+       "no_future_information",
+       "evidence_linked",
+       "validation_before_release"
+     ],
+     "unsafe_operations": [
+       "execute_unknown_material_code",
+       "upload_private_materials",
+       "overwrite_raw_inputs",
+       "claim_global_optimum_without_bound",
+       "publish_without_owner_approval"
+     ]
+   },
+   "skills": [
+     {
+       "id": "charter-and-safety",
+       "name": "建模工程章程与安全边界",
+       "phase": "cross-cutting",
+       "trigger": "在新题、资料、代码、外部 Agent 或发布动作开始时",
+       "path": "skills/00-charter-and-safety/SKILL.md",
+       "manifest": "skills/00-charter-and-safety/skill-manifest.json",
+       "status": "ACTIVE"
+     },
+     {
+       "id": "scope-lock",
+       "name": "赛事与题面范围锁定",
+       "phase": "intake",
+       "trigger": "新题、切换届次/组别/题号或规则不明确时",
+       "path": "skills/01-scope-lock/SKILL.md",
+       "manifest": "skills/01-scope-lock/skill-manifest.json",
+       "status": "ACTIVE"
+     },
+     {
+       "id": "question-decomposition",
+       "name": "逐问拆解与依赖图",
+       "phase": "framing",
+       "trigger": "题面含多个小问、目标或交付物时",
+       "path": "skills/02-question-decomposition/SKILL.md",
+       "manifest": "skills/02-question-decomposition/skill-manifest.json",
+       "status": "ACTIVE"
+     },
+     {
+       "id": "data-and-evidence",
+       "name": "数据与证据契约",
+       "phase": "evidence",
+       "trigger": "有附件、表格、实验数据、预测或决策时",
+       "path": "skills/03-data-and-evidence/SKILL.md",
+       "manifest": "skills/03-data-and-evidence/skill-manifest.json",
+       "status": "ACTIVE"
+     },
+     {
+       "id": "model-routing",
+       "name": "结构驱动模型路由",
+       "phase": "modeling",
+       "trigger": "需要选择或比较模型/算法时",
+       "path": "skills/04-model-routing/SKILL.md",
+       "manifest": "skills/04-model-routing/skill-manifest.json",
+       "status": "ACTIVE"
+     },
+     {
+       "id": "mathematical-derivation",
+       "name": "数学推导链",
+       "phase": "modeling",
+       "trigger": "需要建立公式、机理、变量和可解释结果时",
+       "path": "skills/05-mathematical-derivation/SKILL.md",
+       "manifest": "skills/05-mathematical-derivation/skill-manifest.json",
+       "status": "ACTIVE"
+     },
+     {
+       "id": "solver-reproducibility",
+       "name": "求解与复现",
+       "phase": "computation",
+       "trigger": "需要运行代码、优化、仿真或生成论文数字时",
+       "path": "skills/06-solver-reproducibility/SKILL.md",
+       "manifest": "skills/06-solver-reproducibility/skill-manifest.json",
+       "status": "ACTIVE"
+     },
+     {
+       "id": "validation-and-adversarial-review",
+       "name": "验证与对抗审查",
+       "phase": "review",
+       "trigger": "结果要进入论文、决策或提交包时",
+       "path": "skills/07-validation-and-adversarial-review/SKILL.md",
+       "manifest": "skills/07-validation-and-adversarial-review/skill-manifest.json",
+       "status": "ACTIVE"
+     },
+     {
+       "id": "paper-and-typesetting",
+       "name": "论文结构与数学排版",
+       "phase": "writing",
+       "trigger": "写作、LaTeX/Word/PDF、图表或版式审计时",
+       "path": "skills/08-paper-and-typesetting/SKILL.md",
+       "manifest": "skills/08-paper-and-typesetting/skill-manifest.json",
+       "status": "ACTIVE"
+     },
+     {
+       "id": "exemplar-mining",
+       "name": "范文与算法资料抽象",
+       "phase": "learning",
+       "trigger": "阅读范文、评阅材料或算法资料以提炼模式时",
+       "path": "skills/09-exemplar-mining/SKILL.md",
+       "manifest": "skills/09-exemplar-mining/skill-manifest.json",
+       "status": "ACTIVE"
+     },
+     {
+       "id": "defense-and-release",
+       "name": "答辩与发布终检",
+       "phase": "release",
+       "trigger": "答辩、归档、提交或外部发布前",
+       "path": "skills/10-defense-and-release/SKILL.md",
+       "manifest": "skills/10-defense-and-release/skill-manifest.json",
+       "status": "ACTIVE"
+     },
+     {
+       "id": "mcm-icm-delta",
+       "name": "MCM/ICM 增量规则",
+       "phase": "profile-delta",
+       "trigger": "赛事已锁定为 MCM/ICM 时",
+       "path": "skills/11-mcm-icm-delta/SKILL.md",
+       "manifest": "skills/11-mcm-icm-delta/skill-manifest.json",
+       "status": "ACTIVE"
+     },
+     {
+       "id": "evidence-reconstruction",
+       "name": "外部 Agent 证据重建",
+       "phase": "migration-audit",
+       "trigger": "迁移或审计外部 Agent 导出结果时",
+       "path": "skills/12-evidence-reconstruction/SKILL.md",
+       "manifest": "skills/12-evidence-reconstruction/skill-manifest.json",
+       "status": "ACTIVE"
+     }
+   ],
+   "workflows": [
+     {
+       "id": "workflow-cumcm-main",
+       "name": "高教社杯固定主流程",
+       "phase": "workflow",
+       "trigger": "从题面锁定到发布的完整国赛链",
+       "path": "skills/workflows-cumcm-main/SKILL.md",
+       "manifest": "skills/workflows-cumcm-main/skill-manifest.json",
+       "status": "ACTIVE"
+     },
+     {
+       "id": "workflow-prep-and-drill",
+       "name": "备赛训练流程",
+       "phase": "workflow",
+       "trigger": "将资料包转为练习、范文、代码和限时演练",
+       "path": "skills/workflows-prep-and-drill/SKILL.md",
+       "manifest": "skills/workflows-prep-and-drill/skill-manifest.json",
+       "status": "ACTIVE"
+     },
+     {
+       "id": "workflow-diy-puzzle",
+       "name": "DIY 拼图工作流",
+       "phase": "workflow",
+       "trigger": "自由替换小问方法但保留证据和发布硬门",
+       "path": "skills/workflows-diy-puzzle/SKILL.md",
+       "manifest": "skills/workflows-diy-puzzle/skill-manifest.json",
+       "status": "ACTIVE"
+     }
+   ],
+   "method_families": [
+     {
+       "id": "problem-framing",
+       "name": "问题定义与拆解",
+       "examples": [
+         "question-tree-decomposition",
+         "objective-constraint-ledger",
+         "problem-type-triage"
+       ]
+     },
+     {
+       "id": "data-and-statistics",
+       "name": "数据、统计与预测",
+       "examples": [
+         "schema-provenance-audit",
+         "linear-regression",
+         "generalized-linear-model",
+         "anova-effect-test",
+         "correlation-diagnostics",
+         "svm-classification",
+         "kmeans-clustering",
+         "pca-dimensionality",
+         "grey-gm11",
+         "arima-forecast",
+         "exponential-smoothing",
+         "cross-validation"
+       ]
+     },
+     {
+       "id": "mechanism-and-dynamics",
+       "name": "机理、动态与 PDE/ODE",
+       "examples": [
+         "mass-balance-compartment",
+         "runge-kutta-ode",
+         "difference-equation-dynamics",
+         "leslie-population-model",
+         "markov-chain",
+         "finite-element-pde",
+         "system-dynamics-model"
+       ]
+     },
+     {
+       "id": "optimization-and-decision",
+       "name": "优化、调度与决策",
+       "examples": [
+         "linear-programming",
+         "integer-programming",
+         "dynamic-programming",
+         "robust-optimization",
+         "heuristic-search",
+         "genetic-algorithm",
+         "simulated-annealing",
+         "particle-swarm",
+         "ant-colony",
+         "graph-shortest-path",
+         "max-flow-min-cut",
+         "game-theory"
+       ]
+     },
+     {
+       "id": "simulation-and-uncertainty",
+       "name": "仿真与不确定性",
+       "examples": [
+         "monte-carlo",
+         "discrete-event-simulation",
+         "agent-based-simulation",
+         "latin-hypercube-scenario-simulation",
+         "queueing-analytic",
+         "cellular-automaton"
+       ]
+     },
+     {
+       "id": "evaluation-and-review",
+       "name": "验证、敏感性与对抗审查",
+       "examples": [
+         "ahp-evaluation",
+         "topsis-evaluation",
+         "entropy-weight",
+         "fuzzy-comprehensive-evaluation",
+         "data-envelopment-analysis",
+         "lhs-sensitivity",
+         "bootstrap-uncertainty",
+         "assumption-red-team",
+         "counterexample-search"
+       ]
+     },
+     {
+       "id": "writing-and-release",
+       "name": "论文、排版与发布",
+       "examples": [
+         "derivation-first-outline",
+         "paper-and-typesetting",
+         "defense-and-release"
+       ]
+     }
+   ],
+   "maintenance": {
+     "registry_is_source_of_truth": true,
+     "source_files_are_external": true,
+     "update_rule": "资料或当届规则变化时生成新 source_revision；旧产物标 STALE 并重新验证",
+     "no_copy_rule": "不复制原始论文、模板全文、代码包或未知二进制"
+   }
+ }

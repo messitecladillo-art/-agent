@@ -1,0 +1,52 @@
+ {
+   "schema_version": "skill-manifest/v2",
+   "id": "mathematical-derivation",
+   "name": "数学推导链",
+   "version": "2.0.0",
+   "entrypoint": "skills/05-mathematical-derivation/SKILL.md",
+   "phase": "modeling",
+   "depends_on": [
+     "model-routing"
+   ],
+   "inputs": [
+     "problem_contract",
+     "question_map",
+     "data_contract",
+     "model_route"
+   ],
+   "outputs": [
+     "derivation_map",
+     "equation_registry",
+     "assumption_registry",
+     "model_contract"
+   ],
+   "write_boundary": [
+     "artifacts/model-contract.json",
+     "paper/"
+   ],
+   "capabilities": [
+     "symbolic-derivation",
+     "dimensional-audit",
+     "assumption-boundary"
+   ],
+   "references": [
+     "skills/references/artifact-contracts.md",
+     "skills/references/paper-layout-profiles.md",
+     "skills/references/cumcm-review-rubric.md"
+   ],
+   "scripts": [],
+   "gates": [
+     "variables-defined",
+     "equations-derived",
+     "discretization-explained",
+     "interpretation-linked"
+   ],
+  "source_ids": [
+    "src-exemplar-synthesis",
+    "src-layout-notes",
+    "src-prize-paper-school-2026",
+    "src-review-2021",
+     "src-review-2023"
+   ],
+   "status": "ACTIVE"
+ }

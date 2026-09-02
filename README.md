@@ -46,7 +46,7 @@ python -m http.server 4173
 
 - AGENTS.md：Qoder、Codex、Antigravity、Claude API 的职责边界与评审规则。
 - TASKS.md：任务状态的唯一事实来源；任务按“待认领 → 进行中 → 待审 → 已完成”流转。
-- skills/：审题、建模、求解、验证、写作、数学表达与排版、终检、范文精析和美赛专项的可执行方法卡；`notes/算法模板盘点.md` 是算法模板库的施工蓝图。
+- skills/：由 `skills/registry.json` 管理的资料驱动 v2 技能、固定高教社杯流程、备赛流程和 DIY 拼图；来源台账见 `notes/skill-rebuild-material-ledger.md`。
 - notes/：共享笔记、材料索引和独立评审记录。
 - models/、experiments/、paper/、viz/：模型代码、实验结果、论文与展示产物。
 - scripts/agents/review.py：可选的 Claude API 独立评审脚本；密钥只放在本地 .env，不进入提交。
@@ -85,12 +85,25 @@ GET /api/projects/HGC-MF-2026-001/knowledge/context?q=论文模板&kind=template
 GET /api/projects/HGC-MF-2026-001/capabilities/catalog
 GET /api/projects/HGC-MF-2026-001/capabilities/suggest?q=约束优化&limit=8
 GET /api/projects/HGC-MF-2026-001/capabilities/content-packs/counterexample/resolve?top_k=6
+GET /api/projects/HGC-MF-2026-001/skills/catalog
+GET /api/projects/HGC-MF-2026-001/skills/search?q=数学推导&limit=12
+GET /api/projects/HGC-MF-2026-001/skills/mathematical-derivation
 POST /api/projects/HGC-MF-2026-001/capabilities/problem-contract
 POST /api/projects/HGC-MF-2026-001/capabilities/compose
 POST /api/projects/HGC-MF-2026-001/capabilities/commit
 ```
 
 `context` 是给 Agent 适配器的短资料包；每项带 `index_revision`、`snippet/preview` 和严格格式的 `kbdoc:kbdoc_<16位hex>`。内容包 resolve 会额外返回 `coverage`、`evidence_refs` 和抽取状态，便于把“挂载了资料”与“拿到了可定位证据”区分开。它只表示资料线索，不会自动成为论文 claim；引用前仍需 Owner 核对原文件、题面、页码和独立验证。扫描数字与可正文抽取率是运行时快照，资料盘仍在同步时会显示 `LOCAL_PENDING`。
+
+技能层由 `skills/registry.json` 单独管理 13 个核心技能和 3 条工作流。能力目录中的每
+张方法卡返回 `skill_refs` 与绑定状态，前端会同时显示 `skill_registry_revision` 和
+`capability_revision`；若两者变化，已有装配必须重新校验。技能接口只读、只返回相对
+路径与有界入口预览，不会执行 Skill、资料盘代码或未知脚本。仓库根目录可用一条命令
+回归全部硬门：
+
+```powershell
+python -X utf8 skills/tests/run_regression.py
+```
 
 ### 能力装配：标准路径与自由组合
 

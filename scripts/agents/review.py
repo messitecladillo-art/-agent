@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-RUBRIC_PATH = REPO_ROOT / "skills" / "06-论文评审与终检.md"
+RUBRIC_PATH = REPO_ROOT / "skills" / "references" / "cumcm-review-rubric.md"
 MODEL = os.getenv("REVIEW_MODEL", "claude-sonnet-4-5")
 
 BASE_PROMPT = (

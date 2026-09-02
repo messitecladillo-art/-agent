@@ -1,0 +1,6 @@
+ interface:
+   display_name: "MCM/ICM写作增量"
+   short_description: "补充Summary、Letter、英文数学与美赛检查"
+   default_prompt: "Use $11-mcm-icm-delta for the MCM or ICM submission delta."
+ policy:
+   allow_implicit_invocation: true

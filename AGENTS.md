@@ -66,11 +66,12 @@
 - 密钥只放 `.env`（已被 gitignore），不进代码、不进提交信息
 
 ## 8. Skill 库（方法论层，`skills/`）
-- AGENTS.md 管"谁、在哪、怎么协作"；`skills/` 管"每个阶段怎么做才对"，索引见 `skills/README.md`
-- 六阶段各有一个 skill（审题破题/模型选型/求解实现/验证分析/论文写作/论文评审），外加范文精析与两条 workflow（比赛主流程、赛前冲刺）
-- **派发任务必须指定 skill**：如"按 `skills/02-模型选型与建模.md` 完成子问题 2 的模型决策记录"
-- **评审门不可省**：阶段产出过对应评审门才能进入下一阶段；`review.py` 已内置加载 `skills/06-论文评审与终检.md` 作为评审准则
-- skill 的更新走正常任务流程：TASKS.md 登记、提交信息注明依据来源（年份与出处）
+- `skills/registry.json` 是唯一机器入口；每个技能目录含 SKILL.md、agents/openai.yaml 和 skill-manifest.json。
+- 固定高教社杯链：charter → scope-lock → question-decomposition → data-and-evidence → model-routing → mathematical-derivation → solver-reproducibility → validation-and-adversarial-review → paper-and-typesetting → defense-and-release。
+- DIY 拼图可替换小问方法，但不能删除题面锁定、数据契约、透明基线、验证、复现和 Owner 发布门；MCM/ICM 只叠加 `11-mcm-icm-delta`。
+- 派发或执行任务必须引用技能 ID 和对应 manifest；技能只提供候选方法与审查规则，不把目录命中或范文观察当作当前题目结论。
+- 资料来源、claim_class、状态机和交接字段见 `skills/references/`；更新资料或当届规则时生成新 source revision，旧产物标 STALE。
+- skill 的更新走正常任务流程：TASKS.md 登记、运行验证、提交信息注明来源和未决项。
 
 ## 9. 议事厅前端补充
 
@@ -78,4 +79,4 @@
 - 本地 `.collab/` 使用 `agent-collab/v1` 保存审查证据；该目录、`runtime/` 和本地资料缓存默认不提交。
 - 字体资源位于 `assets/fonts/qingjia/`，许可证、修改声明和可重建源数据必须与字体一起保留。
 - 本次融合由人类 Owner 明确授权推送；后续常规合并仍遵循“协调者或人类 Owner 批准后进入 main”的规则。
-- 远端资料同步新增 `skills/08-美赛专项.md` 与 `notes/算法模板盘点.md`；它们与前端和本地事件源共享同一版本化黑板，不能被 UI 构建流程静默覆盖。
+- 资料驱动技能由 `skills/registry.json` 统一登记；`notes/skill-rebuild-material-ledger.md` 记录来源与限制，不能被 UI 构建流程静默覆盖。

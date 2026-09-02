@@ -1,0 +1,130 @@
+{
+  "schema_version": "skill-source-ledger/v1",
+  "inventory_revision": "materials-inventory:2026-08-31",
+  "source_manifest_sha256": "a3eb5ea717a45dee3b280afc506b37df3026e7142a9f3411e5bdafe3bc4306a",
+  "external_root": "OWNER_LOCAL_ONLY",
+  "external_root_policy": "The materials directory is read-only and is never copied into this repository.",
+  "sources": [
+    {
+      "id": "src-review-2019-docx",
+      "kind": "official_review_signal",
+      "label": "国赛 2019 评阅文档",
+      "sha256": "b5ae4835508811e9b136624a6eb91ea53df5fb8513f46b3644241ca8f91714ff",
+      "confidence": "medium-high",
+      "supports": ["assumption_reasoning", "physical_law_check", "data_preprocessing", "model_program_consistency"],
+      "limitations": ["not_current_year_rules", "not_a_solution_template"]
+    },
+    {
+      "id": "src-review-2020-docx",
+      "kind": "official_review_signal",
+      "label": "国赛 2020 评阅文档",
+      "sha256": "63ac50e34dee2508e351478c89b6f62a6f0ad8df4d3647ae032f060409316d40",
+      "confidence": "medium-high",
+      "supports": ["baseline_comparison", "heuristic_disclosure", "online_no_future_information"],
+      "limitations": ["not_current_year_rules"]
+    },
+    {
+      "id": "src-review-2021",
+      "kind": "official_review_signal",
+      "label": "国赛 2021 官方评阅/评阅要点",
+      "sha256": "107ea92dee774b973aaccfd703599b339b03c83c06f866100a98e0ac8f896644",
+      "confidence": "high",
+      "supports": ["specific_problem_analysis", "autonomous_innovation", "effective_results", "A_to_D_review_signals"],
+      "limitations": ["review_signal_not_current_notice"]
+    },
+    {
+      "id": "src-review-2023",
+      "kind": "official_review_signal",
+      "label": "国赛 2023 官方评阅/评阅要点",
+      "sha256": "2380f46a81670ca2c918e7014208b2771d5a4405070a8833aaacae636f54f0e8",
+      "confidence": "high",
+      "supports": ["definitions", "data_quality", "prediction", "optimization", "uncertainty"],
+      "limitations": ["review_signal_not_current_notice"]
+    },
+    {
+      "id": "src-review-2024",
+      "kind": "official_review_signal",
+      "label": "国赛 2024 官方评阅文件",
+      "sha256": "3d711dc08415a7f5e08f7b6e1e2c45f339548e05000709d982b9b9348126f63c",
+      "confidence": "low",
+      "supports": ["cross_check_only"],
+      "limitations": ["watermark_or_text_garbled", "requires_visual_or_source_recheck", "not_current_notice"]
+    },
+    {
+      "id": "src-template-national",
+      "kind": "template_convention",
+      "label": "国赛通用 Word 模板",
+      "sha256": "84e18db6de6a32fccfb83f646fc8cdb0e35a63c53efb804f992e3e3fdad14d34",
+      "confidence": "medium",
+      "supports": ["common_title_abstract_body_structure", "notation_and_figure_convention"],
+      "limitations": ["not_current_official_format", "do_not_copy_template_text"]
+    },
+    {
+      "id": "src-template-mcm",
+      "kind": "template_convention",
+      "label": "MCM/ICM 写作指南与模板",
+      "sha256": "73bc9c3a3063b9f2da4fd26bf745807053fc00ceddacacd2d4da63a4656c519d",
+      "confidence": "medium",
+      "supports": ["summary_sheet", "letter_or_memo", "english_math_style", "strengths_and_weaknesses"],
+      "limitations": ["year_and_problem_rules_must_be_relocked"]
+    },
+    {
+      "id": "src-layout-notes",
+      "kind": "template_convention",
+      "label": "论文格式规范/版式说明",
+      "sha256": "e597b357eb9098149f9fd9ef0524c6dc52271f77b05f5a86493d0f5eb0019995",
+      "confidence": "medium",
+      "supports": ["hierarchy", "fonts", "three_line_tables", "equation_and_figure_layout"],
+      "limitations": ["convention_not_current_rule"]
+    },
+    {
+      "id": "src-prize-paper-school-2026",
+      "kind": "exemplar_observation",
+      "label": "Owner 提供的校赛一等奖论文《数学建模校赛第五版》",
+      "sha256": "6e330b3520ce57b4fa9de3674e3dead4eef7bcf0fcc20ad08af1264f3ba48eae",
+      "confidence": "high",
+      "supports": ["definition_to_derivation_chain", "symbol_registry", "formula_text_bridge", "readable_typesetting"],
+      "limitations": ["school_contest_not_gaojiao_official_rule", "observation_not_causal_proof", "copyrighted_source"]
+    },
+    {
+      "id": "src-algorithm-index",
+      "kind": "exemplar_observation",
+      "label": "按模型算法获奖论文索引",
+      "sha256": "materials-index:algorithm-35-families",
+      "confidence": "medium",
+      "supports": ["candidate_method_retrieval", "method_family_coverage"],
+      "limitations": ["frequency_is_not_applicability", "index_is_not_evidence_of_success"]
+    },
+    {
+      "id": "src-code-index",
+      "kind": "code_observation",
+      "label": "模型与代码模块盘点",
+      "sha256": "materials-index:code-module",
+      "confidence": "medium",
+      "supports": ["parameterized_template_ideas", "dependency_and_reproducibility_pitfalls"],
+      "limitations": ["unknown_code_is_not_executed", "license_and_version_must_be_checked"]
+    },
+    {
+      "id": "src-exemplar-synthesis",
+      "kind": "exemplar_observation",
+      "label": "近十年范文结构抽象笔记",
+      "sha256": "notes:exemplary-paper-breakdown",
+      "confidence": "medium",
+      "supports": ["abstract_structure_patterns", "verification_and_writing_patterns"],
+      "limitations": ["observation_only", "does_not_guarantee_award", "no_answer_copying"]
+    }
+  ],
+  "claim_policy": {
+    "official_rule": "Only a current, scope-locked notice or problem statement can establish a current requirement.",
+    "official_review_signal": "Can motivate a review check, not a guaranteed score or answer.",
+    "template_convention": "Can suggest presentation, never replace current format confirmation.",
+    "exemplar_observation": "Can be abstracted into a pattern with a transfer test and counterexample.",
+    "code_observation": "Can inform a reimplementation after static audit; never authorizes execution of the source package.",
+    "curated_inference": "Must remain a candidate until the current problem and independent validation support it."
+  },
+  "copyright_policy": {
+    "repository_stores": ["hashes", "short abstractions", "source identifiers", "transfer limits"],
+    "repository_does_not_store": ["full papers", "full templates", "source code bundles", "private attachments", "unknown binaries"],
+    "owner_review_required_for_external_use": true
+  }
+}

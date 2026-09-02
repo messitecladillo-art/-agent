@@ -1,0 +1,6 @@
+ interface:
+   display_name: "论文数学排版审计"
+   short_description: "生成国赛或美赛论文并审计公式、图表与PDF"
+   default_prompt: "Use $08-paper-and-typesetting to audit the paper structure and rendered PDF."
+ policy:
+   allow_implicit_invocation: true

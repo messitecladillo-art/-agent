@@ -1,0 +1,45 @@
+ {
+   "schema_version": "skill-manifest/v2",
+   "id": "question-decomposition",
+   "name": "逐问拆解与依赖图",
+   "version": "2.0.0",
+   "entrypoint": "skills/02-question-decomposition/SKILL.md",
+   "phase": "framing",
+   "depends_on": [
+     "scope-lock"
+   ],
+   "inputs": [
+     "problem_contract",
+     "source_refs"
+   ],
+   "outputs": [
+     "question_map",
+     "coverage_matrix",
+     "deliverable_dag"
+   ],
+   "write_boundary": [
+     "artifacts/question-map.json",
+     "notes/"
+   ],
+   "capabilities": [
+     "question-tree",
+     "dependency-dag",
+     "coverage-audit"
+   ],
+   "references": [
+     "skills/references/artifact-contracts.md",
+     "skills/references/cumcm-review-rubric.md"
+   ],
+   "scripts": [],
+   "gates": [
+     "every-question-mapped",
+     "dag-acyclic",
+     "outputs-and-validation-declared"
+   ],
+   "source_ids": [
+     "src-review-2021",
+     "src-review-2023",
+     "src-exemplar-synthesis"
+   ],
+   "status": "ACTIVE"
+ }

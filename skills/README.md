@@ -1,68 +1,102 @@
-# Skill 库与 Workflow 索引
+ # 数学建模 Skill Registry v2
 
-> 本目录是团队的"方法论层"：把官方评阅标准、近十年模范论文规律蒸馏成可执行的技能与流程。
-> 事实基础（部分为 Owner 本地资料盘/历史输入，非运行时硬依赖）：`资料包/01/官方评阅标准/`（2004–2024，含 2005–2018 逐年要点与 2010B 评分细则）+ `资料包/06` 写作指南 43 件 + `资料包/09` 美赛方法论 + `notes/exemplary-paper-breakdown.md`；当前 checkout 可直接读取的规则与模式以 `docs/`、`notes/` 和各 Skill 文件为准。
-> 维护：Qoder 主责；skill 更新走正常任务流程（TASKS.md 登记、提交说明来源）。
+ 这是仓库的可执行方法论层。唯一入口是 skills/registry.json；每个注册项都有
+ SKILL.md、skill-manifest.json、来源标识、输入输出、写入边界和硬门。原始资料
+ 仍在 Owner 的本地资料目录，仓库只保存蒸馏规则和审计指针。
 
-## 阶段 × Skill × 主责 速查表
+ `source-provenance.json` 是与注册表配套的机器可读来源台账：只保存外部资料的哈希、
+证据类别、支持范围和迁移限制，不保存资料正文。每个 manifest 的 `source_ids` 必须
+ 能在该台账中解析。
 
-| 阶段 | Skill | 主责 | 产出落点 |
-|---|---|---|---|
-| 0 审题破题 | `01-审题破题.md` | Qoder | `notes/problem-analysis.md` |
-| 1 建模 | `02-模型选型与建模.md` | Qoder | `models/README.md` |
-| 2 求解 | `03-求解与实现.md` | Codex | `models/` + `experiments/` |
-| 3 验证 | `04-验证与灵敏度分析.md` | Codex（Qoder 审） | `experiments/log.md` |
-| 4 写作 | `05-论文写作.md` | Qoder（Antigravity 图） | `paper/` |
-| 横切写作门 | `math-modeling-mathematical-writing/SKILL.md` | Qoder/Codex + 独立 Critic | `paper/` + equation/claim/crossref/render manifest |
-| 5 终检 | `06-论文评审与终检.md` | review.py + Qoder | `notes/reviews/` |
-| 辅助 | `07-范文精析.md` | Qoder / Claude API 批量 | `notes/paper-notes/` |
-| 专项 | `08-美赛专项.md` | Qoder | 打美赛时叠加在 01–06 之上 |
-| 证据迁移 | `mhagent-evidence-reconstruction/SKILL.md` | Codex + 独立 Critic/Auditor | `docs/mhagent-reconstructed-workflow.md` |
+版本迁移与删除记录见 `skills/CHANGELOG.md`。
 
-配套清单：`notes/算法模板盘点.md`（T-07 施工蓝图，七类模板候选 + 移植要点 + 缺口）。
+ ## 体系结构
 
-## 两条 Workflow
+ 固定链适合比赛实时求解：
 
-| Workflow | 场景 | 文件 |
-|---|---|---|
-| 比赛主流程 | 比赛日 72 小时作战：阶段×角色×评审门×时间盒 | `workflow-比赛主流程.md` |
-| 赛前冲刺流程 | 备赛期 4–8 周：评审校准→精析→模板库→演练→装箱 | `workflow-赛前冲刺流程.md` |
+ charter → scope-lock → question-decomposition → data-and-evidence →
+ model-routing → mathematical-derivation → solver-reproducibility →
+ validation-and-adversarial-review → paper-and-typesetting → defense-and-release
 
-## 使用规则
+ DIY 链适合探索和特殊题型：从同一方法卡/工作流块目录选择节点，替换某个小问的
+ 基线、主模型或备用模型；端口、DAG、证据、复现和发布硬门不能被删除。
 
-1. **派发任务时指定 skill**：如"按 `skills/02` 完成子问题 2 的模型决策记录"
-2. **评审门不可省**：每个阶段产出必须过对应评审门才进入下一阶段
-3. **skill 是活的**：演练与实战中发现的规律回写对应 skill（来源注明年份与出处）
-4. **与守则的关系**：AGENTS.md 管"谁、在哪、怎么协作"，本目录管"每个阶段怎么做才对"
+ MCM/ICM 在通用链上叠加 mcm-icm-delta；外部 Agent 导出包走
+ evidence-reconstruction 旁路；备赛使用 workflow-prep-and-drill。
 
-## 数学表达与排版 Skill（新增）
+ ## 技能索引
 
-`math-modeling-mathematical-writing/` 是跨阶段的写作与证据门：把题面小问、变量/假设、
-公式推导、离散算法、验证结果、图表和附录代码连成一条可回放链。它从用户提供的一篇
-高分论文中只提炼结构模式（例如符号—单位登记、公式/图表交叉引用、情景与验证的组织），
-不复制论文文字、图、代码、参数或结论，也不把单篇论文的字号、页数、字体、章节名当成
-官方规则。
+ | 阶段 | ID | 入口 | 主要产物 |
+ |---|---|---|---|
+ | 横切 | charter-and-safety | 00-charter-and-safety | run charter、来源台账、权限和状态 |
+ | 输入 | scope-lock | 01-scope-lock | problem contract、规则/附件 manifest |
+ | 拆解 | question-decomposition | 02-question-decomposition | question map、依赖 DAG、覆盖矩阵 |
+ | 证据 | data-and-evidence | 03-data-and-evidence | data contract、变量/单位、无泄漏切分 |
+ | 路由 | model-routing | 04-model-routing | baseline/primary/fallback route |
+ | 推导 | mathematical-derivation | 05-mathematical-derivation | 方程、假设、离散和解释链 |
+ | 计算 | solver-reproducibility | 06-solver-reproducibility | run manifest、结果哈希、复算日志 |
+ | 审查 | validation-and-adversarial-review | 07-validation-and-adversarial-review | 验证、敏感性、红队和反例 |
+ | 写作 | paper-and-typesetting | 08-paper-and-typesetting | paper contract、LaTeX/PDF、渲染 QA |
+ | 学习 | exemplar-mining | 09-exemplar-mining | 范文观察卡、迁移边界 |
+ | 发布 | defense-and-release | 10-defense-and-release | 答辩包、release pack、审批 |
+ | 增量 | mcm-icm-delta | 11-mcm-icm-delta | Summary、Letter/Memo、美赛检查 |
+ | 迁移 | evidence-reconstruction | 12-evidence-reconstruction | 步骤契约、重建报告、PENDING_RELAY |
 
-入口文件之外，按需读取：
+ 工作流入口：
 
-- `references/reference-paper-pattern-card.md`：观察事实、可泛化规则与不适用边界；
-- `references/derivation-and-layout-guide.md`：推导卡、LaTeX/Word 片段、图表与渲染门；
-- `references/registries-and-evidence.md`：`equation_registry`、`crossref_manifest`、
-  `claim_matrix`、验证和发布状态 schema；
-- `scripts/audit_latex_math.py`、`scripts/audit_paper_contract.py`：无依赖/低依赖的结构检查；
-- `evals/`：可重复的正反例前向夹具。
+ - workflow-cumcm-main：高教社杯固定主流程；
+ - workflow-prep-and-drill：备赛、算法练习、范文精析和限时演练；
+ - workflow-diy-puzzle：拼图式自由装配和创新记录。
 
-使用时必须先锁定当前竞赛版本与官方格式；结构检查通过不等于数学正确，仍需独立推导、
-数据审计、干净编译、视觉 QA 和 Owner 审批。
+当前能力目录提供 86 张候选方法卡，覆盖评价/赋权、统计/预测、分类/聚类、灰色与拟合、
+机理/PDE/ODE、图论/优化/元启发式、排队/马尔可夫/仿真、验证、论文和答辩。数量只表示
+可检索覆盖度；每张卡仍必须经过题面结构、数据/机理证据、baseline 和独立验证四步筛选。
 
-## 运行证据反推 Skill（新增）
+ ## 共同契约
 
-`mhagent-evidence-reconstruction/` 只负责把外部 Agent 的导出结果包映射为七步能力契约：
-输入、产物、方法链、验证门、交接和未决项。它是现有 01–08 Skills 与拼图工作台的
-迁移/审计层，不会覆盖或替换原有方法卡；契约默认 `READY_FOR_REVIEW`，只有独立复核
-关闭证据冲突后才可升级。入口脚本为 `scripts/validate_step_contract.py`，详细证据边界见
-`docs/mhagent-reconstructed-workflow.md`。
+ 按需读取共享 references：
 
-## 内嵌的五条官方金律（所有 skill 的共同底座）
+ - evidence-and-status.md：claim_class、状态机、冲突和交接包；
+ - artifact-contracts.md：problem、question、data、route、run、validation、paper、release 字段；
+ - method-routing-matrix.md：结构证据到方法族的路由矩阵和反套用规则；
+ - cumcm-review-rubric.md：资料包官方评阅信号的抽象及题型最低证据；
+ - paper-layout-profiles.md：国赛/美赛版式 profile、数学表达和 PDF 门；
+ - workflow-composition.md：固定链、DIY 端口、DAG 和发布规则。
 
-1. 结果可对表　2. 定义即得分点　3. 模型 > 算法 > 数值　4. 约束逐条验证　5. 拒绝模板腔
+ 资料证据、哈希和限制见 notes/skill-rebuild-material-ledger.md 与
+ notes/skill-rebuild-architecture.md。任何“官方要求”都必须重新锁定当届文件；
+ 模板是 convention，范文是 observation，方法卡是 curated candidate。
+
+ ## 机器校验
+
+ 在仓库根目录运行：
+
+     python -X utf8 skills/scripts/validate_registry.py --strict --json
+     python -X utf8 skills/scripts/audit_workflow_artifact.py assembly.json --strict --json
+     python -X utf8 skills/03-data-and-evidence/scripts/validate_data_contract.py data-contract.json --strict
+     python -X utf8 skills/06-solver-reproducibility/scripts/validate_run_manifest.py run-manifest.json --strict
+     python -X utf8 skills/tests/run_regression.py
+
+ 论文结构脚本位于 08-paper-and-typesetting/scripts，外部运行步骤脚本位于
+ 12-evidence-reconstruction/scripts。脚本只做结构/证据检查，不替代数学判断、
+ 独立复算或 Owner 审批。
+
+ ## 安全与维护
+
+ - 只读原始资料；不执行资料包未知宏、安装器、DLL、MEX 或脚本。
+ - 原始输入不可覆盖，所有清洗、运行和渲染产物带 revision 与哈希。
+ - 不把算法目录文件数量当作适用性，不把模型命中当作答案。
+ - 未来信息、未核验规则、乱码、不可复现和越权写入都显式阻断。
+ - 新资料或当届规则变化时生成新 source revision，旧产物标 STALE。
+ - 用户是最终 Owner；外部提交、推送、删除和发布必须在当前授权范围内进行。
+
+ 后端只读接口：
+
+     GET /api/projects/{project_id}/skills/catalog
+     GET /api/projects/{project_id}/skills/search?q=...&limit=...
+     GET /api/projects/{project_id}/skills/{skill_id}
+
+接口返回 registry_revision、注册项和状态，不执行技能或原始代码。
+
+方法卡通过 `skill_refs` 绑定到本目录的技能；绑定只负责发现和审查路由，不自动替题面
+选模。完整回归脚本会验证正例、负例和所有入口，负例“被拒绝”才算通过。

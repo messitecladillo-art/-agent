@@ -1,0 +1,50 @@
+ {
+   "schema_version": "skill-manifest/v2",
+   "id": "workflow-diy-puzzle",
+   "name": "DIY 拼图工作流",
+   "version": "2.0.0",
+   "entrypoint": "skills/workflows-diy-puzzle/SKILL.md",
+   "phase": "workflow",
+   "depends_on": [
+     "charter-and-safety",
+     "question-decomposition"
+   ],
+   "inputs": [
+     "question_map",
+     "block_catalog",
+     "user_choices"
+   ],
+   "outputs": [
+     "assembly_draft",
+     "assembly_validation",
+     "innovation_card"
+   ],
+   "write_boundary": [
+     "artifacts/assembly/",
+     "notes/"
+   ],
+   "capabilities": [
+     "graph-composition",
+     "port-validation",
+     "innovation-record"
+   ],
+   "references": [
+     "skills/references/workflow-composition.md",
+     "skills/references/artifact-contracts.md"
+   ],
+   "scripts": [
+     "skills/scripts/audit_workflow_artifact.py"
+   ],
+   "gates": [
+     "ports-compatible",
+     "dag-acyclic",
+     "required-blocks-present",
+     "evidence-ready"
+   ],
+   "source_ids": [
+     "src-algorithm-index",
+     "src-review-2021",
+     "src-review-2023"
+   ],
+   "status": "ACTIVE"
+ }

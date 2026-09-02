@@ -62,6 +62,6 @@ python -m uvicorn backend.app:app --host 127.0.0.1 --port 8787
 
 ## 与数学建模发布门的关系
 
-编译成功只说明 TeX 引擎生成了一个可读取的 PDF。它不代表公式正确、参数有来源、结果可复算、claim 已 VERIFIED，也不跳过 `artifact_manifest → render_qa → independent review → Owner approval`。正式论文仍需使用 `skills/math-modeling-mathematical-writing/` 的数学表达、结构审计和 PDF 视觉检查。
+编译成功只说明 TeX 引擎生成了一个可读取的 PDF。它不代表公式正确、参数有来源、结果可复算、claim 已 VERIFIED，也不跳过 `artifact_manifest → render_qa → independent review → Owner approval`。正式论文应使用 `skills/08-paper-and-typesetting/` 的数学表达、结构审计和 PDF 视觉检查，并先通过 `skills/07-validation-and-adversarial-review/`。
 
 当前实现是“本地受信源 MVP”：入口文件校验不能替代操作系统级沙箱，TeX 的 `\\input`、字体、图表或宏包仍可能触达额外文件。正式服务器部署前必须采用 staged source、容器/低权限账户、网络禁用、资源配额和出站文件审计。

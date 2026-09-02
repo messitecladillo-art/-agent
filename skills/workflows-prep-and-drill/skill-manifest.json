@@ -1,0 +1,48 @@
+ {
+   "schema_version": "skill-manifest/v2",
+   "id": "workflow-prep-and-drill",
+   "name": "备赛训练流程",
+   "version": "2.0.0",
+   "entrypoint": "skills/workflows-prep-and-drill/SKILL.md",
+   "phase": "workflow",
+   "depends_on": [
+     "charter-and-safety",
+     "exemplar-mining"
+   ],
+   "inputs": [
+     "weeks",
+     "baseline_skill_level",
+     "materials_index"
+   ],
+   "outputs": [
+     "training_plan",
+     "drill_artifacts",
+     "retrospective"
+   ],
+   "write_boundary": [
+     "notes/",
+     "experiments/",
+     "models/"
+   ],
+   "capabilities": [
+     "curriculum-planning",
+     "timed-drill",
+     "retrospective"
+   ],
+   "references": [
+     "skills/references/workflow-composition.md",
+     "notes/skill-rebuild-material-ledger.md"
+   ],
+   "scripts": [],
+   "gates": [
+     "cycle-objective",
+     "reproduction-evidence",
+     "retrospective"
+   ],
+   "source_ids": [
+     "src-code-index",
+     "src-exemplar-synthesis",
+     "src-template-national"
+   ],
+   "status": "ACTIVE"
+ }

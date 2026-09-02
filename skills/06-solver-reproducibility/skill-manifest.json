@@ -1,0 +1,50 @@
+ {
+   "schema_version": "skill-manifest/v2",
+   "id": "solver-reproducibility",
+   "name": "求解与复现",
+   "version": "2.0.0",
+   "entrypoint": "skills/06-solver-reproducibility/SKILL.md",
+   "phase": "computation",
+   "depends_on": [
+     "mathematical-derivation"
+   ],
+   "inputs": [
+     "model_contract",
+     "data_contract",
+     "code",
+     "environment"
+   ],
+   "outputs": [
+     "run_manifest",
+     "result_artifacts",
+     "reproduction_log"
+   ],
+   "write_boundary": [
+     "models/",
+     "experiments/",
+     "artifacts/runs/"
+   ],
+   "capabilities": [
+     "sandboxed-run",
+     "seed-control",
+     "hash-manifest"
+   ],
+   "references": [
+     "skills/references/artifact-contracts.md"
+   ],
+   "scripts": [
+     "skills/06-solver-reproducibility/scripts/validate_run_manifest.py"
+   ],
+   "gates": [
+     "clean-run",
+     "seed-or-determinism-recorded",
+     "artifacts-hashed",
+     "model-code-result-consistent"
+   ],
+   "source_ids": [
+     "src-code-index",
+     "src-review-2019-docx",
+     "src-review-2020-docx"
+   ],
+   "status": "ACTIVE"
+ }

@@ -1,0 +1,6 @@
+ interface:
+   display_name: "验证与红队审查"
+   short_description: "做可行性、误差、敏感性、反例与独立复算"
+   default_prompt: "Use $07-validation-and-adversarial-review to challenge the model and results."
+ policy:
+   allow_implicit_invocation: true

@@ -1,0 +1,45 @@
+ {
+   "schema_version": "skill-manifest/v2",
+   "id": "mcm-icm-delta",
+   "name": "MCM/ICM 增量规则",
+   "version": "2.0.0",
+   "entrypoint": "skills/11-mcm-icm-delta/SKILL.md",
+   "phase": "profile-delta",
+   "depends_on": [
+     "scope-lock",
+     "paper-and-typesetting"
+   ],
+   "inputs": [
+     "mcm_profile",
+     "paper_contract",
+     "english_math"
+   ],
+   "outputs": [
+     "summary_sheet",
+     "letter_or_memo",
+     "mcm_release_checks"
+   ],
+   "write_boundary": [
+     "paper/",
+     "artifacts/release/"
+   ],
+   "capabilities": [
+     "english-math-writing",
+     "summary-sheet",
+     "mcm-format-audit"
+   ],
+   "references": [
+     "skills/references/paper-layout-profiles.md",
+     "skills/references/cumcm-review-rubric.md"
+   ],
+   "scripts": [],
+   "gates": [
+     "mcm-official-profile-locked",
+     "summary-complete",
+     "letter-complete"
+   ],
+   "source_ids": [
+     "src-template-mcm"
+   ],
+   "status": "ACTIVE"
+ }

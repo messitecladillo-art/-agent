@@ -1,0 +1,52 @@
+ {
+   "schema_version": "skill-manifest/v2",
+   "id": "defense-and-release",
+   "name": "答辩与发布终检",
+   "version": "2.0.0",
+   "entrypoint": "skills/10-defense-and-release/SKILL.md",
+   "phase": "release",
+   "depends_on": [
+     "paper-and-typesetting",
+     "validation-and-adversarial-review"
+   ],
+   "inputs": [
+     "problem_contract",
+     "question_map",
+     "paper_contract",
+     "validation_report",
+     "run_manifest"
+   ],
+   "outputs": [
+     "defense_pack",
+     "release_pack",
+     "release_decision"
+   ],
+   "write_boundary": [
+     "artifacts/release/",
+     "paper/"
+   ],
+   "capabilities": [
+     "coverage-matrix",
+     "submission-audit",
+     "risk-disclosure"
+   ],
+   "references": [
+     "skills/references/evidence-and-status.md",
+     "skills/references/artifact-contracts.md",
+     "skills/references/paper-layout-profiles.md"
+   ],
+   "scripts": [],
+   "gates": [
+     "all-questions-covered",
+     "no-blockers",
+     "final-hash-recorded",
+     "owner-approval"
+   ],
+   "source_ids": [
+     "src-review-2021",
+     "src-review-2023",
+     "src-template-national",
+     "src-template-mcm"
+   ],
+   "status": "ACTIVE"
+ }

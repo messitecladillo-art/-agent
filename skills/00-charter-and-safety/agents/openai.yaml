@@ -1,0 +1,6 @@
+ interface:
+   display_name: "建模章程与证据安全"
+   short_description: "锁定版本、证据、权限与发布边界"
+   default_prompt: "Use $00-charter-and-safety to establish the run charter and evidence gates."
+ policy:
+   allow_implicit_invocation: true

@@ -1652,9 +1652,16 @@ function renderCapabilitySource(catalog) {
   const count = source.indexed_count ?? source.valid_count ?? 0;
   const signals = source.asset_signals || {};
   const rev = compactRevision(catalog?.capability_revision || source.index_revision, 17);
+  const skillRegistry = source.skill_registry || {};
+  const skillCounts = skillRegistry.counts || {};
+  const skillCount = skillRegistry.status === 'READY'
+    ? `${skillCounts.skills ?? 0}+${skillCounts.workflows ?? 0}`
+    : '—';
+  const skillRev = compactRevision(catalog?.skill_registry_revision || skillRegistry.registry_revision, 12);
+  const binding = source.skill_binding || {};
   const pending = status === 'LOCAL_PENDING' || status === 'UNAVAILABLE';
   root.classList.toggle('pending', pending);
-  root.innerHTML = `<span class="knowledge-dot ${pending ? 'pending' : ''}"></span><span>${escapeHTML(status)} · ${escapeHTML(count)} 个资料候选 · 论文线索 ${escapeHTML(signals.paper_candidates ?? '—')} · 能力 revision ${escapeHTML(rev)}</span>`;
+  root.innerHTML = `<span class="knowledge-dot ${pending ? 'pending' : ''}"></span><span>${escapeHTML(status)} · ${escapeHTML(count)} 个资料候选 · 论文线索 ${escapeHTML(signals.paper_candidates ?? '—')} · 技能 ${escapeHTML(skillCount)}（${escapeHTML(binding.status || skillRegistry.status || '—')}） · skill ${escapeHTML(skillRev)} · 能力 ${escapeHTML(rev)}</span>`;
 }
 
 function renderCapabilityCatalog(catalog) {
@@ -2269,6 +2276,7 @@ function capabilityNodeModal(index) {
     ['假设', (method?.assumptions || ['需绑定当前题面与数据']).join('；')],
     ['验证族', (method?.validation || ['结构检查 + 独立 clean-run']).join('；')],
     ['回退', (method?.fallback || ['退回透明 baseline 或 BLOCKED']).join('；')],
+    ['绑定技能', method ? `${(method.skill_refs || []).join('、') || '未绑定'} · ${method.skill_binding_status || '未核验'}` : 'workflow block · playbook contract'],
     ['来源层', method ? `${method.source_kind || 'curated/inferred'} · ${ (method.evidence_refs || []).join('、') }` : 'workflow block · playbook contract'],
   ];
   showModal(`能力卡 · ${source.title || node.block_id}`, `<p>这是可插拔候选，不是自动选模结论。任何字段进入论文前都要回到题面、参数来源和验证门。</p><div class="trace-modal-list">${rows.map(row => `<div class="trace-modal-row"><b>${escapeHTML(row[0])}</b><span>${escapeHTML(row[1])}</span></div>`).join('')}</div><p><span class="tag amber">${escapeHTML(capabilityState.assembly.validation?.valid ? '结构可审' : '待检查')}</span> <span class="tag violet">${escapeHTML(capabilityState.revision || 'UNVERIFIED')}</span></p>`);

@@ -1,0 +1,74 @@
+ {
+   "schema_version": "data-contract/v2",
+   "dataset_id": "demo-dataset",
+   "input_revision": "manifest:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+   "raw_assets": [
+     {
+       "path": "data/raw/demo.csv",
+       "sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+       "immutable": true,
+       "source_ref": "attachment:demo"
+     }
+   ],
+   "fields": [
+     {
+       "name": "time",
+       "role": "index",
+       "dtype": "datetime",
+       "unit": "UTC",
+       "time_grain": "day",
+       "spatial_grain": "none",
+       "source_ref": "attachment:demo#time",
+       "missing_policy": "quarantine",
+       "outlier_policy": "review",
+       "transform": "identity"
+     },
+     {
+       "name": "y",
+       "role": "response",
+       "dtype": "float",
+       "unit": "kg",
+       "time_grain": "day",
+       "spatial_grain": "site",
+       "source_ref": "attachment:demo#y",
+       "missing_policy": "median-within-train",
+       "outlier_policy": "robust-review",
+       "transform": "identity"
+     }
+   ],
+   "splits": {
+     "strategy": "blocked-time",
+     "train_refs": [
+       "data:train"
+     ],
+     "validation_refs": [
+       "data:validation"
+     ],
+     "test_refs": [
+       "data:test"
+     ],
+     "time_cutoff": "2025-01-01",
+     "group_key": "",
+     "leakage_checks": [
+       {
+         "id": "time-order",
+         "status": "PASS"
+       }
+     ]
+   },
+   "quality": {
+     "row_count_reconciliation": {
+       "status": "PASS"
+     },
+     "duplicate_check": {
+       "status": "PASS"
+     },
+     "range_checks": [],
+     "missing_report": {
+       "status": "PASS"
+     },
+     "anomaly_report": {
+       "status": "PASS"
+     }
+   }
+ }

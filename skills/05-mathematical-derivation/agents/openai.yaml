@@ -1,0 +1,6 @@
+ interface:
+   display_name: "数学推导链"
+   short_description: "组织定义、假设、方程、离散、结果与解释"
+   default_prompt: "Use $05-mathematical-derivation to build a reviewable derivation chain."
+ policy:
+   allow_implicit_invocation: true

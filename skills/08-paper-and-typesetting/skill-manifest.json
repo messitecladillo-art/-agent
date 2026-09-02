@@ -1,0 +1,55 @@
+ {
+   "schema_version": "skill-manifest/v2",
+   "id": "paper-and-typesetting",
+   "name": "论文结构与数学排版",
+   "version": "2.0.0",
+   "entrypoint": "skills/08-paper-and-typesetting/SKILL.md",
+   "phase": "writing",
+   "depends_on": [
+     "mathematical-derivation",
+     "validation-and-adversarial-review"
+   ],
+   "inputs": [
+     "derivation_map",
+     "validation_report",
+     "result_artifacts",
+     "profile"
+   ],
+   "outputs": [
+     "paper_contract",
+     "source_files",
+     "rendered_pdf",
+     "layout_report"
+   ],
+   "write_boundary": [
+     "paper/",
+     "artifacts/render/"
+   ],
+   "capabilities": [
+     "latex-compile",
+     "pdf-render-qa",
+     "formula-table-figure-audit"
+   ],
+   "references": [
+     "skills/references/paper-layout-profiles.md",
+     "skills/references/artifact-contracts.md",
+     "skills/references/cumcm-review-rubric.md"
+   ],
+   "scripts": [
+     "skills/08-paper-and-typesetting/scripts/audit_latex_math.py",
+     "skills/08-paper-and-typesetting/scripts/audit_paper_contract.py"
+   ],
+   "gates": [
+     "profile-confirmed",
+     "math-chain-readable",
+     "pdf-rendered-and-audited",
+     "coverage-complete"
+   ],
+   "source_ids": [
+     "src-template-national",
+     "src-template-mcm",
+     "src-layout-notes",
+     "src-exemplar-synthesis"
+   ],
+   "status": "ACTIVE"
+ }

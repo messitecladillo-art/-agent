@@ -1,0 +1,6 @@
+ interface:
+   display_name: "DIY数学建模拼图"
+   short_description: "自由装配方法块同时保留端口与证据硬门"
+   default_prompt: "Use $workflow-diy-puzzle to assemble and audit a custom route."
+ policy:
+   allow_implicit_invocation: true

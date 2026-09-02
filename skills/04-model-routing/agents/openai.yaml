@@ -1,0 +1,6 @@
+ interface:
+   display_name: "结构驱动模型路由"
+   short_description: "选择基线、主模型、备用模型并记录禁用条件"
+   default_prompt: "Use $04-model-routing to route methods from problem structure and evidence."
+ policy:
+   allow_implicit_invocation: true

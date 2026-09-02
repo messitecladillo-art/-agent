@@ -1,0 +1,25 @@
+ {
+   "schema_version": "workflow-assembly/v2",
+   "input_revision": "manifest:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "status": "DRAFT",
+   "nodes": [
+     {
+       "node_id": "a",
+       "block_id": "problem-decomposition",
+       "method_id": "question-tree-decomposition"
+     },
+     {
+       "node_id": "b",
+       "block_id": "writing",
+       "method_id": "derivation-first-outline"
+     }
+   ],
+   "edges": [
+     [
+       "a",
+       "missing",
+       "b",
+       "missing"
+     ]
+   ]
+ }

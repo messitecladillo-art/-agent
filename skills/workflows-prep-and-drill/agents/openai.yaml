@@ -1,0 +1,6 @@
+ interface:
+   display_name: "备赛训练与限时演练"
+   short_description: "把资料包转成训练周期、练习和复盘产物"
+   default_prompt: "Use $workflow-prep-and-drill to plan reproducible modelling drills."
+ policy:
+   allow_implicit_invocation: true

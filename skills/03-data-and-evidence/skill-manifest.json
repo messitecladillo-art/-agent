@@ -1,0 +1,52 @@
+ {
+   "schema_version": "skill-manifest/v2",
+   "id": "data-and-evidence",
+   "name": "数据与证据契约",
+   "version": "2.0.0",
+   "entrypoint": "skills/03-data-and-evidence/SKILL.md",
+   "phase": "evidence",
+   "depends_on": [
+     "scope-lock",
+     "question-decomposition"
+   ],
+   "inputs": [
+     "attachment_manifest",
+     "datasets",
+     "question_map"
+   ],
+   "outputs": [
+     "data_contract",
+     "variable_registry",
+     "split_spec",
+     "quality_report"
+   ],
+   "write_boundary": [
+     "artifacts/data-contract.json",
+     "data/processed/",
+     "data/quarantine/"
+   ],
+   "capabilities": [
+     "schema-audit",
+     "leakage-audit",
+     "data-quality"
+   ],
+   "references": [
+     "skills/references/artifact-contracts.md",
+     "skills/references/evidence-and-status.md"
+   ],
+   "scripts": [
+     "skills/03-data-and-evidence/scripts/validate_data_contract.py"
+   ],
+   "gates": [
+     "raw-immutable",
+     "units-and-provenance-complete",
+     "leakage-check-passed"
+   ],
+   "source_ids": [
+     "src-review-2021",
+     "src-review-2023",
+     "src-review-2020-docx",
+     "src-code-index"
+   ],
+   "status": "ACTIVE"
+ }

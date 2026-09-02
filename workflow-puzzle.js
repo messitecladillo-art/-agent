@@ -375,6 +375,11 @@
   function recommendedMethods(block) {
     const family = blockFamily(block);
     const methods = state.catalog?.methods || [];
+    // Prefer the typed port contract.  This keeps newer families such as
+    // evaluation, graph and metaheuristic visible in the correct puzzle slot
+    // without maintaining a second hand-written family allowlist here.
+    const compatible = methods.filter(method => methodMatches(method, block));
+    if (compatible.length) return compatible;
     const direct = methods.filter(method => text(method.family).toLowerCase() === family);
     if (direct.length) return direct;
     const fallbackFamilies = { problem: ['statistical'], baseline: ['statistical', 'ensemble'], contract: ['validation'], defense: ['writing'] };
@@ -495,6 +500,7 @@
         node('span', { text: `假设：${(detail.assumptions || []).join('；') || '待补'}` }),
         node('span', { text: `验证：${(detail.validation || []).join('；') || '结构检查 + clean-run'}` }),
         node('span', { text: `回退：${(detail.fallback || []).join('；') || '透明 baseline / BLOCKED' }` }),
+        node('span', { text: `绑定技能：${(detail.skill_refs || []).join('、') || '未绑定'} · ${detail.skill_binding_status || '未核验'}` }),
       ]);
       host.appendChild(detailBox);
     }

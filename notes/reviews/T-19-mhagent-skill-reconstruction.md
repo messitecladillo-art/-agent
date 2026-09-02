@@ -18,12 +18,12 @@
 ## 可复现命令
 
 ```text
-python skills/mhagent-evidence-reconstruction/scripts/validate_step_contract.py
-python -X utf8 <CODEX_SKILL_ROOT>/skill-creator/scripts/quick_validate.py skills/mhagent-evidence-reconstruction
-python -m json.tool skills/mhagent-evidence-reconstruction/references/step-contracts.json
+python skills/12-evidence-reconstruction/scripts/validate_step_contract.py
+python -X utf8 <CODEX_SKILL_ROOT>/skill-creator/scripts/quick_validate.py skills/12-evidence-reconstruction
+python -m json.tool skills/12-evidence-reconstruction/references/step-contracts.json
 node --check workflow-puzzle.js
 node --check app.js
-python -m compileall -q backend skills/mhagent-evidence-reconstruction/scripts
+python -m compileall -q backend skills/12-evidence-reconstruction/scripts
 python -m pytest backend -q --basetemp .pytest-tmp-t19-review
 git diff --check
 ```

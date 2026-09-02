@@ -1,0 +1,52 @@
+ {
+   "schema_version": "skill-manifest/v2",
+   "id": "validation-and-adversarial-review",
+   "name": "验证与对抗审查",
+   "version": "2.0.0",
+   "entrypoint": "skills/07-validation-and-adversarial-review/SKILL.md",
+   "phase": "review",
+   "depends_on": [
+     "solver-reproducibility"
+   ],
+   "inputs": [
+     "model_contract",
+     "run_manifest",
+     "results",
+     "assumption_registry"
+   ],
+   "outputs": [
+     "validation_report",
+     "red_team_report",
+     "sensitivity_report"
+   ],
+   "write_boundary": [
+     "experiments/",
+     "notes/reviews/",
+     "artifacts/validation/"
+   ],
+   "capabilities": [
+     "independent-check",
+     "sensitivity",
+     "counterexample-search"
+   ],
+   "references": [
+     "skills/references/cumcm-review-rubric.md",
+     "skills/references/evidence-and-status.md",
+     "skills/references/artifact-contracts.md"
+   ],
+   "scripts": [],
+   "gates": [
+     "feasibility",
+     "error-or-uncertainty",
+     "sensitivity",
+     "independent-reproduction-or-exception"
+   ],
+   "source_ids": [
+     "src-review-2019-docx",
+     "src-review-2020-docx",
+     "src-review-2021",
+     "src-review-2023",
+     "src-review-2024"
+   ],
+   "status": "ACTIVE"
+ }

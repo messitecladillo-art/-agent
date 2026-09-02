@@ -43,6 +43,9 @@ python -m uvicorn backend.app:app --host 127.0.0.1 --port 8787
 - `GET /api/projects/{project_id}/knowledge/context`（给模型适配器的 prompt-sized 资料包）
 - `GET /api/projects/{project_id}/knowledge/documents/{doc_id}`（来源预览）
 - `GET /api/projects/{project_id}/knowledge/documents/{doc_id}/file`（Owner 明确点击后打开白名单文件）
+- `GET /api/projects/{project_id}/skills/catalog`（Skill Registry v2，只读）
+- `GET /api/projects/{project_id}/skills/search?q=&limit=`（有界检索技能/工作流）
+- `GET /api/projects/{project_id}/skills/{skill_id}`（manifest + 有界入口预览）
 
 知识库默认读取 `C:\Users\zyy20\Desktop\数学建模资料全套包`，也可用环境变量
 `GAOJIAO_MATERIALS_ROOT` 指定根目录。原始资料不复制到仓库、不执行其中代码；索引只保留
@@ -94,4 +97,19 @@ catalog 仅扫描仓库白名单：`README.md`、`TASKS.md`、`AGENTS.md`、`app
 审批和外发授权。manifest 变化时旧上下文必须标记 stale，不能静默复用。
 
 当前实现是每次请求的进程内扫描，并非持久化 FTS/向量库；超大文件可能只返回
-metadata，语义检索、页级定位、OCR 和生产级 RBAC/签名 relay 尚未由该接口承诺。
+ metadata，语义检索、页级定位、OCR 和生产级 RBAC/签名 relay 尚未由该接口承诺。
+
+### Skill Registry v2
+
+`skills/registry.json` 是技能发现的唯一事实源。它登记 13 个核心技能和 3 条工作流，
+每项都带 `skill-manifest.json`、输入/输出、依赖、写集、来源 ID 和硬门。能力目录中的
+每张方法卡还返回 `skill_refs`、`skill_binding_status`，把“候选方法”绑定到负责路由、
+推导、求解、验证或发布的技能；绑定只说明程序入口，不证明该方法适合当前题目。
+
+注册表接口只读、只返回相对路径和不超过 500 字的入口预览，不执行 SKILL、脚本或资料盘
+代码。每次注册表或引用资源变化都会生成新的 `skill_registry_revision`；已有装配若引用
+旧 revision 必须标记 stale 并重新校验。仓库根目录的一键回归命令为：
+
+```powershell
+python -X utf8 skills/tests/run_regression.py
+```

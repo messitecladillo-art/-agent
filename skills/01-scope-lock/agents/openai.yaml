@@ -1,0 +1,6 @@
+ interface:
+   display_name: "赛事题面范围锁定"
+   short_description: "锁定届次、组别、题号、附件与当前规则"
+   default_prompt: "Use $01-scope-lock to freeze the contest profile and problem contract."
+ policy:
+   allow_implicit_invocation: true

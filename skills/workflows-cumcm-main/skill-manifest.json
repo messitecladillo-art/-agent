@@ -1,0 +1,50 @@
+ {
+   "schema_version": "skill-manifest/v2",
+   "id": "workflow-cumcm-main",
+   "name": "高教社杯固定主流程",
+   "version": "2.0.0",
+   "entrypoint": "skills/workflows-cumcm-main/SKILL.md",
+   "phase": "workflow",
+   "depends_on": [
+     "charter-and-safety",
+     "scope-lock",
+     "question-decomposition",
+     "data-and-evidence",
+     "model-routing",
+     "mathematical-derivation",
+     "solver-reproducibility",
+     "validation-and-adversarial-review",
+     "paper-and-typesetting",
+     "defense-and-release"
+   ],
+   "inputs": [
+     "problem_files",
+     "contest_profile"
+   ],
+   "outputs": [
+     "release_pack"
+   ],
+   "write_boundary": [
+     "artifacts/",
+     "paper/",
+     "experiments/"
+   ],
+   "capabilities": [
+     "fixed-workflow",
+     "stage-gates"
+   ],
+   "references": [
+     "skills/references/workflow-composition.md",
+     "skills/references/cumcm-review-rubric.md"
+   ],
+   "scripts": [],
+   "gates": [
+     "all-fixed-stage-gates"
+   ],
+   "source_ids": [
+     "src-review-2021",
+     "src-review-2023",
+     "src-template-national"
+   ],
+   "status": "ACTIVE"
+ }
