@@ -513,6 +513,27 @@ def stress_analysis(frame: pd.DataFrame, p: np.ndarray, seed: int, samples: int 
                     "total_positive_net": float(np.maximum(net, 0).sum()),
                 }
             )
+    # The declared ranges are monotone in the direction of risk: positive
+    # log-odds shocks increase p, while q and L increase benefit and C lowers
+    # it.  Therefore the exact worst corner is u=m=0, q=.25, L=1800,
+    # C=180.  LHS points alone cannot guarantee that this corner is sampled;
+    # include it explicitly before calling a set "robust".
+    worst_corner_probability = 1.0 / (1.0 + np.exp(-base_logit))
+    worst_corner_net = worst_corner_probability * 0.25 * 1800.0 - 180.0
+    robust_score = np.minimum(robust_score, worst_corner_net)
+    scenario_rows.append(
+        {
+            "scenario_id": "worst-corner",
+            "competitor_logit_intensity": 0.0,
+            "macro_logit_intensity": 0.0,
+            "success_rate": 0.25,
+            "cost": 180.0,
+            "loss": 1800.0,
+            "predicted_churn_rate": float(worst_corner_probability.mean()),
+            "positive_net_count": int((worst_corner_net > 0).sum()),
+            "total_positive_net": float(np.maximum(worst_corner_net, 0).sum()),
+        }
+    )
     robust_positive = robust_score > 0
     # Exact boundary search for the policy assumptions: when q falls below
     # C/(pL), an individually positive intervention becomes non-positive.
@@ -541,6 +562,13 @@ def stress_analysis(frame: pd.DataFrame, p: np.ndarray, seed: int, samples: int 
         "counterexample_boundary": {
             "worst_case_threshold": threshold_extreme,
             "interpretation": "在给定的最不利参数角点，p低于该值时不应自动干预；此为边界计算，不是市场事实。",
+        },
+        "exact_worst_corner": {
+            "included_in_robust_score": True,
+            "scenario_id": "worst-corner",
+            "positive_net_count": int((worst_corner_net > 0).sum()),
+            "total_positive_net": float(np.maximum(worst_corner_net, 0).sum()),
+            "reason": "单客净收益对正向logit冲击、q、L单调增加，对C单调减少；该角点是声明盒约束下的精确最坏角点。",
         },
     }
 

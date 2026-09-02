@@ -105,3 +105,11 @@
 - 实现：移除旧的 10 个 Markdown 入口及 2 个旧 Skill 目录；新增 13 个核心过程 Skill、3 个固定/DYI/备赛 workflow、`skill-registry/v2`、12 个来源账本、86 张方法卡绑定、数据/运行/拼图/重建/论文契约与审计器；后端提供目录、搜索、详情 API，并将 binding/revision/provenance 回显到能力目录和前端。
 - 验证：16 个入口通过 `quick_validate`；registry 严格校验通过（16 entries/13 skills/3 workflows/12 sources，依赖 DAG、路径边界、写边界、引用与哈希均通过）；正反例契约按预期通过/拒绝；LaTeX/论文、数据、运行、证据重建回归通过；Node 语法与 `git diff --check` 通过；完整回归脚本 `27/27` 检查通过，后端全量 `158 passed`。
 - 结论/下一步：当前状态 `READY_FOR_REVIEW`。旧追踪入口已删除，未追踪的 Python `__pycache__` 仅为忽略缓存，不属于 Skill；生产仍需真实模型 adapter、RBAC/签名 relay、持久化队列、语义索引与 Owner 发布审批。
+
+### 2026-09-03 · T-23 · 按资料驱动 Skill v2 重做校赛 B 题
+- 目的：将 T-22 新注册表、固定主流程和证据契约实际用于用户提供的电信客户流失题，独立于 T-21 旧汇总重新求解，并修复压力稳健性抽样遗漏角点的问题。
+- 配置/数据：DOCX SHA-256 c2049336b8ef6d85ba5d52fc943d9deb839e8a4a20d083807cc7b267a0c96c89；CSV SHA-256 7131cd7542bc248f090e26e1beb40d22b9e9f1ec32d8c8854d71377a94b8d858；gb18030、7043×21、seed=42/143/244/345/446；输入 revision manifest:f262819cfcab8f94d70ac27648b7bdde688d133867760acf47020b9418da7619；Skill revision skill:3d5f0dd4b8bbe91925aca161ff76bb5d5f847516108bcfa1cce91d99dce3bd4e。
+- 结果：全画像 Logistic 3×5 OOF ROC-AUC 0.8451197420（bootstrap 95% CI [0.8352758011,0.8550617514]），留出 AUC 0.8421710713；经济阈值 0.2142857143，选择 3281 人，期望净收益 628279.0393 元，独立算术差小于 3e-10 元；Q4 256 点 LHS 加精确最坏角点后稳健集合 2105 人、逐人下界和 182898.4390 元。
+- 证据：artifacts/runs/T-23-b-problem-v2/ 保存问题/数据/推导/路由/运行/验证/论文/装配契约和聚合图表；结果摘要 SHA-256 2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858；客户级风险表未入库。
+- 验证：data/run/paper/assembly/registry 五项 strict PASS；LaTeX 数学审计 PASS；XeLaTeX 双遍 exit 0、PDF 11 页 A4、11/11 页渲染检查；Skill regression 27/27，backend 158 passed，compileall 与 Node syntax 通过。
+- 结论/下一步：状态 READY_FOR_REVIEW。Q4 从仅采样得到的 2420 人修正为 2105 人，理由是声明盒约束下的精确单调最坏角点；官方模板/匿名/页数、时间回测、随机挽留实验和外部冲击数据仍未锁定。当前按 Owner 要求为 Codex solo，没有外部 Agent 同步或独立签字。

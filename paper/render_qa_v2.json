@@ -1,0 +1,37 @@
+{
+  "schema": "paper-render-qa/v2",
+  "source": "paper/b_problem_solution_v2.tex",
+  "pdf": {
+    "path": "paper/b_problem_solution_v2.pdf",
+    "sha256": "sha256:16ef068bfc0fa4139af8e0c47dde7e92476e40dc99e13192c61557b383d9f715",
+    "pages": 11,
+    "page_size_pt": [595.28, 841.89],
+    "paper_size": "A4"
+  },
+  "compile": {
+    "engine": "XeLaTeX",
+    "passes": 2,
+    "first_exit_code": 0,
+    "second_exit_code": 0,
+    "first_log_sha256": "sha256:565484c7241a9a1659bb8450b8b8ac554797f84868dba33e6eee060e55223b8c",
+    "second_log_sha256": "sha256:565484c7241a9a1659bb8450b8b8ac554797f84868dba33e6eee060e55223b8c"
+  },
+  "render": {
+    "tool": "pdftoppm",
+    "dpi": 120,
+    "rendered_pages": 11,
+    "page_pngs": "runtime/paper-v2-render/page-01.png ... page-11.png"
+  },
+  "visual_checks": [
+    {"id": "all-pages-present", "status": "VERIFIED", "observed": "11/11 page PNGs rendered"},
+    {"id": "page-size", "status": "VERIFIED", "observed": "all pages A4"},
+    {"id": "text-boundary", "status": "VERIFIED", "observed": "no overfull/underfull boxes in second pass; no clipped tables or figures in sampled full-page review"},
+    {"id": "figure-legibility", "status": "VERIFIED", "observed": "Q1 effect, Q2 calibration, Q3 policy, Q4 stress figures readable at 120 dpi"},
+    {"id": "cross-reference", "status": "VERIFIED", "observed": "second pass has no undefined references"}
+  ],
+  "source_docx_visual_check": {
+    "status": "PENDING",
+    "reason": "LibreOffice is unavailable in the current Windows environment; DOCX structure extraction passed, page rendering was not claimed."
+  },
+  "status": "VERIFIED"
+}
