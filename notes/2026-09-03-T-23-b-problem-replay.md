@@ -19,6 +19,8 @@
 | Skill Registry revision | skill:3d5f0dd4b8bbe91925aca161ff76bb5d5f847516108bcfa1cce91d99dce3bd4e |
 | 资料源 manifest | a3eb5ea717a45dee3b280afc506b37df3026e7142a9f3411e5bdafe3bc4306a |
 | 结果摘要 hash | sha256:2d961aee1e60267faf6e184eec7a02397a80c57ff6a63f70399f0bf7d54da858 |
+| 求解/论文代码 revision | ee9883392060644c5be12adb0357fd94560fde94 |
+| 证据包 revision | 5f32313（本笔记更新提交后以 git log 为准） |
 
 题面结构抽取到 Q1（群体与因素关系）、Q2（流失判定）、Q3（成本/成功率/损失下的挽留策略）、Q4（竞争和宏观冲击下的稳健性与动态调整）。DOCX 结构抽取通过（13 段、12 段非空、0 表格）；当前 Windows 环境没有 LibreOffice，因此题面页面级视觉检查标为 PENDING，没有把结构抽取冒充版式检查。
 
